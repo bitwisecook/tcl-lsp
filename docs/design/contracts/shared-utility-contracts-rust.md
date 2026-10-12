@@ -3850,3 +3850,18 @@ with genuine core, observer and storage setup. Physical C/Jim source joins
 bound the selected phases; they provide no matching native callback chronology
 or reference-count assertion outcome. Current source-only bindings do not
 attribute earlier owned-image results to these changed workers.
+
+The abstract metaclass bootstrap shares a release-selected Registry descriptor
+between the VM and Runtime. For C9, the actual initializer publishes a class
+whose object maker and class superclass are the foundation class, whose own
+constructor and destructor are absent, and whose class-side create,
+createWithNamespace and new declarations are unexported. VM bootstrap allocates
+the genuine class, object namespace and command; Runtime executes its existing
+factory/definition workers from the same initializer data. Compilation capture
+still requires the current actual command token, generation, object, class and
+namespace. This allocation receives no ordinary/configurable factory role from
+its reporting name or pure recipe; the existing factory descriptor remains
+independent. C86 has no selected abstract initializer. Other stock metaclass
+initializers, inherited method admission and complete bootstrap inventory are
+independent contracts. No native callback chronology or execution outcome is
+attached to this source contract.

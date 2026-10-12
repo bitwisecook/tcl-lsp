@@ -1032,11 +1032,15 @@ fn install_configurable(interp: &mut Interp) {
     // The 9.0 metaclasses are engine-installed on the registry's behalf too,
     // so the release gate hides them below their introducing release the way
     // it hides a builtin — real tclsh 8.6.16 has no `oo::configurable`.
-    for root in [
-        b"::oo::configurable".as_slice(),
-        b"::oo::singleton",
-        b"::oo::abstract",
-    ] {
+    let mut roots = vec![b"::oo::configurable".as_slice(), b"::oo::singleton"];
+    if let Some(recipe) =
+        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+            interp.native_invocation_dialect(),
+        )
+    {
+        roots.push(recipe.command().as_bytes());
+    }
+    for root in roots {
         let owner = match interp.oo_resolve_object_bytes(root) {
             Ok(object) => object,
             Err(error) => {
@@ -1056,10 +1060,9 @@ fn install_configurable(interp: &mut Interp) {
     // without them.
 }
 
-/// TIP-less foundation metaclasses created by `InitFoundation` in C
-/// (`tclOO.c`): `oo::singleton`, `oo::SingletonInstance`, and `oo::abstract`.
-/// `oo-1.21` introspects them, so they must exist in every fresh interp with
-/// the same class/superclass relationships the C core sets up.
+/// Foundation support bootstrap. The existing singleton workers retain
+/// their separate installation schedule; the abstract class consumes the
+/// release-selected C9 initializer from the shared Registry descriptor.
 fn install_abstract_singleton(interp: &mut Interp) {
     // `oo::singleton`: a metaclass (superclass oo::class) whose instances only
     // permit a single instance; it unexports `create`/`createWithNamespace`.
@@ -1070,12 +1073,15 @@ fn install_abstract_singleton(interp: &mut Interp) {
     // `oo::SingletonInstance`: a plain class (superclass oo::object) mixed into
     // singleton instances so they can't easily be destroyed or cloned.
     let _ = interp.eval_str(b"oo::class create ::oo::SingletonInstance {}");
-    // `oo::abstract`: a metaclass (superclass oo::class) whose instances can't
-    // be directly instantiated; it unexports `create`/`createWithNamespace`/`new`.
-    let _ = interp.eval_str(
-        b"oo::class create ::oo::abstract { superclass ::oo::class }\n\
-          oo::define ::oo::abstract unexport create createWithNamespace new",
-    );
+    // The shared release recipe describes the C9 class initializer only.
+    // The existing script workers still create and publish its genuine class.
+    if let Some(recipe) =
+        tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+            interp.native_invocation_dialect(),
+        )
+    {
+        let _ = interp.eval_str(recipe.initialization_script());
+    }
 }
 
 fn prop_define_class(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
@@ -11882,3 +11888,6 @@ mod original_namespace_copy_tests;
 
 #[path = "cmd_oo/variable_mapping.rs"]
 mod variable_mapping;
+
+#[cfg(test)]
+mod native_abstract_bootstrap_tests;

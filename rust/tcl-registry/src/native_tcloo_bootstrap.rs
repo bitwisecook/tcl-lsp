@@ -25,6 +25,76 @@ pub fn class_definition_self_returns_name(dialect: InvocationDialect) -> Option<
         .then_some(version >= TclVersion::V9_0)
 }
 
+/// Release-selected C initializer for the stock abstract metaclass.
+/// This pure recipe owns no live command, class, constructor or compiler role.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NativeAbstractClassBootstrap {
+    version: TclVersion,
+}
+
+impl NativeAbstractClassBootstrap {
+    /// Select the initializer installed by C Tcl's `MakeAdditionalClasses`.
+    /// The caller independently supplies its genuine engine release and owns
+    /// every actual allocation and publication performed from this recipe.
+    #[must_use]
+    pub fn select(dialect: InvocationDialect) -> Option<Self> {
+        let version = dialect.tcl_version?;
+        (dialect.family() == Some(Family::Tcl) && version >= TclVersion::V9_0)
+            .then_some(Self { version })
+    }
+
+    /// Exact C release selected by the caller's engine provenance.
+    #[must_use]
+    pub const fn version(self) -> TclVersion {
+        self.version
+    }
+
+    /// Public command published for this actual bootstrap class allocation.
+    #[must_use]
+    pub const fn command(self) -> &'static str {
+        "::oo::abstract"
+    }
+
+    /// Canonical root command path used by allocation reporting storage.
+    #[must_use]
+    pub const fn canonical_command(self) -> &'static str {
+        "oo::abstract"
+    }
+
+    /// Both its object maker and class superclass are the foundation class.
+    #[must_use]
+    pub const fn foundation_class(self) -> &'static str {
+        "::oo::class"
+    }
+
+    /// Class-side visibility declarations; the object-side maker stays public.
+    #[must_use]
+    pub const fn unexported_instance_methods(self) -> &'static [&'static str] {
+        &["create", "createWithNamespace", "new"]
+    }
+
+    /// The initialized class has no own constructor; inheritance is separate.
+    #[must_use]
+    pub const fn own_constructor_absent(self) -> bool {
+        true
+    }
+
+    /// The initialized class has no own destructor; inheritance is separate.
+    #[must_use]
+    pub const fn own_destructor_absent(self) -> bool {
+        true
+    }
+
+    /// Existing script-engine realization of the same initial class state.
+    /// Consumers still execute the actual factory/definition workers and retain
+    /// their real publication; this string grants no successful result.
+    #[must_use]
+    pub const fn initialization_script(self) -> &'static [u8] {
+        b"oo::class create ::oo::abstract { superclass ::oo::class }\n\
+          oo::define ::oo::abstract unexport create createWithNamespace new"
+    }
+}
+
 /// The intrinsic constructor selected on the original stock factory.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum NativeClassFactoryConstructor {
@@ -256,5 +326,32 @@ mod tests {
                     .is_none()
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod abstract_bootstrap_tests {
+    use super::*;
+
+    #[test]
+    fn original_abstract_bootstrap_recipe_is_c9_initial_state_without_live_factory_authority() {
+        // Implementation contract: naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6, TclVersion::V9_0, TclVersion::V9_1] {
+            let dialect = InvocationDialect::for_version(version);
+            let recipe = NativeAbstractClassBootstrap::select(dialect);
+            assert_eq!(recipe.is_some(), version >= TclVersion::V9_0);
+            if let Some(recipe) = recipe {
+                assert_eq!(recipe.version(), version);
+                assert_eq!(recipe.command(), "::oo::abstract");
+                assert_eq!(recipe.canonical_command(), "oo::abstract");
+                assert_eq!(recipe.foundation_class(), "::oo::class");
+                assert_eq!(recipe.unexported_instance_methods(), ["create", "createWithNamespace", "new"]);
+                assert!(recipe.own_constructor_absent() && recipe.own_destructor_absent());
+                assert!(recipe.initialization_script().starts_with(b"oo::class create "));
+            }
+            assert!(NativeClassFactoryRecipe::select("oo::abstract", dialect).is_none());
+        }
+        assert!(NativeAbstractClassBootstrap::select(InvocationDialect::of_profile(crate::model::resolve_environment("jim").unit_profile())).is_none());
     }
 }

@@ -93,6 +93,7 @@ pub(super) fn install(vm: &mut Vm) {
     let class_object = vm.oo.objects.get_mut(&class_root).unwrap();
     class_object.methods.insert(new.clone(), visibility);
     class_object.unexported.insert(new);
+    install_abstract_class(vm, class_root);
     install_configurable_support(
         vm,
         object_root,
@@ -101,6 +102,58 @@ pub(super) fn install(vm: &mut Vm) {
         class_ns,
         object_ns,
     );
+}
+
+fn install_abstract_class(vm: &mut Vm, class_root: OoId) {
+    let Some(recipe) = tcl_registry::native_tcloo_bootstrap::NativeAbstractClassBootstrap::select(
+        vm.actual_native_invocation_dialect(),
+    ) else {
+        return;
+    };
+    // This is an actual backend allocation and publication. The descriptor
+    // supplies only the original initial shape; capture still joins the real
+    // object/class/namespace and current command binding independently.
+    let abstract_class = vm.oo.allocate(recipe.canonical_command());
+    let mut class = Class {
+        supers: vec![class_root],
+        ..Class::default()
+    };
+    for name in recipe.unexported_instance_methods() {
+        let key = vm.oo.intern_method_key(NameBytes::from(*name));
+        let mut visibility = intrinsic(NativeOoIntrinsicMethod::Create, false);
+        visibility.intrinsic = None;
+        visibility.visibility_only = true;
+        class.methods.insert(key.clone(), visibility);
+        class.unexported.insert(key);
+    }
+    vm.oo.classes.insert(abstract_class, class);
+    let namespace = super::fresh_obj_name(vm);
+    let namespace_token = native_context::install_object_helpers(vm, &namespace);
+    vm.oo.objects.insert(
+        abstract_class,
+        Object {
+            cached_name: Rc::new(RefCell::new(None)),
+            class: class_root,
+            ns: namespace,
+            namespace_token: Some(namespace_token),
+            creation_id: abstract_class.0,
+            methods: native_method_cache::MethodTable::default(),
+            variables: Vec::new(),
+            private_variables: Vec::new(),
+            mixins: Vec::new(),
+            filters: Vec::new(),
+            exported: BTreeSet::new(),
+            unexported: BTreeSet::new(),
+            readable_properties: BTreeSet::new(),
+            writable_properties: BTreeSet::new(),
+            destroyed: false,
+        },
+    );
+    let key = vm.register_command(recipe.command(), Command::Object(abstract_class));
+    vm.oo
+        .command_keys
+        .insert(abstract_class, CommandSidecarKey::visible(key));
+    vm.declare_registry_object_root(recipe.command());
 }
 
 fn install_configurable_support(
@@ -305,3 +358,6 @@ pub(super) fn capture(vm: &Vm, entry: &NativeCompilationEntry) -> Option<NativeO
         classes,
     })
 }
+
+#[cfg(test)]
+mod abstract_tests;
