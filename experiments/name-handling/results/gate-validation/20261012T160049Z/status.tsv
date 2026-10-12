@@ -1,0 +1,9 @@
+command-backing-generate	0
+command-backing-check	1
+gen-ai-diagnostics-generate	0
+gen-ai-diagnostics-check	0
+owner-resolution	1
+owner-resolution-tests	101
+command-backing-tests	101
+gen-ai-tests	101
+registry-shipped-identity-test	0

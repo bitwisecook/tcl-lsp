@@ -49,6 +49,20 @@ The broad source snapshot was recorded after compilation while agents shared
 source; it does not prove stable compiler inputs. Later source edits do not
 inherit these executable outcomes.
 
+## Real Tcl 8.4 naming suites
+
+The [six-suite original 8.4 capture](runtime-c84-real-suites/20261012T151253Z/README.md)
+uses the frozen declared-cell runner with real matching init/Tcltest. C has
+579 passes, eight knownBug skips and no failures. Four runtime files complete
+with 270 passes, three skips and ten namespace assertion failures; var/proc/rename
+pass. Upvar stops at its first case on an original simple-cell refusal. Interp
+records 13 assertion failures before a nested-alias source-interpreter refusal
+at interp-11.4, with no complete runtime summary for either aborted file.
+
+These measurements certify their captured executable/input hashes, not later
+edits or another release. Per-suite questions, exact upstream source, raw streams
+and constraints are linked from the capture.
+
 ## Separate frozen subjects
 
 The remaining report retains historical measurements of commit

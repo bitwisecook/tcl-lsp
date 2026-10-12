@@ -169,8 +169,8 @@ ownership; use small jobs and update this snapshot before handoff.
 ## Active compact handoff
 
 - Published implementation/evidence checkpoint: `8f6e25e5d` on `work`.
-- Formatter verified 125 pending Rust files equal rustfmt of their exact HEAD
-  contents; this batch changes formatting only. Remaining pending Rust edits
+- Formatter verified 176 pending Rust files equal rustfmt of their exact HEAD
+  contents with each crate's edition; this batch changes formatting only. Remaining pending Rust edits
   require separate semantic review. Original oracle inputs/captures are unchanged.
 - Native source namespace advice: LSP agent traced the two packaged failures to
   compiler-owned source import/path/body inventory; actual server uses C 8.6 Native

@@ -1,0 +1,402 @@
+   Compiling syn v3.0.6
+   Compiling jobserver v0.1.35
+   Compiling cc v1.6.0
+   Compiling bitflags v2.13.2
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_core v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling ring v0.17.14
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling serde_derive v1.0.229
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling cmake v0.1.58
+   Compiling dunce v1.0.5
+   Compiling fs_extra v1.3.0
+   Compiling pkg-config v0.3.34
+   Compiling aws-lc-sys v0.45.0
+   Compiling serde v1.0.229
+   Compiling displaydoc v0.2.7
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling asn1-rs v0.7.2
+   Compiling serde_json v1.0.151
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling crc32fast v1.5.2
+   Compiling rustix v1.1.5
+   Compiling simd-adler32 v0.3.10
+   Compiling aws-lc-rs v1.18.1
+   Compiling der-parser v10.0.0
+   Compiling oid-registry v0.8.1
+   Compiling rustls-pki-types v1.15.1
+   Compiling log v0.4.34
+   Compiling adler2 v2.0.1
+   Compiling linux-raw-sys v0.12.1
+   Compiling miniz_oxide v0.9.1
+   Compiling x509-parser v0.18.1
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling httparse v1.10.1
+   Compiling zlib-rs v0.6.8
+   Compiling flate2 v1.1.10
+   Compiling rustls v0.23.45
+   Compiling http v1.5.0
+   Compiling rustls-webpki v0.103.15
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling winnow v1.0.4
+   Compiling utf8parse v0.2.2
+   Compiling once_cell v1.21.4
+   Compiling anstyle-parse v1.0.0
+   Compiling toml_parser v1.1.3+spec-1.1.0
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling ureq-proto v0.6.4
+   Compiling webpki-roots v1.0.9
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling serde_spanned v1.1.1
+   Compiling toml_datetime v1.1.1+spec-1.1.0
+   Compiling bumpalo v3.20.3
+   Compiling is_terminal_polyfill v1.70.2
+   Compiling colorchoice v1.0.5
+   Compiling toml_writer v1.1.2+spec-1.1.0
+   Compiling anstyle v1.0.14
+   Compiling utf8-zero v0.8.1
+   Compiling anstyle-query v1.1.5
+   Compiling proc-macro2 v1.0.107
+   Compiling anstream v1.0.0
+   Compiling ureq v3.4.2
+   Compiling toml v1.1.6+spec-1.1.0
+   Compiling zopfli v0.8.3
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling xattr v1.6.1
+   Compiling wait-timeout v0.2.1
+   Compiling filetime v0.2.29
+   Compiling typed-path v0.12.3
+   Compiling unicode-width v0.2.2
+   Compiling quote v1.0.47
+   Compiling fnv v1.0.7
+   Compiling papergrid v0.18.0
+   Compiling zip v8.6.0
+   Compiling tar v0.4.46
+   Compiling tcl-sandbox v0.1.0 (/workspace/tcl-lsp/rust/tcl-sandbox)
+   Compiling terminal_size v0.4.4
+   Compiling rtoolbox v0.0.6
+   Compiling socket2 v0.6.5
+   Compiling heck v0.5.0
+   Compiling clap_lex v1.1.1
+   Compiling anyhow v1.0.104
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+   Compiling openssl-probe v0.2.1
+   Compiling strsim v0.11.1
+   Compiling clap_builder v4.6.7
+   Compiling rustls-native-certs v0.8.4
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-spec-studio v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-studio)
+   Compiling clap_derive v4.6.7
+   Compiling dns-lookup v4.0.2
+   Compiling rpassword v7.5.4
+   Compiling tcl-pkg v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg)
+   Compiling tabled v0.22.0
+   Compiling unicode-xid v0.2.6
+   Compiling rustc_lexer v0.1.0
+   Compiling tcl-cli-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-cli-support)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling clap v4.6.7
+   Compiling cargo-config2 v0.1.45
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+warning: function `read_double` is never used
+   --> runtime/rust/src/bignum.rs:311:15
+    |
+311 | pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    |               ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `materialise_selected_array` is never used
+   --> runtime/rust/src/frame.rs:648:8
+    |
+587 | impl CellContents {
+    | ----------------- method in this implementation
+...
+648 |     fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: multiple methods are never used
+    --> runtime/rust/src/frame.rs:1083:19
+     |
+ 748 | impl VarTable {
+     | ------------- methods in this implementation
+...
+1083 |     pub(crate) fn set_array_default(&mut self, name: &[u8], obj: *mut TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^
+...
+1111 |     pub(crate) fn array_default(&self, name: &[u8]) -> Option<*mut TclObj> {
+     |                   ^^^^^^^^^^^^^
+...
+1116 |     pub(crate) fn unset_array_default(&mut self, name: &[u8]) {
+     |                   ^^^^^^^^^^^^^^^^^^^
+...
+1278 |     pub(crate) fn remove(&mut self, name: &[u8]) -> bool {
+     |                   ^^^^^^
+...
+1401 |     pub(crate) fn remove_elem(&mut self, name: &[u8], key: &[u8]) -> bool {
+     |                   ^^^^^^^^^^^
+...
+1483 |     pub(crate) fn is_array(&self, name: &[u8]) -> bool {
+     |                   ^^^^^^^^
+...
+1539 |     pub(crate) fn array_names(&self, name: &[u8]) -> Option<Vec<Vec<u8>>> {
+     |                   ^^^^^^^^^^^
+
+warning: method `remove_dictionary_element` is never used
+   --> runtime/rust/src/frame/container.rs:149:19
+    |
+ 15 | impl VarTable {
+    | ------------- method in this implementation
+...
+149 |     pub(super) fn remove_dictionary_element(&mut self, name: &[u8], key: &[u8]) -> bool {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `remove` is never used
+  --> runtime/rust/src/frame/native_element_entry.rs:68:19
+   |
+31 | impl NativeElementEntries {
+   | ------------------------- method in this implementation
+...
+68 |     pub(super) fn remove(&mut self, key: &[u8]) {
+   |                   ^^^^^^
+
+warning: method `new_binding` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:296:19
+    |
+222 | impl NativeElementAliasEntry {
+    | ---------------------------- method in this implementation
+...
+296 |     pub(crate) fn new_binding(&self) -> Rc<Self> {
+    |                   ^^^^^^^^^^^
+
+warning: method `retain_element_alias` is never used
+   --> runtime/rust/src/frame/native_element_entry.rs:452:19
+    |
+440 | impl super::RetainedArrayCell {
+    | ----------------------------- method in this implementation
+...
+452 |     pub(crate) fn retain_element_alias(&self, key: &[u8]) -> Option<Rc<NativeElementAliasEntry>> {
+    |                   ^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `retire_native_entry` and `retire_jim_key` are never used
+   --> runtime/rust/src/frame/native_variable_names.rs:92:19
+    |
+ 14 | impl VarTable {
+    | ------------- methods in this implementation
+...
+ 92 |     pub(super) fn retire_native_entry(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+112 |     pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: method `retain_original_compiled_alias` is never used
+   --> runtime/rust/src/frame/native_variable_names.rs:247:19
+    |
+154 | impl FrameStack {
+    | --------------- method in this implementation
+...
+247 |     pub(crate) fn retain_original_compiled_alias(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `new_owned_runtime_shim` is never used
+   --> runtime/rust/src/interp.rs:852:19
+    |
+795 | impl ObjCommand {
+    | --------------- associated function in this implementation
+...
+852 |     pub(crate) fn new_owned_runtime_shim(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `attested_identities`, `define_proc_storage`, `on_command_replaced`, and `set_c_error_code` are never used
+     --> runtime/rust/src/interp.rs:3322:8
+      |
+ 1883 | impl Interp {
+      | ----------- methods in this implementation
+...
+ 3322 |     fn attested_identities(
+      |        ^^^^^^^^^^^^^^^^^^^
+...
+ 4650 |     pub(crate) fn define_proc_storage(
+      |                   ^^^^^^^^^^^^^^^^^^^
+...
+ 5543 |     fn on_command_replaced(&mut self, fqn: &[u8]) {
+      |        ^^^^^^^^^^^^^^^^^^^
+...
+11102 |     pub(crate) fn set_c_error_code(&mut self, code: &[u8]) {
+      |                   ^^^^^^^^^^^^^^^^
+
+warning: field `original` is never read
+  --> runtime/rust/src/interp/native_error_variables.rs:22:5
+   |
+21 | struct NativeErrorObjectRetirement {
+   |        --------------------------- field in this struct
+22 |     original: obj::NativeObjectLifetime,
+   |     ^^^^^^^^
+
+warning: methods `retain_native_error_option`, `update_native_error_info`, and `native_private_error_object` are never used
+    --> runtime/rust/src/interp/native_error_variables.rs:638:19
+     |
+  71 | impl Interp {
+     | ----------- methods in this implementation
+...
+ 638 |     pub(crate) fn retain_native_error_option(&self, info: bool, original: *mut obj::TclObj) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+ 892 |     pub(crate) fn update_native_error_info(&mut self) {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^
+...
+1197 |     pub(crate) fn native_private_error_object(&self, info: bool) -> Option<obj::Owned> {
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `enter_engine_evaluation` is never used
+   --> runtime/rust/src/interp/native_operation_currency.rs:270:19
+    |
+227 | impl NativeOperationScope {
+    | ------------------------- associated function in this implementation
+...
+270 |     pub(crate) fn enter_engine_evaluation(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `link_original_compiled_namespace_variable` is never used
+    --> runtime/rust/src/interp/native_variable_names.rs:1016:19
+     |
+ 105 | impl Interp {
+     | ----------- method in this implementation
+...
+1016 |     pub(crate) fn link_original_compiled_namespace_variable(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: associated function `from_original_checked` is never used
+   --> runtime/rust/src/interp/native_error_headers.rs:131:19
+    |
+ 19 | impl NativeReturnOptions {
+    | ------------------------ associated function in this implementation
+...
+131 |     pub(super) fn from_original_checked(
+    |                   ^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `process_original_c_return_options` is never used
+   --> runtime/rust/src/interp/native_return_instruction.rs:330:19
+    |
+ 12 | impl Interp {
+    | ----------- method in this implementation
+...
+330 |     pub(crate) fn process_original_c_return_options(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `concatenate_native_lists` is never used
+    --> runtime/rust/src/list.rs:1289:15
+     |
+1289 | pub(crate) fn concatenate_native_lists(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `replace_elements_native_checked` is never used
+    --> runtime/rust/src/list.rs:1526:15
+     |
+1526 | pub(crate) fn replace_elements_native_checked(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: methods `restore`, `restore_with_original_key`, and `publish_rename_destination` are never used
+    --> runtime/rust/src/namespace.rs:2092:19
+     |
+ 525 | impl Namespaces {
+     | --------------- methods in this implementation
+...
+2092 |     pub(crate) fn restore(&mut self, name: &[u8], binding: CommandBinding) -> bool {
+     |                   ^^^^^^^
+...
+2096 |     pub(crate) fn restore_with_original_key(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+2162 |     pub(crate) fn publish_rename_destination(
+     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:1890:15
+     |
+1890 | pub(crate) fn install_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `prime_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:1936:15
+     |
+1936 | pub(crate) fn prime_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `install_unresolved_native_command_name_cache` is never used
+    --> runtime/rust/src/obj.rs:1978:15
+     |
+1978 | pub(crate) fn install_unresolved_native_command_name_cache(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retire` is never used
+   --> runtime/rust/src/obj/native_namespace_name.rs:128:15
+    |
+128 | pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
+    |               ^^^^^^
+
+warning: function `dispatch_prebuilt_argv` is never used
+   --> runtime/rust/src/state_traits.rs:854:15
+    |
+854 | pub(crate) fn dispatch_prebuilt_argv(
+    |               ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `native_wide_int` is never used
+   --> runtime/rust/src/typed_value.rs:743:15
+    |
+743 | pub(crate) fn native_wide_int(
+    |               ^^^^^^^^^^^^^^^
+
+warning: function `native_double` is never used
+   --> runtime/rust/src/typed_value.rs:754:15
+    |
+754 | pub(crate) fn native_double(
+    |               ^^^^^^^^^^^^^
+
+warning: function `original_indexed_link_target` is never used
+    --> runtime/rust/src/vars.rs:1006:15
+     |
+1006 | pub(crate) fn original_indexed_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `selected_namespace_link_target` is never used
+    --> runtime/rust/src/vars.rs:2637:15
+     |
+2637 | pub(crate) fn selected_namespace_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_variable_receiver_at` is never used
+    --> runtime/rust/src/vars.rs:2706:15
+     |
+2706 | pub(crate) fn capture_variable_receiver_at(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `finish` is never used
+    --> runtime/rust/src/vars.rs:3370:19
+     |
+3369 | impl OriginalArrayMemberPreparation {
+     | ----------------------------------- method in this implementation
+3370 |     pub(crate) fn finish(
+     |                   ^^^^^^
+
+warning: `tcl-runtime` (lib) generated 31 warnings
+   Compiling xtask v0.1.0 (/workspace/tcl-lsp/rust/xtask)
+    Finished `dev` profile [unoptimized] target(s) in 2m 42s
+     Running `tmp/name-target-issues/debug/xtask owner-resolution`
+owner-resolution: contract drift detected:
+  - array names bypasses shared original mode, pattern or key inventory ownership
+  - owner manifest row must have five columns: `| original literal-pool object effects | `rust/tcl-runtime-api/src/native_literal_observation.rs`; `rust/tcl-runtime-api/src/native_literal.rs`; `rust/tcl-compiler/src/command_binding/literal_object_pool.rs` | `NativeEmptyLiteralWorld`; `SourceStockLiteralObject` | authored fresh Tcl pool or an independently observed empty actual shared registration world, bound to the original interpreter, world, capture epoch and weak lifetime; every subsequent capture, registration attempt, acquisition, release or retirement invalidates the native observation before getters/owner changes; missing, populated, foreign or expired worlds refuse; source-root identity intersects on joins and unknown effects withdraw it without constructor recovery; the native observation permits only effect-only original literal capture for exact fresh publications, and supplies no stock class, numeric/container contents, child ownership, result, normal completion or compiler admission; stock literal and numeric consumers retain their independent authored requirements | VM and Runtime capture only their actual concrete shared world; source importer validates the original entry interpreter/epoch | none |`

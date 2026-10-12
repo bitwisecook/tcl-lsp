@@ -1,0 +1,193 @@
+{
+  "scope": "C Tcl 8.6.18 pre-init clock registrations and independent mutation epochs; frozen native runtime controls",
+  "compile_argv": [
+    "cc",
+    "-DHAVE_UNISTD_H=1",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/tmp/name-clock-bootstrap-epoch-c86"
+  ],
+  "compile_exit_code": 0,
+  "source_sha256": {
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/probe.c": "0d43a3c8e79f41b74e9a3343bb9e98b08eeab3ba2955b9d68b9b42c0db04bc1c",
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/run.py": "534110ff9b54160d354247eb16946e6a06aa8d0bee2dcd8a424ee9deeb4fa56f",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEnsemble.c": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/runtime/rust/src/cmd_clock.rs": "f09d54a253f30b516a9d9b46a9b6f6d7ec287982e68102b05e826665e8197cdb",
+    "/workspace/tcl-lsp/runtime/rust/src/interp/native_compilation.rs": "a6a2863425472d72361cf1f806b8e5e53df338701acc9f77fa9b3fbd53db6d64",
+    "/workspace/tcl-lsp/runtime/rust/src/interp/native_body_artifact.rs": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+    "/workspace/tcl-lsp/runtime/rust/src/namespace.rs": "782727b73ef81684ca51710f98ca57c0195b9551ce650c9aa7fd99d02ff94ab2",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/commands/tcl/clock_.rs": "6d02ac80ec718004ee5d421f718788659985d2dc8921c40bc6e8006413eff77c",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/native_procedure.rs": "f60fb6e65b2d19b0eebf07d3964637ffdcd05d8fcd6d514500db3cb4c680cd45",
+    "/workspace/tcl-lsp/rust/tcl-registry/src/registry.rs": "1de8aafe803a4ca72bdd3374c6348938f1e75ec4f9c7b2501127e6e27de17024"
+  },
+  "runs": [
+    {
+      "case": "c-fresh",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::fresh"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-add",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::tcl::clock::add"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-format",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::tcl::clock::format"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-scan",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::tcl::clock::scan"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-seconds",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::tcl::clock::seconds"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-getenv",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "::tcl::clock::getenv"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-init",
+      "argv": [
+        "/tmp/name-clock-bootstrap-epoch-c86",
+        "init"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "178a94935b9f964f46b7949ade2992f47827cbd83f43511befdb62742cb09e48",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-replacement",
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/replacement-input.tcl"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/replacement-input.tcl",
+      "input_sha256": "7f14d5b96c152585c582d42c6f8c20abdd5422d5990e5c93a41520873b5c4d98",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-fresh",
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/fresh-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/fresh-input.tcl",
+      "input_sha256": "5e5bda4682af096caf7b606096fe1e7018e25feaf9ec4a298550942ee2adea44",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-inventory",
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/inventory-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/inventory-input.tcl",
+      "input_sha256": "740d4070eee899036e928ef235335ec7721c9cebc5673f8a602b72d77eac2753",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-startup",
+      "argv": [
+        "/tmp/name-native-c84-declared-cell-runner",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "binary_sha256": "571dcc78f4b0b7f4e21f2850bceca2d61813440718a63d7cb01da751f752c473",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl",
+      "input_sha256": "4acce5d2a860f41d7695ecdac170a9783694d1c1cf9a139b408fc0231a319093",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    }
+  ]
+}
