@@ -1,0 +1,17 @@
+{
+  "mode": "applied after root explicit approval; 3 exact wording fields / 1 record / 1 canonical page",
+  "review": "unicode-meaning-review.json",
+  "record_id": "naming.source.original-declared-command-word-contract",
+  "manifest_before_sha256": "43448b1d0f28c5fea0b789b694d81ca128eac36a7dd2618e12770c871b1dbe6e",
+  "manifest_after_sha256": "026e00ef9377aedfe6631a506de1b24a5a3fb5c9acbb664a06a359fada234cc5",
+  "records_before_after": 2606,
+  "all2606_record_objects_identical_after_inverse3_wording_fields": true,
+  "all_provider_oracle_evidence_hashes_test_statuses_and_other_fields_preserved": true,
+  "page": "docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md",
+  "page_before_sha256": "d3890b15deee44d9a87418d72f07e829507692f35d7ee5eaa6f7ca9005e601ac",
+  "page_after_sha256": "52b0f4087244f8de9e2c77aa75ec25f1874049b5c23bb53a3d620808c206c75f",
+  "page_change_only_3_exact_approved_text_replacements": true,
+  "source_sha256_unchanged": "4f5051bd55271c2c04474edd7378c50f98f0b0b04a2a5aec2ecf074464f10594",
+  "renderer_sha256": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+  "execution": "Existing tests not rerun; no Rust/Cargo/native execution, full checker, source edit, new oracle claim or Git mutation."
+}
