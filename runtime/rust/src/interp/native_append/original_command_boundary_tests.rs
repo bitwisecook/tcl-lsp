@@ -19,6 +19,7 @@
 //! Actual ordinary append Name/frame and selected source stages.
 use super::*;
 use crate::cmd_control::original_list_conversion_tests as fixture;
+use crate::obj;
 use std::cell::Cell;
 thread_local! {
     static MODE: Cell<u8> = const { Cell::new(0) };
