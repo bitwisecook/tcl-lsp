@@ -1217,28 +1217,43 @@ impl Namespaces {
             })
     }
 
-    /// Clone a live worker only after its actual node placement is checked.
-    pub(crate) fn native_command_at_node(&self, generation: u64) -> Option<(Command, Vec<u8>)> {
-        if let Some((ns, name)) = self.jim_previous_locations.get(&generation) {
-            if let Some(binding) = self
-                .jim_previous_commands
-                .values()
-                .find(|binding| binding.generation == generation)
-            {
-                return Some((binding.command.clone(), self.command_fqn(*ns, name)));
-            }
-        }
+    /// Borrow Jim's independently retained active worker location.
+    fn retained_jim_command_at_node(&self, generation: u64) -> Option<(&Command, NsId, &[u8])> {
+        let (namespace, simple) = self.jim_previous_locations.get(&generation)?;
+        let binding = self
+            .jim_previous_commands
+            .values()
+            .find(|binding| binding.generation == generation)?;
+        Some((&binding.command, *namespace, simple))
+    }
+
+    /// Project the actual current node placement without imposing callable ownership.
+    fn native_command_at_node_using<T>(
+        &self,
+        generation: u64,
+        project: impl Fn(&Command, NsId, &[u8]) -> T,
+    ) -> Option<T> {
         let node = self.native_command_nodes.get(&generation)?;
         let (ns, simple) = node.placement.as_ref()?;
         (self.arena[*ns].commands.generation(simple) == Some(generation)).then(|| {
-            (
+            project(
                 self.arena[*ns]
                     .commands
                     .get(simple)
-                    .expect("matching generation has a command")
-                    .clone(),
-                self.command_fqn(*ns, simple),
+                    .expect("matching generation has a command"),
+                *ns,
+                simple,
             )
+        })
+    }
+
+    /// Clone a live worker only after its actual node placement is checked.
+    pub(crate) fn native_command_at_node(&self, generation: u64) -> Option<(Command, Vec<u8>)> {
+        if let Some((command, namespace, simple)) = self.retained_jim_command_at_node(generation) {
+            return Some((command.clone(), self.command_fqn(namespace, simple)));
+        }
+        self.native_command_at_node_using(generation, |command, namespace, simple| {
+            (command.clone(), self.command_fqn(namespace, simple))
         })
     }
 
@@ -2084,9 +2099,24 @@ impl Namespaces {
         binding: CommandBinding,
         original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
     ) -> bool {
+        self.restore_with_original_key_checked(name, binding, original_jim_key)
+            .is_ok()
+    }
+
+    /// Return unpublished original owners so checked callers retire outside the table borrow.
+    pub(crate) fn restore_with_original_key_checked(
+        &mut self,
+        name: &[u8],
+        binding: CommandBinding,
+        original_jim_key: Option<std::rc::Rc<crate::obj::Owned>>,
+    ) -> Result<(), RetiredCommandSlot> {
         let segments = split_qualifier(name);
         let Some((simple, ns_parts)) = segments.split_last() else {
-            return false;
+            return Err(RetiredCommandSlot {
+                procedure: None,
+                original_jim_key,
+                binding: Some(binding),
+            });
         };
         let mut ns = GLOBAL;
         for part in ns_parts {
@@ -2101,7 +2131,7 @@ impl Namespaces {
         );
         self.insert_moved_binding(ns, (*simple).to_vec(), binding, original_jim_key);
         self.invalidate_native_command_lookup(ns);
-        true
+        Ok(())
     }
 
     /// Publish the destination half of `rename old new` — both names resolved
@@ -3118,19 +3148,51 @@ impl Namespaces {
         self.arena[ns].commands.generation(&simple)
     }
 
-    /// Resolve an interpreter-unique command generation in any visible or
-    /// retained namespace table, including its current Tcl-facing location.
-    pub(crate) fn command_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
-        if let Some((command, name)) = self.native_command_at_node(generation) {
-            return Some((name, command));
+    /// Share actual node and retained-table traversal across result projections.
+    fn command_by_generation_using<T>(
+        &self,
+        generation: u64,
+        native_project: impl Fn(&Command, NsId, &[u8]) -> T,
+        table_project: impl Fn(&Command, NsId, &[u8]) -> T,
+    ) -> Option<T> {
+        if let Some(selected) = self.native_command_at_node_using(generation, native_project) {
+            return Some(selected);
         }
         self.arena.iter().enumerate().find_map(|(ns, node)| {
             node.commands.entries.iter().find_map(|(name, slot)| {
                 let binding = slot.binding.as_ref()?;
                 (binding.generation == generation)
-                    .then(|| (self.command_fqn(ns, name), binding.command.clone()))
+                    .then(|| table_project(&binding.command, ns, name))
             })
         })
+    }
+
+    /// Resolve an interpreter-unique command generation in any visible or
+    /// retained namespace table, including its current Tcl-facing location.
+    pub(crate) fn command_by_generation(&self, generation: u64) -> Option<(Vec<u8>, Command)> {
+        if let Some((command, namespace, simple)) = self.retained_jim_command_at_node(generation) {
+            let command = command.clone();
+            return Some((self.command_fqn(namespace, simple), command));
+        }
+        self.command_by_generation_using(
+            generation,
+            |command, namespace, simple| {
+                let command = command.clone();
+                (self.command_fqn(namespace, simple), command)
+            },
+            |command, namespace, simple| {
+                (self.command_fqn(namespace, simple), command.clone())
+            },
+        )
+    }
+
+    /// Report the same generation's actual location without retaining its callable.
+    pub(crate) fn command_fqn_by_generation(&self, generation: u64) -> Option<Vec<u8>> {
+        self.command_by_generation_using(
+            generation,
+            |_, namespace, simple| self.command_fqn(namespace, simple),
+            |_, namespace, simple| self.command_fqn(namespace, simple),
+        )
     }
 
     /// Every command generation currently resident in a visible or retained
@@ -3716,6 +3778,62 @@ mod tests {
     }
     fn is_some(c: Option<Command>) -> bool {
         c.is_some()
+    }
+
+    #[test]
+    fn generation_location_projects_actual_constructed_slots_and_declines_replacement() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Fixed table-owner control; no Native namespace or callback timing is asserted.
+        let mut namespaces = Namespaces::new();
+        let holder = namespaces.ensure_namespace(GLOBAL, b":");
+        namespaces.bind(holder, b":run", cmd());
+        let original = namespaces.command_generation(holder, b":run").unwrap();
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original).as_deref(),
+            Some(b"::::::run".as_slice()),
+        );
+        let moved = namespaces.take(holder, b":run").unwrap();
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert!(namespaces.restore(b"other::moved", moved));
+        let owned = namespaces.command_by_generation(original).unwrap();
+        assert_eq!(owned.0, b"::other::moved");
+        assert_eq!(namespaces.command_fqn_by_generation(original), Some(owned.0));
+        namespaces.register(b"other::moved", cmd());
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert!(namespaces.command_by_generation(original).is_none());
+        let replacement = namespaces.resolve_generation(GLOBAL, b"other::moved").unwrap();
+        assert_ne!(replacement, original);
+        assert_eq!(
+            namespaces.command_fqn_by_generation(replacement).as_deref(),
+            Some(b"::other::moved".as_slice()),
+        );
+    }
+
+    #[test]
+    fn generation_publication_projection_excludes_the_actual_saved_jim_previous_worker() {
+        // naming.embedding.original-host-publication-and-fact-transport
+        // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+        // Real previous-edge and restoration workers; this is a software ownership control.
+        let mut namespaces = Namespaces::new();
+        namespaces.bind(GLOBAL, b"kept", cmd());
+        let original = namespaces.command_generation(GLOBAL, b"kept").unwrap();
+        let entry = namespaces.native_command_creation_entry(GLOBAL, b"kept");
+        let top = namespaces.bind_jim_local(entry, b"kept", cmd());
+        assert_ne!(original, top);
+        assert_eq!(namespaces.native_command_at_node(original).unwrap().1, b"::kept");
+        assert_eq!(namespaces.command_by_generation(original).unwrap().0, b"::kept");
+        assert!(namespaces.command_fqn_by_generation(original).is_none());
+        assert_eq!(
+            namespaces.command_fqn_by_generation(top).as_deref(),
+            Some(b"::kept".as_slice()),
+        );
+        namespaces.clean_jim_local_key(b"kept");
+        assert_eq!(
+            namespaces.command_fqn_by_generation(original).as_deref(),
+            Some(b"::kept".as_slice()),
+        );
+        assert!(namespaces.command_fqn_by_generation(top).is_none());
     }
 
     #[test]

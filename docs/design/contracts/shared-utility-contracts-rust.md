@@ -728,6 +728,20 @@ authoritative. Native numeric parsing does not grant string-updater authority.
   boundaries and actual interpreter/namespace incarnation independently. Written
   source operands still use the selected written-name grammar; rendering a native
   slot supplies neither those operands nor a globally callable spelling receipt.
+- Runtime command-generation queries share the actual current node and
+  resident-table traversal. The callable query retains its independent Jim
+  previous-worker observation and existing clone order; the FQN-only query
+  reports current resident placement without acquiring callable or Native
+  reference holds. Hidden-command exposure settles its existing mandatory
+  cleanup under the same entered operation before joining that generation's
+  actual placement. Trace/import labels follow the surviving original token;
+  a callback-created replacement or retired token supplies no publication name.
+  Requested spelling and namespace display never reconstruct a missing slot.
+  The same restore kernel returns an unpublished original key/binding bundle to
+  checked callers for mandatory cleanup outside the table borrow. Neutral bool
+  callers retain their existing drop order. Publication refusal is retained
+  before original incoming owners or the held ensemble token retire; same-scope
+  checks carry that complete first cause through the existing cleanup workers.
 - `written_separator_extent` derives the final complete separator run from
   `qualifier_component_extents`; `written_command_tail` shares that boundary.
   Core neutral qualifiers/tail and Registry counted qualifier/fold adapters use
