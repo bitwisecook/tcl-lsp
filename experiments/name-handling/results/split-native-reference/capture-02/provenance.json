@@ -1,0 +1,2200 @@
+{
+  "source_and_binary_before": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c": "4ac4b5309e0f4fb2773a9ea6ae105360c58542b135abeb59e592e0d9acfaa497",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture.py": "a605784462df58ed96e96eddccb5e47ef0f71a40604d91408ef9db62678b0d2b",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/cases.json": "b2cf6609d1a1371e082723aa5e325d891125e36001453039d33a8fc5777cc7a7",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh.c": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/utf8.c": "905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimautoconf.h": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+    "/workspace/tcl-lsp/rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/native_tcl_utf.rs": "37a70761fba973bdc6fd3805bef6832d74f768722a23b440297f503309eb765b",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/value.rs": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtf.c": "ddef5409a1278d84f479f8b0c9c11dd8d348bfbdcc4db15941d4d7e2e1a2bbcb",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtf.c": "3352c62e891cff1d131260183af69bd2c2334e1014bfe2874c25722be871b580",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtf.c": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtf.c": "1574311b441c745dac0c1cc4f0e4ca0e7cbc09b86261d463a62d9ee3e317027c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "0dfd7f37e596ed66814bc8bdeae3b8edfcd8459b239f7755543cb56aac9bcded",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtf.c": "f388adf112e56d3d07bd86b6878e73a1f8c56a2d751f2bb5d860d3464f4db265",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "49ac8e3b49ea4339709ea04590a54be8996f88e3619e0fd5e59a47f131873d65"
+  },
+  "source_and_binary_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c": "4ac4b5309e0f4fb2773a9ea6ae105360c58542b135abeb59e592e0d9acfaa497",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture.py": "a605784462df58ed96e96eddccb5e47ef0f71a40604d91408ef9db62678b0d2b",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/cases.json": "b2cf6609d1a1371e082723aa5e325d891125e36001453039d33a8fc5777cc7a7",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jim.c": "fe5e3bea157b898e91e6c8e50c8f9eb0e89a6aba8c6a26b5d4b7b2b03cba3867",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh.c": "a0db99e0d9d562dbbc7ed97813669e6039547548c7e9612a1dc5503b6860668c",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/utf8.c": "905a2ffed3671332e014f5964560c98462cd45483f5f1b9bdfd03109e0ddf526",
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimautoconf.h": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+    "/workspace/tcl-lsp/rust/tcl-test-support/jim-reference.txt": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/native_tcl_utf.rs": "37a70761fba973bdc6fd3805bef6832d74f768722a23b440297f503309eb765b",
+    "/workspace/tcl-lsp/rust/tcl-syntax/src/value.rs": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "/workspace/tcl-lsp/rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclCmdMZ.c": "b374cf4353b86235b189d432239a1eedf8e854eab266b701e9d9625b969d27dc",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/generic/tclUtf.c": "ddef5409a1278d84f479f8b0c9c11dd8d348bfbdcc4db15941d4d7e2e1a2bbcb",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/library/init.tcl": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a": "d71ed42efd90354cdc99f73ba39b30e2cdedda463768a7fd025114b50db60011",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclCmdMZ.c": "fe2c67a2097ece2e07d9345a5edf416b5fbc891276349e360f9c25da1cc8f348",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/generic/tclUtf.c": "3352c62e891cff1d131260183af69bd2c2334e1014bfe2874c25722be871b580",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/library/init.tcl": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a": "99e0d524e54498713498e43d6cf80fa085471913cb38a53b505e18c0469417df",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclCmdMZ.c": "c2fe2deb95449c94c2719dca830d4e57ec4a436741199da39122d772888e849e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclUtf.c": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclCmdMZ.c": "080e201d1a09760aad4fedd9835e2091fd663d405d32d034f32dd0918d9006cc",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclUtf.c": "1574311b441c745dac0c1cc4f0e4ca0e7cbc09b86261d463a62d9ee3e317027c",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "0dfd7f37e596ed66814bc8bdeae3b8edfcd8459b239f7755543cb56aac9bcded",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclCmdMZ.c": "62be408d1faa29a35d3e30eacc4986fd9f1a973f7efcd474b3a2a9082ded512f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclUtf.c": "f388adf112e56d3d07bd86b6878e73a1f8c56a2d751f2bb5d860d3464f4db265",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "49ac8e3b49ea4339709ea04590a54be8996f88e3619e0fd5e59a47f131873d65"
+  },
+  "binary_hashes": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20": "48d8e0f01e475ffebc10133a5b6c11a655ea80e66fde7716c884f9658feef599",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19": "d9f065593d114368635c2bf958cb55b1ed308072000760aee5c0f398c6092eec",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18": "bb446fe17ca800923c8f2fcc15105322f3d3716a82646b8cbf0e2a4d6d204d73",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4": "2dc5f90626507de1842b9d53cf73c96ea43ba5ccfbfd5ab308988e80622f921f",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0": "b5f95cfc907739ec2946a97e271ad89f852484a6f50ee4dc5510d97dfa9f81ff"
+  },
+  "inputs": {
+    "ascii-default.tcl": "5bee51fb2b677068d6927a588465a069c54ca4a6c64433b712b0911d84ab8b13",
+    "ascii-single.tcl": "5e944c4889877b87d2c1c8c0772e291e318ff1efa2efce62350f7ea6049448ee",
+    "ascii-duplicate.tcl": "e2e41e033883247c5abd486483cebd64b31c8b08ce640c32cc2024c701da5c2e",
+    "empty-input.tcl": "763e7c47712e88ae0be9aec4c025c4a6aac957e92fd300c4daa32897db99d4f6",
+    "empty-delimiter-reuse.tcl": "37369ab5b85f09883a069723519d9df77ac0376d378beb58d27154a9c0325393",
+    "literal-nul-single.tcl": "939bea4ebab21769fb2571f08248d489d63577356627da25c868e1e44c35779b",
+    "literal-nul-duplicate.tcl": "3faf129a316264a8048d37a303509b45f070201c066f460d7513fa48e9cb1d66",
+    "encoded-nul-delimiter.tcl": "90ca950e5427ea86f6659702c11409a3cd376163eacf016852e610b43815d9ce",
+    "binary-nul-delimiter.tcl": "8c9f0ff39aa3e403fccdaa4aa181499eb88b1d553dbff6aafe8eb87a12cc170a",
+    "nonbmp-empty.tcl": "46cecc280014e84ee84b1cf4868740f02c2524789b9734f599f9f7ee97733c53",
+    "nonbmp-delimiter.tcl": "fa43a24d6e1a213269b0206af46acad585b8c6245cb9df41b6785bf17a02032b",
+    "surrogate-pair-empty.tcl": "ba8360b3fd2d0d3f4f8cecf2ed0284bb81292e50dd5b0c8f8d7e9d31f10912f7",
+    "lone-surrogate-delimiter.tcl": "0fca030423f57f5296f90f5ae73f0fbe11fccefcde990866ce84fb00c6b4aa0e",
+    "invalid-ff-delimiter.tcl": "018e5c50459dfc5c2fbe4f0476679654511074cec5e736308564924b8b8914d1",
+    "truncated-empty.tcl": "fed5f38bcc99b5a7b569ec6c929533c8a565425261861b58bfa316fc6a65fe32",
+    "encoded-nul-empty.tcl": "4a37ba4ba05ebf102e3c9ca79a9ce72db22636d3a84fb0f97fdb1193b570a7f8",
+    "invalid-delimiter-only.tcl": "6b906b1a190bb936d17cebbfdf646ac39bc9f998564e753d90ba977523ee4692",
+    "empty-input-invalid-delimiter.tcl": "769c7492b9cb271394ce40b24f7e0387c2a6ecfd4c52f87181ec844c633fa449"
+  },
+  "records": [
+    {
+      "name": "8.4.20/compile",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.4.20/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/libtcl8.4.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.115,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/compile",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.5.19/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/libtcl8.5.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.115,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/compile",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c",
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.118,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/compile",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.114,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/compile",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/control.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.114,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "cd47fcaa1cb5c7ff0ee1cd260ee192f46648c4ddb90f7508994b6bccfd4db4c8",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "3c63d5cb09cfdae9df30464d7fd0f8c6d9d4fff41b74ca35ea4c6450c716d08c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "b0b0d76837d8809b8a4bfc66ea3ab42a5a364d0bb04d413ddf155494e1ffdb1e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "3fab855727aec198e4cd8520475baaaee3ad0684168891f53a070cd46fccdcde",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "adabd03020c8b7232efcb0ebbae4100a4bc0739e6c3f16214fc80c2ca4d9a535",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "06ae3fccb5c646119078a8d3c63d679cb8465cc1691dcbf16ab6a0afcb037e57",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.568,
+      "stdout_sha256": "55b3f103c7269e3c015813da49a4169b8999cdfe3264f1d253de9bd7994dd589",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "899e7131d674c3d4d6cb166b6fa344501bdfeb94574865387f4ceb9f49cb64ed",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "5323b35d3c85db6472f69f104dbb81a87611f24d6a4e94037779dd8842d6eb90",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "05ec2421b1bd9869154467964e7ff7f60d7b862da92e462cfc34b8578c6ce40c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "adf32090f048242b5890d3c2fa4d45b926aaa90636cd3508752eda7275d4014c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "bdafd69ec120a61de7a9003bcb7d1fa41b02f10eb5cc3c3bb071e6ccc6268e03",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "d004bb1b49f738443c8e5155c737eb2cbdece9308cbfdfedb0f68d70618640a0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.521,
+      "stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "899e7131d674c3d4d6cb166b6fa344501bdfeb94574865387f4ceb9f49cb64ed",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "5323b35d3c85db6472f69f104dbb81a87611f24d6a4e94037779dd8842d6eb90",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "05ec2421b1bd9869154467964e7ff7f60d7b862da92e462cfc34b8578c6ce40c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "adf32090f048242b5890d3c2fa4d45b926aaa90636cd3508752eda7275d4014c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "bdafd69ec120a61de7a9003bcb7d1fa41b02f10eb5cc3c3bb071e6ccc6268e03",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "d004bb1b49f738443c8e5155c737eb2cbdece9308cbfdfedb0f68d70618640a0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.418,
+      "stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "6719e8e45a36d3cc5802eba5b7c8c674ba9acef440d39a382f96ddc4ba6fa50f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "65912f46df2254c3af3dfa48f0f31ab977775bf2a9fe71e31f61427234fd9ac3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "099632ee89d6391db9a80fe5ce7a8f9c8bb28efef108169af59795197a39408e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "85dc80415da3b683d2d668fd5118e8390c1b88a31d41075aeed01cf80d5ddecd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "c0d9a429cdb90ec4cf469b50440841a1269106da9340a4577e35fa033ee6b30c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "97deaa53c683372192aad29695c79fbfcfa9414ef152565b3d5dd53f77d7c821",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.468,
+      "stdout_sha256": "7eb0117ba7e75a829c71d4a63cfbd5610ca3d55d7b4e3d43ec9fc382ad436e4e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "5e3eb00b0f6a94293788f6908bf30eae3ad695710b6545c288ae6e08b2577d3e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "a46570a8a2d7a95587085c09a357e57410ec735bd3b57655c12f28dd33af63c2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "918b7986277f7834008aa414659daa418a51818be8ab8ec52429ca977b0c8a05",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "30e528c821f043d3817d431cff946ec698c621853c3cdd9243fa7aa0a5670e1c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "449ca492a42845cc15f144d0a6787a55b36c1c2640727e3b64b567e6e3801a3c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "7c4b1d414249bee59e2100a49f2969f70f60d9fc75c9cb87c606d4a6bd40efc0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.318,
+      "stdout_sha256": "2ae694755a58e5cbd36e4e02ba74b19ba9acd6a2d34cffa52b17e51c8a21f26e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "2dce68b58b5af41aea12d811bc16dc2f524582fefdcdbbe7dde3d12c33fcb330",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "bc0a5d57d9466adc387ab4cb1e6ae851b1f0428f733a1fac0a5151f1ae77f9ee",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "efe3793a4ac231275d9f1340c8fff87ecb4f184f959b904d20a4cfe9add5e389",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "bb846b6a823cc37baa698229c1f98367f9ba45e56a9692c7b8b1e2ebaafb5b24",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "e6bd9525e629c485ad7f4a23f9c1c329a10fbc62b25822dc1a9abde3f1965d3d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "2ca3ba4dbb4e4095949b7d8d2c769c60c129a3ba62729fa4b6635def220f8b89",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.369,
+      "stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "1db9ce148de209a8b3bca6a60860944745c593b74e1dbdc97d887306848e606c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "0f51f7bc82110f25365c703c24786aa79bafb30be57a9fa4808f7796920b022f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "68dd0f778202d389ce26eed33ffd4534181a6e2ea33b1cdcad4c4f37bc9ae152",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "56ec8e7c144fe3886dc96fe42ffa9cb1c5212e48a86546468f6438df256b6e01",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "d61f40197c9b6d006171affe1abc530acae5597ec0c773d50c3c0c16693fbf89",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "2ca3ba4dbb4e4095949b7d8d2c769c60c129a3ba62729fa4b6635def220f8b89",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.421,
+      "stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "846b6bf757814439d71010d2bb2a3c9d52ae542f788bb44aed34545474ac8709",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "90219903452bed02dde1f3b8d7aa79b1c79160d6f5260a0513368fbc952cc2ec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "b628a0f362bf4e5a3f6ec35712bf1ef3742d906e0be9f586592f96e62f0417bd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "b598ea66a53429d06505afe39e2942b0185b722b912090bf22504a236252999f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "41c4b0cfc677c57e6e2398e636e6223a41691784b5247bd83f6f414499b2cb72",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "0414784d7363b4769291704ab93343c47970f1c83c72f27d26364d963278a592",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.318,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "0e374aee1c03b86076213dae5fa48e539743ba9dae8c119439ec6a8775c662cb"
+    },
+    {
+      "name": "8.4.20/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "846b6bf757814439d71010d2bb2a3c9d52ae542f788bb44aed34545474ac8709",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "90219903452bed02dde1f3b8d7aa79b1c79160d6f5260a0513368fbc952cc2ec",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "b628a0f362bf4e5a3f6ec35712bf1ef3742d906e0be9f586592f96e62f0417bd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "b598ea66a53429d06505afe39e2942b0185b722b912090bf22504a236252999f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "41c4b0cfc677c57e6e2398e636e6223a41691784b5247bd83f6f414499b2cb72",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "7594d3f390454b1eeb7f8fe615998d16d0193a42fbd1583e7420e55203e0f610",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.367,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "0e374aee1c03b86076213dae5fa48e539743ba9dae8c119439ec6a8775c662cb"
+    },
+    {
+      "name": "8.4.20/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "c3b9b97089c0c82f0a505a290e7ccc90ac2852cb3fcce5dadb3ccd5e30747921",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "0376abcc74b0be940ddfbd5ddbf3c49d3a02a86d654308a1aaeff9ee3844133f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "5cda831d628f3d34553cbecbd3b7c2a01005728f37431a1d7f5ae1ba3239f812",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "33ba09b9a4e81e46739e8ed28c1ff3c9b9ad34e0d5be4bcfaa50029c483d5ff0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "2e22672ca7586286193e7bf30191c17a11ad72af50993f253677e426c4c29bdd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "b1d6721e81a1f1d2f96a9132f9466b6971b064bcfe27d56f4c7eff970306323b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.618,
+      "stdout_sha256": "24294dcb52265a821f3b83a8a9f9d7c3bf8bb78ee3fac7bf3eb45667b05fd46f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "e6618884a20f8e900828cb7ecbb66473eec363cb8462fd49ef2687a69a9ee1d9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "9384ac7cfc7f6c001f19710537f9f19207ff5fd223416019c1d3c653cb0987df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "876e441fd236736e41f39bd4a67536dd2be0a79c95e494de9afc39cd4fce11d0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "aa16488cdcf5e1cd7a516e5812f9701f55f0d3becf92777fcb78672175d4018f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "75cdba2abcf1e9db885f616d907831fa99f52c4aeb482f7c91022dc64e747203",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "9d17db6430a33909da714a11c17ccbc66bf38069ed33b734be943349079af96a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 1.369,
+      "stdout_sha256": "39c53443b3716017437a36dafb6e1581bed2af783c7a6e4a2f1ddd9a2e738a7d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.4.20/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "f26e568f13b12e0bc60ef3c7e5c437e79642af4ed83ff00b88df91474ac5ce65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "e971efafe57738584ba06fb7000ae7b387617c246ce6b1bfbd5151da5fc18815",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "02572d0fa0e5ce0a0c9eeddf0e9b17f1cb592bae377484c2b7599498844edc49",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "455a08138b35436d0b1a265fe41147e034ce102c1dd192a070d7e26b99530ec9",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "55bd0b853f530e9a63483f17dff532ef476614ebc66be3b6dbb90f94120309f1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "b76dae88e69a10aede4f37a2721d65949fb10f783786ef862556d54bdc55922a",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.471,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "a25315f6903e6ddd54fe135b5af8d09fcda638000ab7c7aa1544812b5aa2ab5f"
+    },
+    {
+      "name": "8.4.20/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "fca794df5addae2319d032f1b54c53432982f8b3e467a0ab0b9c220cb7563f06",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "e7d0061d875ec1e2975d73920409485c23e920e5fffaee4538f397992c6b3f9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "7903e04c22417e2a424ec615aed87da1e767a44d0c005494fa34df36850e9b65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "6865ba0873c0864597c8ab5ba86ffe86e1b340a0b3e0c7e5a47a5f52b43c5d17",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "0504b7eb5e803c42e0c21b3ca3c56bf3fd7e23269a2127531bddaf1c660e1fe1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "7142da04e7cab2df89091b308c168c1de14e5fe8adf7088c29141ce1128fddcf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.37,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "b8056a0a0aaf709fd5add571eb6e8ca1f76f2a30b6f2dc63841eb6eabab43ffb"
+    },
+    {
+      "name": "8.4.20/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "fca794df5addae2319d032f1b54c53432982f8b3e467a0ab0b9c220cb7563f06",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "e7d0061d875ec1e2975d73920409485c23e920e5fffaee4538f397992c6b3f9d",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "7903e04c22417e2a424ec615aed87da1e767a44d0c005494fa34df36850e9b65",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "6865ba0873c0864597c8ab5ba86ffe86e1b340a0b3e0c7e5a47a5f52b43c5d17",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "0504b7eb5e803c42e0c21b3ca3c56bf3fd7e23269a2127531bddaf1c660e1fe1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "7142da04e7cab2df89091b308c168c1de14e5fe8adf7088c29141ce1128fddcf",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.368,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "b8056a0a0aaf709fd5add571eb6e8ca1f76f2a30b6f2dc63841eb6eabab43ffb"
+    },
+    {
+      "name": "8.4.20/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "5dc6e258d56f4c7c9bda11a611a6e254c979fa55c7a4c0ca81d21705bc5d2f14",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "9dfd2aa04295fb0f170ef1e0d7adbd0810aeb6f62af1051e7720a2fa9a902d69",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "e7ccaa4c0c0c6603b6a2262d926082d6eaf4ba9607d56e09c205014b7e217449",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "db1bc0aeb49791fd2fffb3d9aa87d197b8e7e56afcb641ded8be4eea8744033b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "196ba2edd8ea0632bec2ba253bbc4254498b2ccbb3a30a45022d636e6a4dc79b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "995b6593e47ca80b1bc0da3bdd573f2192efd658cb39c6dc374bc95519f0a5dd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.521,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "b8056a0a0aaf709fd5add571eb6e8ca1f76f2a30b6f2dc63841eb6eabab43ffb"
+    },
+    {
+      "name": "8.4.20/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "4bc69c60044bbb2b1c1248d89502569616170c351675c954fd2ac0a0408323df",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "d943dbf0080d3b67891dddf324987acec1e27f9f2275a2a52ed3ace5423ca51e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "346c70b302beca246c18270ad63b0f5655d91076f78ea0dafbbca7d1a17779c1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "4ed97ada7360fca49aa6b59a3157dcadadebec30e052e554e756d57ce242a125",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "210ac313404ce3e7836296d2d65937e81a2b9ac1a185e9ebc987597f6a6fb817",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "86da93b46873e84dba15e3b22de815c8bab5cf42eec64f2b4089d3695dea3f39",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.472,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "0e374aee1c03b86076213dae5fa48e539743ba9dae8c119439ec6a8775c662cb"
+    },
+    {
+      "name": "8.4.20/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "ea8f7b94870c2e568b5d7c9395469fe4826423d45d7769b7f3c64682ab725674",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "811498e3feb2ffec8987d38323aa693c8ee9ba89de2564a3d174816e01327df2",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "b0dd6450aa74ce6725244022f10ff93642884aff5d31b19228037bcdc1f1fdd0",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "96972944859e5a9e5374b55b3a5713143b6ff9bf1f2332254bbbd99399ecaabe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "ada38d16bd39787d19a865db977c74c0731b039c1964053c1ad4e1212ed48ed3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "c48f89cfc8875fadc07d0a4739b3ecb0a522d45ad8a5b2fa93be65dffca2046b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.37,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "a25315f6903e6ddd54fe135b5af8d09fcda638000ab7c7aa1544812b5aa2ab5f"
+    },
+    {
+      "name": "8.4.20/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.4.20",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "6719e8e45a36d3cc5802eba5b7c8c674ba9acef440d39a382f96ddc4ba6fa50f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.5.19/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.5.19",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "65912f46df2254c3af3dfa48f0f31ab977775bf2a9fe71e31f61427234fd9ac3",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "8.6.18/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 0,
+      "seconds": 0.005,
+      "stdout_sha256": "099632ee89d6391db9a80fe5ce7a8f9c8bb28efef108169af59795197a39408e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+      "exit_code": 0,
+      "seconds": 0.008,
+      "stdout_sha256": "85dc80415da3b683d2d668fd5118e8390c1b88a31d41075aeed01cf80d5ddecd",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+      "exit_code": 0,
+      "seconds": 0.004,
+      "stdout_sha256": "c0d9a429cdb90ec4cf469b50440841a1269106da9340a4577e35fa033ee6b30c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "jim-pinned/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": null,
+      "exit_code": 0,
+      "seconds": 0.006,
+      "stdout_sha256": "97deaa53c683372192aad29695c79fbfcfa9414ef152565b3d5dd53f77d7c821",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=2",
+        "15",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "library": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+      "exit_code": 2,
+      "seconds": 1.468,
+      "stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+      "stderr_sha256": "a25315f6903e6ddd54fe135b5af8d09fcda638000ab7c7aa1544812b5aa2ab5f"
+    }
+  ],
+  "scope": "Synthetic only; real C Tcl_Init and counted Tcl_EvalEx, unadapted pinned Jim shell, retained Native C86 runner with --init. Shared projected binary hex is distinct from C direct raw element bytes. No F5, Rust edits or Cargo.",
+  "environment": "Inherited environment not enumerated or logged; matching C/native TCL_LIBRARY and four named Tcl-test removals only."
+}

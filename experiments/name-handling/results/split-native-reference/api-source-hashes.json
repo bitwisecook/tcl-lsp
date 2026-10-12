@@ -1,0 +1,9 @@
+{
+  "rust/tcl-syntax/src/native_tcl_utf.rs": "37a70761fba973bdc6fd3805bef6832d74f768722a23b440297f503309eb765b",
+  "rust/tcl-syntax/src/value.rs": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+  "rust/tcl-cmd-core/src/index.rs": "e75e6ea292f7ab1001cce7162d06f515c69c9f23c1eb9234633771d10630adb1",
+  "rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+  "runtime/rust/src/value_ops.rs": "2441b1e3513df815c2a527ea8313196e62f909adde821fcf93c82cf74134a41c",
+  "runtime/rust/examples/run_script.rs": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+  "rust/tcl-syntax/src/native_string_trim.rs": "b0285a5d5dd6e8f5a661c5e50b5852492d6b043261b608bd447449ca383614a7"
+}

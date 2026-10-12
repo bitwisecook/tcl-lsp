@@ -1,0 +1,1227 @@
+{
+  "8.4.20/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.1.0/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "jim-pinned/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/ascii-default": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.1.0/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "jim-pinned/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/ascii-single": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.1.0/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "0 ",
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "jim-pinned/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/ascii-duplicate": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/empty-input": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 61",
+      "1 62",
+      "1 61"
+    ],
+    "element_identity_0_2": "1",
+    "projection_errors": []
+  },
+  "8.5.19/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 61",
+      "1 62",
+      "1 61"
+    ],
+    "element_identity_0_2": "1",
+    "projection_errors": []
+  },
+  "8.6.18/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 61",
+      "1 62",
+      "1 61"
+    ],
+    "element_identity_0_2": "1",
+    "projection_errors": []
+  },
+  "9.0.4/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 61",
+      "1 62",
+      "1 61"
+    ],
+    "element_identity_0_2": "1",
+    "projection_errors": []
+  },
+  "9.1.0/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 61",
+      "1 62",
+      "1 61"
+    ],
+    "element_identity_0_2": "1",
+    "projection_errors": []
+  },
+  "jim-pinned/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/empty-delimiter-reuse": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/literal-nul-single": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "4 61002c62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/literal-nul-single": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "4 61002c62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/literal-nul-single": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "4 61002c62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/literal-nul-single": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "4 61002c62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/literal-nul-single": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "4 61002c62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/literal-nul-single": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/literal-nul-single": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "2 6100",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "2 6100",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "2 6100",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "2 6100",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "2 6100",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/literal-nul-duplicate": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/encoded-nul-delimiter": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/encoded-nul-delimiter": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 616263",
+      "0 "
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/binary-nul-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/binary-nul-delimiter": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/nonbmp-empty": {
+    "exit": 0,
+    "count": "6",
+    "raw_C_elements": [
+      "1 78",
+      "1 f0",
+      "1 9f",
+      "1 98",
+      "1 80",
+      "1 79"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/nonbmp-empty": {
+    "exit": 0,
+    "count": "6",
+    "raw_C_elements": [
+      "1 78",
+      "1 f0",
+      "1 9f",
+      "1 98",
+      "1 80",
+      "1 79"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/nonbmp-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 78",
+      "4 f09f9880",
+      "1 79"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/nonbmp-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 78",
+      "4 f09f9880",
+      "1 79"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0x1f600}"
+    ]
+  },
+  "9.1.0/nonbmp-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 78",
+      "4 f09f9880",
+      "1 79"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0x1f600}"
+    ]
+  },
+  "jim-pinned/nonbmp-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/nonbmp-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "9",
+    "raw_C_elements": [
+      "1 61",
+      "0 ",
+      "0 ",
+      "0 ",
+      "1 62",
+      "0 ",
+      "0 ",
+      "0 ",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "9",
+    "raw_C_elements": [
+      "1 61",
+      "0 ",
+      "0 ",
+      "0 ",
+      "1 62",
+      "0 ",
+      "0 ",
+      "0 ",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [
+      "1 61",
+      "0 ",
+      "1 62",
+      "0 ",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.1.0/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "0 "
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "jim-pinned/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/nonbmp-delimiter": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 eda0bd",
+      "3 edb880"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 eda0bd",
+      "3 edb880"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "6 eda0bdedb880"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 eda0bd",
+      "3 edb880"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0xd83d}",
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0xde00}"
+    ]
+  },
+  "9.1.0/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "3 eda0bd",
+      "3 edb880"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0xd83d}",
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0xde00}"
+    ]
+  },
+  "jim-pinned/surrogate-pair-empty": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/surrogate-pair-empty": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/lone-surrogate-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/lone-surrogate-delimiter": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [
+      "1 61",
+      "1 62"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/invalid-ff-delimiter": {
+    "exit": 0,
+    "count": "2",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/invalid-ff-delimiter": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 e2",
+      "1 82"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 e2",
+      "1 82"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 e2",
+      "1 82"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 e2",
+      "1 82"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0x201a}"
+    ]
+  },
+  "9.1.0/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [
+      "1 61",
+      "1 e2",
+      "1 82"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": [
+      "PROJECTION_ERROR 1 {expected code point values below 0xff but value at byte offset 0 was 0x201a}"
+    ]
+  },
+  "jim-pinned/truncated-empty": {
+    "exit": 0,
+    "count": "3",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/truncated-empty": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/encoded-nul-empty": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "2 c080"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.5.19/encoded-nul-empty": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "2 c080"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "8.6.18/encoded-nul-empty": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "2 c080"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.0.4/encoded-nul-empty": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "2 c080"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "9.1.0/encoded-nul-empty": {
+    "exit": 0,
+    "count": "4",
+    "raw_C_elements": [
+      "1 61",
+      "1 62",
+      "1 63",
+      "2 c080"
+    ],
+    "element_identity_0_2": "0",
+    "projection_errors": []
+  },
+  "jim-pinned/encoded-nul-empty": {
+    "exit": 0,
+    "count": "5",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/encoded-nul-empty": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "3 616263"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "3 616263"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "3 616263"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "3 616263"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [
+      "3 616263"
+    ],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/invalid-delimiter-only": {
+    "exit": 0,
+    "count": "1",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/invalid-delimiter-only": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.4.20/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.5.19/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "8.6.18/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.0.4/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "9.1.0/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "jim-pinned/empty-input-invalid-delimiter": {
+    "exit": 0,
+    "count": "0",
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  },
+  "native-c86/empty-input-invalid-delimiter": {
+    "exit": 2,
+    "count": null,
+    "raw_C_elements": [],
+    "element_identity_0_2": null,
+    "projection_errors": []
+  }
+}

@@ -1,87 +1,28 @@
 # Compact continuation prompt
 
-Continue centralised Tcl name handling on branch `work`, using small subagent
-jobs and regular reviewed commits/pushes. Inspect git for exact local/remote HEAD;
-latest published checkpoint is `b3411a2b1`. User permits development pushes with
-red gates; full Rust/PR gates remain required before PR/merge. No merge requested.
-Read AGENTS.md and current-state.md, implementation-ledger.md and issues.md.
-These coordination docs are temporary: remove docs/work and references before
-merge. Preserve discrete experiment questions/source/raw results/provenance.
+Continue centralised Tcl name handling on `work` with small delegated jobs and reviewed checkpoints. Inspect git for exact local/published state; user authorises development pushes with red gates, while full Rust/PR gates remain required before PR/merge. No merge requested. Read AGENTS.md, current-state.md, implementation-ledger.md and issues.md. Remove temporary docs/work material and references before merge; preserve discrete original inputs/results/provenance.
 
-Semantic entry: docs/design/contracts/name-handling.md and purpose-specific
-command-resolution/consumer-integration contracts. Source advice, Native object
-and frame identity, completed execution and rewrite permission are independent.
-Use actual whole-input/configuration producers; dynamic unknowns demur, bounded
-familiar patterns keep conditional source facts. Never infer runtime facts from
-labels, clone metadata into proofs, or blanket-refresh stale implementation hashes.
+Use durable name-handling/command-resolution/consumer-integration contracts. Source advice, actual Native object/frame/lifetime, completed worlds and rewrite permission are independent. Preserve whole input/channel/configuration/store currency, missing/foreign/stale/unknown refusal and precise applicability; no label, metadata clone, logical substitute or blanket digest renewal supplies execution authority.
 
-## Current source ownership and validation
+## Current sources, receipts and next bounded work
 
-- Clock worker owns runtime cmd_clock, registry clock_/tclmod, platform lib and
-  host-native lib. ParseFormatArgs published/matches11 C8.6 cases; byte-host getenv
-  and genuine2-worker literal pool are uncommitted. First native test import
-  failed; own-file test-only actual BrowserHost inclusion corrected it. Focused
-  runtime/host tests run in runtime cache; registry dev test waits LSP source fix.
-  Actual all.tcl previously stops on getenv; new full orchestration unmeasured.
-- Callback owns references.rs four concrete tests and test-only repairs in
-  references/inlay_hints/rename_safety. First core test build has seven existing
-  test-owner compile errors;0/4 ran. Repair helper access/import/owned context
-  identity, then compile4 new controls and1 existing Logical type-hint control.
-  No assertion weakening. Issues cache released pending corrected-source freeze.
-- VM API repair published d108e2627: lib tests compile,29 exact controls18pass/
-  11fail. Full receipts vm-test-api-repairs/. Only current test-class helper
-  diagnostic now uses identical try_invoke_command to expose actualneutralcause;
-  one existing failed control is queued after callback cache release.
-- W210 cleanup-only repair published5e6be644b: final9=8pass/1original-programfail
-  (0vs2 at C8.4). Graph20=17/3; two loops fail on exactbefore-source under same
-  dependencies, third procedure lookup unclassified. #2286 staysOPEN; latest
-  issue receipt6132969379. #2287 remainsCLOSED against packaged/direct controls.
-- IMPORTANT TEMPORARY compiler instrumentation, NEVER COMMIT as production:
-  provider_fixtures.rs, command_binding.rs, script_binds.rs. Exactbefore and
-  instrumented sources/hashes live results/w210-original-program-admission/trace/.
-  Trace only actual original-program filter after cache grant; then stop dependent
-  builds, restore exact3before files in finally and verify hashes. Do not restore
-  sources during another Cargo build; do not guess the unmeasured first refusal.
-- Gate agent owns xtask/owner_resolution.rs and shared-utility-contracts-rust.md.
-  Initial8controls pass. Independentreview found conditional cfg routes accepted;
-  node/file cfg+unknown route attributes now corrected, awaiting2new+realroute
-  controls. Strictpublicdefault preserved, no API promotion. Gate source/doc are
-  excluded from independent runtime/LSP compiled-dependency currency inventories.
-- Proof reviews published exact35bindings after last checker, with full2606object
-  inverses preserving provider/oracle/status fields. Last full checker315 stale
-  implementation digests/zero pending/unlinked; current count unmeasured. Optional
- 2 puregeometry bindings proposed; substantive Workspace/registry/transport
-  changes declined pending actual consumer acceptance. Fullchecker once final
-  source/manifest owners settle, never during TEMP instrumentation/restoration.
+- Completed checkpoint receipts are frozen; new jobs may change source. W210 TEMP3 files are byte-exact restored and their instrumented binary is non-current. Live work: clock selected C8.6 split implementation in announced runtime/shared owners with runtime cache; callback scoped-prefix first-barrier diagnostic with issues cache and mandatory exact temporary-file restoration; W210 one-owner read-only/no-build diagnosis; broad docs at most four announced durable files; proof review at most three owners, read-only. Coordinate actual compiled-dependency source freezes; checkpoint hashes certify no later changes.
+- Latest completed maintained proof check:2,606 records;0 pending/unlinked;296 implementation-digest errors across146 paths/99 records. Exactly 35 reviewed bindings applied (3+5+16+9+2), with oracle/provider/status inverses preserved; three Unicode wording fields are separate. Receipt: results/proof-source-currency/20261012-current-consumer-check/. Counts establish source evidence currency, not Native/Rust conformance; no blanket refresh.
+- Clock byte-host getter published `ac602f335`: runtime 7/host 1/registry 1 pass. Current Unix raw-byte capability, counted-NUL/raw values, unavailable BrowserHost refusal, relative compiler epochs and both two-worker pool deletion orders are measured. Eleven ParseFormatArgs rows match. Five other workers, original seven-worker constructor/full pool/map and guest env sync remain open.
+- Fresh real C8.6 all.tcl passes init/harness/orchestration and getenv, then exits2 before any suite on byte 3 unavailable-as-Unicode. Getter receipts: results/runtime-c86-real-suites/getenv-runtime/. Separate split study:18 fixed cases per C5/Jim/Native,126 processes; C/Jim18 complete, Native9 complete/9 operational refuse. C raw identity/results and later C9 projection errors are separate. results/split-native-reference/api-proposal.md scopes the active selected C8.6 implementation; no executed repair acceptance yet, global UTF8 loosening or invented fallback.
+- VM API repair published `d108e2627`: all26 diagnostics resolved, actual lib tests compile,29 exact controls18 pass/11 fail; required original Index Host-cause and NUL duplicate controls pass. One later unchanged-input class-helper diagnostic rebuild executes1 failed control and reveals `ValueAccessRefusal(CommandProtocolUnavailable("original OO Name target/facet"))`. It is measurement, not semantic repair; later callback/object/frame assertions remain unreached. Receipts: results/vm-test-api-repairs/ and results/vm-oo-class-construction-diagnostic/. Diagnose first original target/facet predicate and binary lifetime/authored-format causes; historical baseline unmeasured.
+- Callback current core 4:1 adverse absence passes/3 positive-currentness fail. Actual builder geometry/schema passes, but method-scoped `source_authored_command_prefix` receipt is absent and references retain only declaration. Absence cannot prove writer withdrawal without positive baseline. Separate prior Logical int-hint control returns `[]` and was not rerun with latest 4; shared source-unit/type/scope join first barrier unresolved. Receipts/proposals: patterns/composed-callback-prefix/results/composed-callback-consumer/. Preserve full original inputs and assertions; no spelling-based `my` or fake Native frame repair.
+- W210 cleanup-only nine = 8 pass/1 original-program fail (C8.4 actual 0 versus expected 2); graph 20 = 17/3, two loops fail on exact before-source. #2286 OPEN; #2287 CLOSED against packaged/direct receipts. Four actual SuppliedSource read requests retain full original input/realm/image/config/header owners and pass outer admission, then refuse inner `original_procedure_read_declaration`. First inner predicate remains unresolved;39 Standalone wrapper events prove no causal replay defect. TEMP3 restored exactly. Receipt: results/w210-original-program-admission/trace/. Next scope is genuine inner factory diagnosis, not input substitution or semantic-fix claim.
+- Gate strict lookup-revision/conditional-route guards implemented; scoped initial 8/final 3 controls pass, public defaults strict/no API promotion. Full owner gate now measures 164 obligations: 158 public-entry checks, 2 uncovered bullets, 4 gate routes; 661 inputs stable. Exact comparison with prior 165 removes only `Namespaces::guard_lookup_environment_revision`, zero added. Receipt: results/owner-resolution-current/20261012T220648Z/result.json; executable e3136bad5a25ec0453634bdef5d516f67b108fc76860962cee764960fb80d237. Six residual compiler fixtures fail shared procedure lookup before SCCP/handler assertions; baseline unknown. Full rust-check/prep-pr and wider consumer acceptance remain required.
 
-## Retained oracles and remaining acceptance
+## Retained oracles and broader acceptance
 
-Real C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 with matching real init/Tcltest; Jim
-pinned5bac7c99ad65864c87da513e22e2f01703fa4e03. Native original suites remain
-incomplete; see results/RESULTS.md. Real C8.6 reference1182/85skip/0fail; Native
-proc/rename40/17skip/0fail with five suite refusals, ooNext2 error and34 earlier
-assertion failures. No full VM/runtime naming conformance claim.
+Use matching real C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 libraries and Jim revision 5bac7c99ad65864c87da513e22e2f01703fa4e03. Real C8.6 reference 1,182pass/85skip/0fail; Native proc/rename 40/17/0 with five suite refusals, ooNext2 error and 34 earlier failures. Original C8.4/8.5 and Jim reference 339tests/12 suites remain independent. See results/RESULTS.md; no complete VM/runtime conformance claim.
 
-Corpus/Wiki experiments retain exactpins. composed-callback-prefix C8.6/9.x
-positive succeeds, adversarial writer causes separatecallback failure; oldC/Jim
-setup refusals retained. frame-capture-prefix C5 plain changed0 versus captured
-original1, Jim alias setup refuses. Fourconsumer assertions remainunexecuted.
-F5 nativecontext requests are unanswered separately; no originalpromotion.
+Composed callback C8.6/9.x positive succeeds and unknown writer raises separate callback failure; older C/Jim setup refusals remain. Captured frame-prefix C5 answers, corpus/Wiki pins, private source-only fixtures and framework/F5 questions retain separate provenance and authority. Broader consumer heuristics, Native receiver/dispatch, editable geometry and Snit/Clay/framework acceptance remain open.
 
-F5original400 stays93observed/244unreached/63unavailable; finish40derivedvariants/
-307references/279separatecanonicalrecords add no originalexecutions. F5Tcl in ANY
-TMM/MCPD process cannot run Tcltest; supportednative/event probes only. Deleted
-lab identities/security data removed, original Tcl sources/statuses preserved;
-never print or commit device credentials/addresses/inventories. Probe only benign
-synthetic environment keys, never dump host environment. Preserve seals/provenance.
+F5 original 400 remains 93 observed/244 unreached/63 unavailable; finish 40 derived variants/307 investigations/279 separate records promote no original execution. F5Tcl TMM/MCPD cannot run Tcltest; supported native/event probes only. Deleted lab/security identities remain removed; preserve original 970 Tcl files/statuses/seals/provenance. Never dump host environment or device credentials/inventories; benign synthetic probes only.
 
-Remaining broad work: all consumer/source/native/frame/backend acceptance,
-currentproof bindings,165 prior ownergate obligations, fullRust/PR gates and
-repository-wide authored/generated docs/comments cleanup, including old chaff.
-Keep current how/why, self-describing code, legal attribution and oracle evidence;
-remove plans/ledgers/continuation/state/process narratives before merge.
+Finish consumer/source/native/frame/backend acceptance and repository-wide authored/generated docs/comments/script/template/link cleanup. Keep current contracts, minimal how/why, legal attribution and original evidence; remove stale claims and temporary state/ledger/continuation/process material before merge.
 
-Environment: source /tmp/name-env.sh; root Cargo.toml; isolated caches
- tmp/name-target-issues and tmp/name-target-runtime. Disable incremental/debug.
-Freeze compiled dependency sources before parallel Cargo; scope source snapshots
-honestly, include TEMP files when compiled. ENOSPC invalidates build claims.
+Environment: `source /tmp/name-env.sh`; root Cargo.toml; coordinator-leased tmp/name-target-issues and tmp/name-target-runtime caches, incremental/debug disabled. Freeze actual compiled dependency sources and include any diagnostic sources actually compiled in snapshots. W210 TEMP3 is restored; callback must restore its separate temporary diagnostic files before lease release. Do not reuse stale instrumented binary receipts. ENOSPC/interruption invalidates build claims.

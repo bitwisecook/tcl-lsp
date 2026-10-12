@@ -1,0 +1,20 @@
+[
+ {"id":"ascii-default","input":"61206209630a","delimiter":null},
+ {"id":"ascii-single","input":"2c612c2c622c","delimiter":"2c"},
+ {"id":"ascii-duplicate","input":"2c612c2c622c","delimiter":"2c2c"},
+ {"id":"empty-input","input":"","delimiter":"2c"},
+ {"id":"empty-delimiter-reuse","input":"6162616261","delimiter":""},
+ {"id":"literal-nul-single","input":"61002c62","delimiter":"2c"},
+ {"id":"literal-nul-duplicate","input":"61002c62","delimiter":"2c2c"},
+ {"id":"encoded-nul-delimiter","input":"616263c080","delimiter":"c080"},
+ {"id":"binary-nul-delimiter","input_expr":"[binary format H* 61626300]","delimiter_expr":"\\0"},
+ {"id":"nonbmp-empty","input":"78f09f988079","delimiter":""},
+ {"id":"nonbmp-delimiter","input":"61f09f988062f09f9880","delimiter":"f09f9880"},
+ {"id":"surrogate-pair-empty","input":"eda0bdedb880","delimiter":""},
+ {"id":"lone-surrogate-delimiter","input":"61eda08062","delimiter":"eda080"},
+ {"id":"invalid-ff-delimiter","input":"61ff62","delimiter":"ff"},
+ {"id":"truncated-empty","input":"61e282","delimiter":""},
+ {"id":"encoded-nul-empty","input":"616263c080","delimiter":""},
+ {"id":"invalid-delimiter-only","input":"616263","delimiter":"ff"},
+ {"id":"empty-input-invalid-delimiter","input":"","delimiter":"ff"}
+]

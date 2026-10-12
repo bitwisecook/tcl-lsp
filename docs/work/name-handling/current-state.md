@@ -1,107 +1,54 @@
 # Current state
 
-Branch: `work`. Inspect git for the current local/remote commit and uncommitted ownership. This document is
-current coordination material; delete it and its references before merge.
+Branch: `work`; inspect git for the exact local/published checkpoint. This is temporary coordination material: remove it and its references before merge. The completed checkpoint has frozen receipts; newly authorised jobs may change source. The coordinator assigns live source/cache leases. Full owner-resolution validation completed with 164 obligations.
 
 ## Semantic authorities
 
-The durable entry point is [name-handling.md](../../design/contracts/name-handling.md),
-with purpose-specific [command resolution](../../design/contracts/command-resolution.md),
-[consumer integrations](../../design/analysis/name-resolution-proofs/consumer-integrations.md)
-and the [canonical proof index](../../design/analysis/name-resolution-proofs/README.md).
-Source advice, native lookup/object lifetime, completed worlds and edit permission
-retain independent authority. Complete original source/channel/configuration/store
-currency matters; labels cannot reconstruct slots, frames or recreated objects.
+Use [name-handling](../../design/contracts/name-handling.md), [command resolution](../../design/contracts/command-resolution.md), [consumer integrations](../../design/analysis/name-resolution-proofs/consumer-integrations.md) and the [canonical proof index](../../design/analysis/name-resolution-proofs/README.md). Source advice, actual Native object/frame/lifetime, completed worlds and rewrite permission have independent manufacturers. Preserve whole source/channel/configuration/store currency and missing/foreign/stale/unknown refusal; labels do not reconstruct identities or grant execution.
 
-## Executed checks and remaining defects
+## Current evidence and open boundaries
 
-| Surface | Current evidence | Remaining obligation |
+| Surface | Executed evidence | Remaining boundary |
 | --- | --- | --- |
-| Shared variable declarations | VM/runtime zero/three/four-operand matrices pass against C5/Jim; shared release-selected grammar | Broader native variable/frame/link conformance |
-| Shared array modes | 200 oracle comparisons pass; ten populated-regexp refusals explicit | Original regex worker; old-release trace/arity order |
-| Real C8.4 suites | Native var/proc/rename pass; six original suites retained | Ten namespace assertion failures; upvar/interp refusals; remaining interp failures |
-| Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; fresh all.tcl advances past implemented ParseFormatArgs and stops before suites on missing getenv |
-| Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
-| C8.6 clock/bootstrap | Real init reaches marker; ParseFormatArgs matches eleven C8.6 answers, three runtime object/bootstrap tests and one registry release test pass | Fresh real all.tcl stops before suites at getenv; six other workers and shared-pool lifetime remain unsupported. SelectedC86 object backing parity needs explicit measurement. |
-| VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 lib-test compile-diagnostic clusters repaired; actual lib-test compilation passes,29 existing controls18pass/11fail, baseline unmeasured |
-| Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
-| Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
-| Tcltest diagnostics | Eight diagnostic controls pass; original-program control fails0vs2. Final cleanup-only graph repair keeps20 controls at17pass/3fail. | Establish two loop failures against exact before-source; third refuses procedure lookup. #2286 remains open; original source-input boundary still unresolved. |
-| Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
-| Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
-| Naming proof bindings | Last full checker2606 records; zero pending/unlinked;315 stale implementation digests. Eight exact bindings renewed after that capture; Unicode wording corrected. | Sixteen additional reviewed bindings authorised; inverse proofs preserve oracle/status fields. Full checker waits for current source owners to settle. |
+| Naming proof currency | Latest completed checker: 2,606 records; zero pending candidates/unlinked tests; 296 implementation-digest errors across 146 paths and 99 records. Five reviewed batches renewed exactly 35 bindings, with oracle/provider/status fields preserved. | Review remaining consumer meaning/currentness; binding renewal is not execution or one-for-one error reduction. |
+| C8.6 clock/bootstrap | ParseFormatArgs's eleven original rows match. Published byte-host getter `ac602f335`: runtime 7, NativeHost 1 and registry 1 tests pass. Two implemented workers share the actual Rc literal pool and measured deletion orders. | Five support workers, original seven-worker constructor/pool lifetime and map order remain unsupported/unproved. Guest env synchronisation remains separate. |
+| Real C8.6 orchestration | Rebuilt runtime reaches real init/harness/all.tcl orchestration and passes getenv; fresh C var.test reports 110 total/90 pass/20 skip/0 fail. | Runtime exits 2 before suites on native bytes unavailable as host Unicode at byte 3; no runtime suite pass follows. |
+| Split byte/character study | Eighteen fixed inputs per C5/Jim/Native; capture-02 has 126 processes. C/Jim complete all 18; Native completes 9 and operationally refuses 9. Raw C result bytes/identity and later C9 projection errors are separate. | Selected C8.6 split implementation is active; no new executed acceptance yet. Native object reuse, other releases, browser/WASI and F5 unanswered. |
+| VM test/API boundary | All 26 retained diagnostics repaired; lib tests compile. Exactly 29 existing controls execute once each: 18 pass/11 fail, with required original Index Host-cause and embedded-NUL duplicate controls passing. | Historical baseline unmeasured. First class-control diagnostic now returns `ValueAccessRefusal(CommandProtocolUnavailable("original OO Name target/facet"))`; its later callback assertions remain unreached. OO target predicates and two binary failures remain open. |
+| VM mathfunc/startup | Genuine C8.6 constructor/header/cached-body regression passes 1/1 against shared 29-name roster. | Real VM init and legacy C9.1 control retain `NativePreflightRequired`; no library/suite execution claim. |
+| Composed callback consumers | Current four core controls: adverse absence 1 pass, positive/currentness 3 fail. Original builder geometry/schema pass; authored method-prefix receipt is missing and references retain only declaration. | Positive baseline is unresolved, so adverse absence alone proves no writer-caused withdrawal. Separate Logical hint control returns `[]`; its first barrier is unmeasured and it was not rerun with the latest four. |
+| Tcltest W210/#2286 | Final cleanup-only nine: 8 pass/1 original-program failure (C8.4 actual 0 versus expected 2). Graph 20: 17/3; two loops also fail against exact before-source. | Four matching SuppliedSource requests preserve full original input/realm/image/config/header admission, then refuse the inner declaration factory. Its first predicate is unresolved. TEMP3 sources are exactly restored; instrumented binary is not current for restored source. #2286 remains open. |
+| Packaged LSP/#2287 | Packaged imported Tcltest controls 2/2, direct C-source 2/2, Logical 5/5 and retained-import 1/1 pass; published `c7b94e8fb`. | #2287 closed against those receipts; broader consumer acceptance remains required. |
+| Shared variables/arrays | C5/Jim variable arity matrices and 200 array oracle comparisons pass; ten populated-regexp refusals retained. Native compiled foreach lifetime control passes. | Original regex, old-release trace/arity order, iterator/frame/link conformance and selected-entry refusals remain. |
+| Original suites | C8.4 var/proc/rename and C8.5 var 69/17/0 retained. C8.6 reference eight files: 1,182 pass/85 skip/0 fail; Native proc/rename 40/17/0. Jim reference: 339 tests in 12 suites pass. | C8.4 namespace/upvar/interp gaps; C8.6 five suite refusals, ooNext2 error and 34 earlier assertion failures. No complete VM/runtime conformance claim. |
+| Gate/fixture acceptance | Earlier selected-release backing: 392 commands, backing 12/owner 21 controls and AI drift pass. New lookup-revision/strict conditional-route controls pass in scoped batches; public defaults remain strict. | Full owner gate fails with 164 obligations: 158 public-entry checks, 2 uncovered bullets, 4 gate routes. Exact prior-165 comparison removes only `Namespaces::guard_lookup_environment_revision`, with zero added. Six residual compiler fixtures fail before intended assertions; full Rust/PR gates remain required. |
 
-Exact raw results and limits:
+## Active bounded ownership
 
-- [Real C8.6 suite questions](../../../experiments/name-handling/results/runtime-c86-real-suites/README.md).
-- [Clock worker oracle answers](../../../experiments/name-handling/results/clock-parse-format-args/README.md).
-- [Original suite census](../../../experiments/name-handling/results/RESULTS.md).
-- [VM constructor and startup question](../../../experiments/name-handling/results/vm-c86-mathfunc-bootstrap/README.md).
-- [Mathfunc constructor/startup controls](../../../experiments/name-handling/results/native-c86-mathfunc-bootstrap/README.md).
-- [Retained read binding](../../../experiments/name-handling/results/w210-retained-read-binding/question.md).
-- [Foreach private-counter repair](../../../experiments/name-handling/results/foreach-counter-object-lifetime/README.md).
-- [Clock, mathfunc and compiled-foreach questions](../../../experiments/name-handling/clock-bootstrap-epoch/registration-repair/README.md).
-- [Source namespace consumer](../../../experiments/name-handling/results/c-source-namespace-advice/README.md), including failed attempts and current validation status.
-- [Static advice/lifecycle failures](../../../experiments/name-handling/results/static-name-advice/README.md).
-- [Real Tcltest caller-frame question](../../../experiments/name-handling/tcltest-shared-frame/README.md).
-- [Frozen backing/owner results](../../../experiments/name-handling/results/gate-validation/20261012T161110Z/README.md).
-- [Final source proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-f5-finish-admitted/README.md).
-- [Earlier merged proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/README.md).
-- [Reviewed source bindings](evidence-review/); source inspection is not execution.
+- `clock_parse_worker`: selected C8.6 split implementation within announced runtime/shared owners; runtime cache. Preserve original byte/character branches and separate study provenance; acceptance pending.
+- `callback_heldout_oracles`: first actual missing scoped-prefix receipt diagnostic; issues cache. Restore every temporary owner byte-exact before handing off the lease; diagnostic binaries do not represent restored source.
+- `w210_cleanup_flow`: read-only one-owner inner-factory question/source diagnosis; no build or source mutation.
+- `broad_docs_currentness`: announce and own at most four durable files for currentness edits.
+- `proof_bindings_review`: read-only substantive acceptance review of at most three owners; no canonical/source renewal or execution implied.
 
-## Active parallel acceptance
+Coordinate actual compiled-dependency freezes before parallel builds; checkpoint source hashes do not certify later source changes.
 
-Compiler source and binary have been restored exactly; final nine diagnostic
-controls measure8pass/1fail. The VM lib-test binary compiles after26 recorded
-API diagnostic repairs, with4,943 source/manifest/toolchain hashes unchanged;
-29 existing controls finished18pass/11fail. Four callback consumer tests now compile: one adverse control passes, three
-positive receipt/reference/currentness controls fail at the scoped prefix owner.
-The existing Logical type-hint control also fails with empty output. The owner-gate initial eight controls and corrected three conditional/actual
-route controls pass separately. Getter runtime7/host1/registry1 pass; its fresh
-all.tcl refuses Unicode conversion before suites and env sync still differs.
-Original-program diagnostics show all four matching SuppliedSource requests
-reach an inner declaration-factory refusal. Temporary sources are restored. The ordered-state registry control passes; explicit crate-scope owner
-validation remains pending. The byte-host getter is published; the new split byte/character question is open.
+## Exact current receipts
 
-## Discovery, appliance answers and cleanup
+- [Completed full owner gate](../../../experiments/name-handling/results/owner-resolution-current/20261012T220648Z/result.json): 661 scoped inputs stable; executable SHA256 `e3136bad5a25ec0453634bdef5d516f67b108fc76860962cee764960fb80d237`.
+- [Current full proof check](../../../experiments/name-handling/results/proof-source-currency/20261012-current-consumer-check/README.md), including all five applied binding batches and independent frozen-input scopes.
+- [Getter implementation/checks and fresh orchestration](../../../experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/README.md); [split study and API proposal](../../../experiments/name-handling/results/split-native-reference/README.md).
+- [VM 18/11 controls](../../../experiments/name-handling/results/vm-test-api-repairs/results.md); [exact typed class-construction diagnostic](../../../experiments/name-handling/results/vm-oo-class-construction-diagnostic/results.md); [mathfunc/startup question](../../../experiments/name-handling/results/vm-c86-mathfunc-bootstrap/README.md).
+- [Current composed-consumer controls and prior Logical failure](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/README.md), with separate first-barrier proposals.
+- [W210 original-input admission trace/restoration](../../../experiments/name-handling/results/w210-original-program-admission/trace/README.md); [retained read-binding control](../../../experiments/name-handling/results/w210-retained-read-binding/README.md).
+- [Original suite census](../../../experiments/name-handling/results/RESULTS.md), [source namespace consumer](../../../experiments/name-handling/results/c-source-namespace-advice/README.md), [prior backing/owner capture](../../../experiments/name-handling/results/gate-validation/20261012T161110Z/README.md) and [reviewed evidence boundaries](evidence-review/).
 
-[Wild patterns](../../../experiments/name-handling/patterns/README.md) retain pinned
-corpus/Wiki source, exact C/Jim observations and question-led inputs. Eleven
-reached original Jim corpus answers are registered canonically; four setup
-failures remain unanswered. Adapted Wiki inputs and separate controls do not
-answer unchanged original questions. Composed held-out C/Jim callback observations are retained; actual consumer acceptance,
-Snit/Clay/framework provenance and broader heuristics remain required.
+## Discovery, appliance evidence and cleanup
 
-The pushed [F5 bundle](../../../experiments/name-handling/patterns/f5/README.md)
-has50 questions/eight contexts:93 observed,244 unreached,63 unavailable.
-[Returned coverage](../../../experiments/name-handling/patterns/f5/answers/nh20261012coverage2/answers.md)
-and [numbered-question answers](../../../experiments/name-handling/f5/answers/nh20261012coverage2/answers.md)
-are integrated from `755f78207`. Incoming `db9950eb3` finish documents add
-279 separate native proof records and a supplement of40 derived variants/307
-investigation references. No new original execution was claimed; original400
-coverage remains93/244/63. Source substitutions are not original observations.
-F5Tcl in TMM/MCPD cannot run Tcltest; use supported host-native probes. Review verified 30 seals/26,091 retained entries and 93
-matching input/context pointers with no missing files or hash mismatches. General
-[requests](../../../experiments/name-handling/f5/REQUEST.md) and prior BIG-IP
-controls remain separate. Admit only exact release/input/channel/reached-event
-observations; unreached/unavailable rows remain unanswered. Suspended frames,
-restart persistence, other traffic/units and earlier-state cleanup remain open.
+[Wild patterns](../../../experiments/name-handling/patterns/README.md) retain exact source/provenance and independent positive/adversarial/held-out questions. Eleven reached original Jim corpus answers are canonical; four setup failures remain unanswered. Adapted Wiki inputs and separate controls do not answer unchanged originals. Snit/Clay/framework and wider consumer coverage remain open.
 
-Deleted lab transport identities, screenshots and unrelated device inventories were removed from the returned evidence and its capture tools. All970 original Tcl files remain byte-identical;
-coverage and canonical observation statuses remain unchanged. Thirty seals now
-verify26,091 retained entries after six screenshots were removed. Broader older evidence cleanup is also verified: zero known-marker residues,
-67 affected checksums and931 current descriptors pass;35,324 historical hash
-fields and32,891 Tcl/status/source fields are preserved. Sanitised transport
-artifacts have new content hashes; historical executed-input hashes remain retained.
-See [cleanup verification](../../../experiments/name-handling/results/f5-evidence-sanitisation/README.md).
+The [F5 original 400 rows](../../../experiments/name-handling/patterns/f5/README.md) remain 93 observed/244 unreached/63 unavailable across 50 questions/eight contexts. The finish supplement adds 40 derived variants/307 investigations and 279 separate native records without promoting originals. F5Tcl TMM/MCPD cannot run Tcltest; supported native/event probes and exact reached context/channel are required. Broader suspended-frame/restart/traffic/cleanup questions remain open.
 
-Five verified stale F5CLI/editor prose passages and five correction groups in
-three F5 architecture documents have been corrected. The final
-cleanup remains repository-wide: authored docs, comments, scripts, templates,
-generated copies and links, including pre-existing material outside this issue.
-Preserve current contracts, minimal how/why, experiments, raw oracle provenance
-and conformance tests. Remove obsolete claims, abandoned plans, completed TODOs,
-process narratives and this entire temporary work directory before merge.
+[Evidence sanitisation](../../../experiments/name-handling/results/f5-evidence-sanitisation/README.md) preserves all 970 original Tcl files/statuses; 30 seals verify 26,091 retained entries. Broader cleanup verifies zero known-marker residues, 67 affected checksums and 931 descriptors while retaining 35,324 historical hash and 32,891 Tcl/status/source fields. Deleted lab identities/screenshots and unrelated inventories remain removed.
 
-Use the [ledger](implementation-ledger.md) for ownership/next actions and the
-[compact prompt](continue-prompt.md) for resuming small subagent jobs.
+Durable docs have received scoped currentness corrections. Final cleanup is repository-wide across authored/generated docs, comments, scripts, templates and links, including old chaff. Preserve current contracts, minimal how/why, legal attribution, original inputs/results/provenance and conformance tests; remove temporary process material before merge. See the [ledger](implementation-ledger.md) and [continuation prompt](continue-prompt.md) for bounded next work.

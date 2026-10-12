@@ -1,89 +1,40 @@
 # Name-handling current obligations
 
-Temporary coordination snapshot; remove this file and its links before merge.
-Branch: `work`; git identifies the current local/remote checkpoint.
-The coordinator owns integration, publication, issue receipts and source freezes.
-Confirm live ownership before shared edits; source inspection is not execution.
-Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. All Cargo leases are released; all source owners are quiescent. Final source checker complete:2,606 records,315 implementation-digest errors only; frozen4,840 selected inputs unchanged. Previous trace owners are byte-exact restored. C8.6 suite captures complete; no runtime build lease. Never reuse interrupted/ENOSPC artefacts.
+Temporary coordination snapshot; remove this file and its references before merge. Branch: `work`; inspect git for exact local/published state. The coordinator owns integration, publication, issue receipts and source/cache freezes. Completed checkpoint sources/receipts are frozen and W210 TEMP3 is exactly restored. Newly authorised jobs may change source; confirm their announced ownership and live leases before builds. Full owner gate completed with 164 obligations; no old lease or instrumented binary establishes current currency.
 
 ## Independent authority and acceptance
 
-Use [name-handling](../../design/contracts/name-handling.md), the
-[consumer matrix](../../design/contracts/naming-consumer-matrix.md),
-[implementer guide](../../design/compiler/name-resolution-implementer-guide.md)
-and [canonical consumer proofs](../../design/analysis/name-resolution-proofs/consumer-integrations.md).
-Source advice, actual Native entered objects, completed worlds and rewrite
-permission require independent manufacturers. Preserve missing/foreign/stale/
-unknown refusal, exact source/channel/configuration/store currency and original
-object/frame/lifetime identity. Conditional candidates must carry applicability
-and invalidation; hints grant no dispatch, successful load, optimisation or edit.
-
-Every consumer below needs its actual call-site/owner audit and relevant executed
-acceptance. Existing contracts/proofs are evidence to inspect, not completion.
-
-| Consumer | Remaining acceptance / current limit |
-| --- | --- |
-| Lexer/parser/source ingestion | Exact counted bytes, complete source/channel/config and editable geometry. |
-| Registry/dialects/overlays | Generic roles/binding transitions; independently selected Native/hosted applicability. |
-| Analyser diagnostics/Tcltest | Positioned binding/frame facts and setup/body/cleanup continuity; direct/alias undefined reads and exact #2286/#2287 reproduction. |
-| Lowering/SSA/optimiser/types | Original invocation/entry/effect proofs; conditional hints; 27 typing and 3 class-relation failures still need review. |
-| Variable places/cells/arrays/links | Release/operation/frame, exact tail/index, alias/lifetime; original regex and old-release trace/arity ordering. |
-| Classes/methods/forwards/metaclasses | Original family/receiver and contextual dispatch; construction cannot follow `new` spelling alone. |
-| LSP navigation/hover/completion | Current structured subjects; bounded candidates separate from definite identity. |
-| LSP references/rename/refactoring | Complete occurrence coverage/geometry and independent rewrite permission. |
-| Database/workspace/import/package settlement | URI/source currency, loader reachability, ordered mutation and independent identities. |
-| VM | Actual native object/cache/purpose/lifetime and shared command cores; real-suite compiler/bootstrap prerequisites. |
-| Runtime/WASM/middleware | Actual objects/byte names/frame/callback/namespace lifecycle; native iterator ownership and broader original suites. |
-| Bytecode/WASM/native/AOT/other codegen | Explicit backend admission; dynamic dispatch and selected operation semantics. |
-| CLI/tooling/diagrams/minifiers | Shared source owner; independent display and edit permissions. |
-| MCP/AI/editor integrations | Shared structured subjects/refusals; regenerate affected authored templates. |
-| F5/EDA/framework surfaces | Selected ContextRegistry/profile/channel; no borrowed C capability or inferred runtime entry. |
+Use [name-handling](../../design/contracts/name-handling.md), the [consumer matrix](../../design/contracts/naming-consumer-matrix.md), [implementer guide](../../design/compiler/name-resolution-implementer-guide.md) and [consumer proofs](../../design/analysis/name-resolution-proofs/consumer-integrations.md). Source advice, actual Native objects/frames, completed execution and rewrite permission have independent manufacturers. Preserve complete source/channel/configuration/store and original object/lifetime currency; missing, foreign, stale or unknown input refuses. Bounded hints supply no dispatch, successful load, optimisation or edit authority.
 
 ## Bounded ownership and next evidence
 
-| Obligation | Owner | Current status / next acceptance |
+| Obligation | Owner | Current receipt and next acceptance |
 | --- | --- | --- |
-| Source namespace advice / #2287 | LSP agent; coordinator receipt/publication | Final direct controls pass 2/2 across C5; post-offset packaged imported_tcltest passes 2/2; Logical controls5/5 and retained-import1/1 pass. Published `c7b94e8fb`; #2287 closed with exact receipt. Broader consumers remain open. |
-| Tcltest W210 / #2286 | w210_cleanup_flow; coordinator | Frozen abrupt handler-edge repair: targets possibly written before failure are uncertain on cleanup paths; genuine absent reads remain eligible. Current nine-control run timed out after rebuild: seven pass, original-program fails0vs2, one alias positive unfinished. Final aggregate8pass/1originalfail; graph17pass/3fail. Exact before-source reproduces both loop failures; final cleanup-only9 measures8pass/1fail. Sources/binary restored; current source-input diagnosis is read-only. #2286 stays open; original source-entry refusal remains separate. |
-| Gate fixture repairs | Gate agent | Actual source inputs forwarded; build completes. Six tests fail at shared cu.function("::p") before SCCP/source-input assertions; pre-existing status unknown. Gate agent owns a read-only procedure lookup diagnosis; exact receipt: fixture-source-input/. |
-| Clock/bootstrap/foreach | clock_parse_worker; coordinator | C8.6 ParseFormatArgs implemented through shared original-object parser/registry backing. Three focused runtime tests pass; eleven fresh C/native answers match exactly; genuine C Objv and runtime object identity/lifetime controls retained separately. Actual all.tcl advances to missing getenv before suites. Registry unit passes1/1; differential_fold API repaired, integration target compiles and existing ordered-state control passes1/1 (26 filtered). Six other clock workers and full shared-pool lifetime remain required. |
-| Native variables/namespace/startup | VM/runtime owners | C5/Jim arity controls and200 array comparisons pass, ten populated-regexp refusals remain. C8.4 var/proc/rename and C8.5 var69/17/0 pass. C8.6 reference1182/85/0; Native proc/rename40/17/0, five suite refusals, ooNext2 error and34 prior failures. Broader compiler/bootstrap/frame/link admission remains required. |
-| Static typing/class/dispatch advice | Static agent | Review broader failures against actual source-entry prerequisites; recover bounded candidates through shared facts without weakening negative controls or inventing Native/Normal evidence. |
-| Corpus/Wiki/callback acceptance | callback_heldout_oracles | Composed alias/list/namespace-code/after prefix measured on C5 and pinned Jim: C8.6/9.x positive succeeds, unknown writer produces callback failure; older C/Jim setup refusals retained. Sixteen capture records verified; F5 unanswered. Four consumer tests compile: adverse1pass, positives3fail at missing method-scoped prefix receipt; Logical typehint returns empty. No all-consumer conformance claim. Framework/provenance and broader patterns remain required. |
-| Jim engine conformance | Coordinator; VM/runtime agents | Reference HEAD pin `5bac7c99` verified; 339 tests in 12 real Jim suites pass in reference. VM/runtime conformance remains required. |
-| F5 appliance answers | Appliance chat; coordinator | Original400 rows remain93 observed/244 unreached/63 unavailable. Finish supplement40 derived variants/307 investigations and279 separate native records do not promote originals. Thirty seals/26,091 retained entries verify; lab identities removed, original970 Tcl files/status fields preserved. F5Tcl TMM/MCPD uses supported host probes; Tcltest cannot execute there. |
-| Backing/owner/full gates | Gate agent; coordinator | Selected-release backing passes 392 commands; backing12/owner21 controls and AI drift pass. Owner gate fails on 165 prior scope/gate obligations; explicit crate-scope lookup-revision contract and strict conditional-route rejection are implemented; final3controls pass, prior8 separate. No API promotion; full ownergate count not remeasured. Full Rust/PR gates remain required; development pushes authorised, merge not authorised. |
-| Implementation proof currency | proof_bindings_review; coordinator | Last full checker2606 records, zero pending/unlinked,315 stale implementation digests. Three exact source-preserving transformations independently reviewed; inverse replacement preserves all other manifest fields. Next ASCII/Unicode wording review is source-meaning-only; full checker has not rerun. |
-| Durable docs/entry point and final cleanup | broad_docs_currentness; coordinator | Two further durable docs aligned with current unsupported WASM bundling and Salsa test acceptance. Three additional Markdown docs corrected and reviewed. Deferred Salsa crate comment correction waits for source freeze to end. Repository-wide comment/document cleanup and deletion of temporary tracking remain required. |
+| Source namespace/#2287 | LSP/coordinator | Packaged 2/2, direct C-source 2/2, Logical 5/5 and retained-import 1/1 pass; published `c7b94e8fb`, issue closed. Continue broader consumers independently. |
+| Tcltest W210/#2286 | w210_cleanup_flow/coordinator | Cleanup-only nine: 8 pass/1 original-program failure, C8.4 actual 0 versus expected 2; graph 20:17/3. Two loop failures reproduced on exact before-source. Four full original SuppliedSource requests pass outer admission then refuse `original_procedure_read_declaration`; inner predicate unresolved. TEMP3 restored exactly, instrumented binary non-current. Active one-owner diagnosis is read-only/no build. #2286 open; no causal replay defect established. |
+| VM tests/actual OO entry | vm_test_api_repairs/coordinator | 26 API diagnostics repaired without production visibility or assertion weakening; actual lib-test compilation passes and 29 exact controls are 18/11. First class control separately reveals Name target/facet refusal during real C9.1 construction; later assertions unreached. Diagnose original target capture/currentness and binary lifetime/authored-format boundaries; historical baseline unmeasured. |
+| Clock/bootstrap/split | clock_parse_worker/coordinator | Published getter `ac602f335`: runtime 7/host 1/registry 1 pass, eleven ParseFormatArgs rows match, two workers share measured Rc pool/deletion orders. Fresh all.tcl passes getenv then exits2 before suites on byte 3 Unicode conversion. Five unsupported workers, env synchronisation and full original constructor/pool/map remain open. Split study 18 cases per C5/Jim/Native: Native 9 complete/9 refuse. Active selected C8.6 split implementation owns announced runtime/shared files and runtime cache; acceptance pending. |
+| Corpus/Wiki/callback | callback_heldout_oracles | Four current core tests: adverse 1 pass/positives 3 fail. Actual builder geometry/schema pass; missing method-scoped authored-prefix receipt is first barrier. Positive references contain only declaration, so no writer-withdrawal proof. Separate Logical int-hint positive returns `[]`, first barrier unmeasured. Active scoped-prefix first-barrier diagnostic owns issues cache; restore temporary files before release. Keep original inputs/negative guards; framework/provenance/F5 acceptance separate. |
+| Residual compiler fixtures | Gate/compiler owners | Actual source inputs forwarded; six seeded controls refuse shared procedure lookup before SCCP/handler assertions. Review actual factory/entry prerequisites; no fallback or known historical baseline. |
+| Backing/owner/full gates | broad_docs_currentness/coordinator | Strict lookup-revision and conditional-route guard implemented; scoped initial 8/final 3 controls pass with public defaults intact. Completed full owner gate: 164 obligations (158 public-entry checks/2 uncovered bullets/4 gate routes), 661 inputs stable. Prior 165 differs only by removed `Namespaces::guard_lookup_environment_revision`; zero added. Earlier backing 392 commands/backing 12/owner 21/AI drift retained. Full Rust/PR gates required; development pushes authorised, merge not authorised. |
+| Implementation proof currency | proof_bindings_review/coordinator | Current full checker: 2,606 records, 296 implementation-digest errors/146 paths/99 records;0 pending/unlinked. Exactly 35 reviewed bindings applied in 3+5+16+9+2 batches, inverse checks preserve oracle/provider/status fields; three Unicode wording fields separate. Active read-only substantive review is limited to three announced owners. Remaining changes need consumer acceptance, never blanket digest refresh. |
+| Original variables/namespace/suites | VM/runtime owners | C5/Jim variable matrices and 200 array comparisons pass, ten regex refusals retained. C8.4 var/proc/rename, C8.5 var 69/17/0, C8.6 reference 1,182/85/0 and Native proc/rename 40/17/0 retained. Namespace/frame/link and remaining init/entry/suite gaps stay explicit. Jim reference 339 tests/12 suites supplies no VM/runtime parity. |
+| Static type/class/dispatch advice | Compiler/static owners | Broader typing/class failures require actual source-entry admission review. Recover conditional candidates through shared facts; preserve missing owner/receiver/dispatch and changed-source negatives. No invented Native/Normal evidence. |
+| F5 answers | Appliance chat/coordinator | Original 400 remains93/244/63; supplement 40 derived/307 investigations/279 separate records does not promote originals. F5Tcl TMM/MCPD cannot execute Tcltest. Preserve selected native/event context, seals/provenance and original sources/statuses; broader suspended/restarted/traffic/lifecycle questions remain. |
+| Durable docs and cleanup | broad_docs_currentness/coordinator | Scoped durable corrections reviewed; active currentness job must announce at most four owned files. Remaining repository-wide docs/comments/template/link audit and deletion of temporary tracking required. Preserve current contracts and reproducible oracle evidence. |
 
-| VM test API compilation | vm_test_api_repairs | Ten test owners frozen;26 compile-diagnostic clusters repaired without changing oracle assertions or production visibility. Actual lib-test compilation passes,4,943 input hashes unchanged;29 exact existing controls finished18pass/11fail; first-cause diagnostics and actual value-access/OO entry repairs remain. Baseline history unmeasured; full VM conformance remains open. |
+Every listed consumer needs actual call-site/owner review and executed acceptance. The census still spans lexer/parser/ingestion, registry/dialects/overlays, analyser diagnostics, lowering/SSA/optimiser/types, places/cells/arrays/links, classes/methods/forwards, LSP subjects/edits, database/import/package settlement, VM/runtime, backend admission, CLI/tooling, MCP/AI/editor, F5/EDA/framework. Existing contracts or one source-only audit do not complete that census.
 
-## Exact evidence and retention obligations
+## Exact evidence and retention
 
-- [Original suite census](../../../experiments/name-handling/results/RESULTS.md),
-  [clock/mathfunc/foreach](../../../experiments/name-handling/clock-bootstrap-epoch/registration-repair/README.md),
-  [source namespace consumer](../../../experiments/name-handling/results/c-source-namespace-advice/README.md).
-- [Static failures](../../../experiments/name-handling/results/static-name-advice/README.md),
-  [Tcltest caller-frame question](../../../experiments/name-handling/tcltest-shared-frame/README.md),
-  [frozen backing/owner gate](../../../experiments/name-handling/results/gate-validation/20261012T161110Z/README.md),
-  [scoped validation](../../../experiments/name-handling/results/current-validation/README.md).
-- [Source-binding reviews](evidence-review/), including syntax/LSP review,
-  W210 boundary proposal and callback acceptance; proposed/unexecuted work stays explicit.
-- [Wild-pattern catalogue](../../../experiments/name-handling/patterns/README.md)
-  must track each idiom and exact positive/adversarial/held-out question;
-  [F5 bundle](../../../experiments/name-handling/patterns/f5/README.md) and
-  [general requests](../../../experiments/name-handling/f5/REQUEST.md) stay separate.
+- [Completed full owner gate/count comparison](../../../experiments/name-handling/results/owner-resolution-current/20261012T220648Z/result.json), executable SHA256 `e3136bad5a25ec0453634bdef5d516f67b108fc76860962cee764960fb80d237`.
+- [Current proof checker and 35 renewals](../../../experiments/name-handling/results/proof-source-currency/20261012-current-consumer-check/README.md).
+- [Getter/current-host bytes and fresh all.tcl](../../../experiments/name-handling/results/runtime-c86-real-suites/getenv-runtime/README.md); [18-case split study](../../../experiments/name-handling/results/split-native-reference/README.md).
+- [VM compile/29controls](../../../experiments/name-handling/results/vm-test-api-repairs/results.md); [one typed constructor diagnostic](../../../experiments/name-handling/results/vm-oo-class-construction-diagnostic/results.md).
+- [Core4/current receipt and prior Logical failure](../../../experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/README.md), with separate scoped-prefix and Logical first-barrier proposals.
+- [W210 actual input/factory trace and exact restoration](../../../experiments/name-handling/results/w210-original-program-admission/trace/README.md); [retained binding](../../../experiments/name-handling/results/w210-retained-read-binding/README.md); [caller-frame question](../../../experiments/name-handling/tcltest-shared-frame/README.md).
+- [Original suite census](../../../experiments/name-handling/results/RESULTS.md), [source namespace](../../../experiments/name-handling/results/c-source-namespace-advice/README.md), [prior backing/owner gate](../../../experiments/name-handling/results/gate-validation/20261012T161110Z/README.md), [wild patterns](../../../experiments/name-handling/patterns/README.md) and [reviewed boundaries](evidence-review/).
 
-Use matching real C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 init/Tcltest and pinned
-latest Jim. Preserve original source/input/results, oracle provenance, failed
-setups, skips, aborts and unmeasured boundaries in discrete question files.
-Physical byte length must use its representation owner; retain startup refusals
-outside Tcltest assertions. No current source-only audit establishes conformance.
+Use `source /tmp/name-env.sh` and coordinator-leased isolated target caches. Freeze actual compiled dependencies; label source scopes honestly and reject interrupted/ENOSPC artefacts. Match real C8.4.20/8.5.19/8.6.18/9.0.4/9.1.0 init/Tcltest and pinned Jim. Preserve failed setups, refusals, skips, original input/channel, binary/source provenance and unmeasured boundaries in discrete results. Physical byte length belongs to its representation owner; operational startup refusal is not a Tcltest assertion failure.
 
-Before merge, audit durable contracts/KCS/glossary/user docs, all code comments,
-scripts/templates/generators and generated copies/links repository-wide. Remove
-stale claims, obsolete guidance, abandoned plans, completed TODOs and process
-narratives; retain current semantic phases, minimal how/why, legal headers,
-experiments/raw evidence and conformance tests. Regenerate affected outputs and
-finish documentation/owner/proof gates. Remove this entire temporary work directory
-and its references when consumer acceptance is complete. Git records history.
+Before merge, finish required gates and repository-wide cleanup of obsolete guidance, abandoned plans, completed TODOs and process narratives across authored/generated material and links. Preserve current semantic procedures, minimal how/why, legal headers, experiments and conformance tests. Remove this entire temporary work directory and its references; git records history.

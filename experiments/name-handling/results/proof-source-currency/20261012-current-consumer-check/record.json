@@ -1,0 +1,23 @@
+{
+  "question": "Does the current complete maintained source-evidence checker pass after exact reviewed renewals and restored quiescent consumer/test sources?",
+  "command_argv": ["/opt/codex/runtimes/codex-primary-runtime/dependencies/python/bin/python3", "scripts/dev/check-name-resolution-proofs.py", "--root", "/workspace/tcl-lsp"],
+  "started_utc": "2026-10-12T21:59:45.346548+00:00",
+  "finished_utc": "2026-10-12T22:04:55.378743+00:00",
+  "exit_status": 1,
+  "checker_invocations": 1,
+  "raw_log_sha256": "60a3f198ffdfe0e3362af046b41d9317aea0422b93a9ee9f5c9393104a7000db",
+  "selected_sources_unchanged": true,
+  "selected_source_files": 4875,
+  "scope": "Same prior Rust*.rs/rootCargo+toolchain/canonical-manifest+census/checker+renderer selection; actual current source set. Separate checker-inputs snapshots freeze every canonical proof page/schema and manifest-referenced docs. Independent docs/experiment drafts outside actual inputs excluded. Source-evidence currency, not Rust/native conformance, PR acceptance or whole-repository identity. No renewal/inventory refresh.",
+  "additional_actual_checker_inputs": 2633,
+  "additional_checker_inputs_unchanged": true,
+  "changed_selected_inputs": {},
+  "changed_additional_checker_inputs": {},
+  "checker_summary": {"candidate_records": 7069, "corpus_files": 31924, "pending_candidates": 0, "questions": 2606, "structural_errors": 296, "unlinked_tests": 0},
+  "error_classes": {"implementation-digest": 296},
+  "error_count": 296,
+  "unique_digest_paths": 146,
+  "unique_implementation_digest_paths": 146,
+  "implementation_digest_records": 99,
+  "reviewed_binding_renewals": {"total": 35, "verified_batch_counts": [3, 5, 16, 9, 2], "applied_receipts": ["next-reviewed-bindings/receipt.json", "next-reviewed-bindings/additional-applied-receipt.json", "next-reviewed-bindings-2/applied-receipt.json", "next-reviewed-bindings-3/applied-receipt.json", "next-reviewed-bindings-4/applied-receipt.json"], "separate_unicode_wording_fields": 3, "interpretation": "Renewal fields and measured checker errors are independent counts; current source changes also affect digests. No one-for-one error reduction claim."}
+}

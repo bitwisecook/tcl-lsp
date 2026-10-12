@@ -1,0 +1,9 @@
+{
+  "cases": 18,
+  "case_processes": 126,
+  "C_compile_processes": 5,
+  "native_completed": 9,
+  "native_operational_refusals": 9,
+  "C_post_split_projection_error_rows": 6,
+  "initial_capture_note": "18 Native startup panics at 512MiB address-space cap; six C9 post-split guest projection errors. Preserved, excluded from split-conformance conclusions."
+}
