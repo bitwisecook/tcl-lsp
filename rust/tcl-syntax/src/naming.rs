@@ -53,6 +53,8 @@ pub use alias_chain::alias_chain_loops;
 mod autoload;
 pub use autoload::{autoload_command_candidates, native_autoload_command_candidates};
 mod command_geometry;
+mod reporting;
+pub use reporting::{ReportedQNameNamespacePurpose, reported_qname_namespace};
 mod compiled_variables;
 mod variable_geometry;
 pub use variable_geometry::{NativeVariableBridgeUnavailable, NativeVariableRootGeometry};

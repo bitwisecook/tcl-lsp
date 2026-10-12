@@ -283,20 +283,12 @@ fn namespace_caller_key(namespace: &str) -> String {
     }
 }
 
-/// The namespace a proc body's unqualified calls resolve against —
-/// `::ns::helper` → `::ns`, bare/global → `::`.
+/// Procedure-body namespace label in the authored inlining model.
 fn root_namespace_of(qname: &str) -> String {
-    let tail = qname.strip_prefix("::").unwrap_or(qname);
-    if let Some(idx) = tail.rfind("::") {
-        let root = &qname[..qname.len() - (tail.len() - idx)];
-        if root.is_empty() {
-            "::".to_owned()
-        } else {
-            root.to_owned()
-        }
-    } else {
-        "::".to_owned()
-    }
+    tcl_syntax::naming::reported_qname_namespace(
+        qname,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::AfterLeadingRoot,
+    )
 }
 
 /// `depth` is the nesting level of `script` — see
@@ -2626,3 +2618,25 @@ fn walk_local_writes(script: &Script, names: &mut HashSet<String>, depth: u32) {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod reported_namespace_tests {
+    use super::root_namespace_of;
+
+    #[test]
+    fn procedure_body_reporting_namespace_retains_its_selected_prefix() {
+        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
+        // docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md
+        // Shared analytical name contract:
+        // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
+        // Actual consumer purpose selection; reporting text grants no lookup identity.
+        for (qname, expected) in [
+            ("n::p", "n"),
+            (":::p", "::"),
+            ("::n::", "::n"),
+            ("::é::λ", "::é"),
+        ] {
+            assert_eq!(root_namespace_of(qname), expected);
+        }
+    }
+}

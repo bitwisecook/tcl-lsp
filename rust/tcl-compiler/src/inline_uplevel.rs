@@ -520,19 +520,12 @@ pub fn inline_uplevel_passthrough(module: &mut Module, registry: &CommandRegistr
     }
 }
 
+/// Rooted caller namespace label used as a rewrite presentation default.
 fn namespace_of(qname: &str) -> String {
-    if let Some(idx) = qname.rfind("::") {
-        if idx == 0 {
-            return "::".to_string();
-        }
-        let prefix = &qname[..idx];
-        return if prefix.starts_with("::") {
-            prefix.to_string()
-        } else {
-            format!("::{prefix}")
-        };
-    }
-    "::".to_string()
+    tcl_syntax::naming::reported_qname_namespace(
+        qname,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::RootRelativePrefix,
+    )
 }
 
 struct InlineContext<'a> {
@@ -1325,5 +1318,27 @@ mod tests {
         );
         inline_uplevel_passthrough(&mut m, &reg());
         assert_eq!(count_blocks(&m.top_level), 0);
+    }
+}
+
+#[cfg(test)]
+mod reported_namespace_tests {
+    use super::namespace_of;
+
+    #[test]
+    fn uplevel_caller_reporting_namespace_roots_relative_prefixes() {
+        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
+        // docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md
+        // Shared analytical name contract:
+        // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
+        // Actual consumer purpose selection; reporting text grants no lookup identity.
+        for (qname, expected) in [
+            ("n::p", "::n"),
+            (":::p", ":::"),
+            ("::n::", "::n"),
+            ("é::λ", "::é"),
+        ] {
+            assert_eq!(namespace_of(qname), expected);
+        }
     }
 }

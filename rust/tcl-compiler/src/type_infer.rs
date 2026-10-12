@@ -230,14 +230,12 @@ fn expr_literal_type(text: &str, numbers: NumberSyntax) -> TypeLattice {
     }
 }
 
-/// The enclosing namespace of a (possibly qualified) function name —
-/// `"::ns::Foo"` → `"::ns"`, `"::Foo"` / `"::top"` → `"::"`.  Used to resolve
-/// a relative constructor head against its call-site namespace.
+/// Function namespace label for compatibility constructor advice.
 fn function_namespace(qname: &str) -> String {
-    match qname.rsplit_once("::") {
-        Some((ns, _)) if !ns.is_empty() => ns.to_string(),
-        _ => "::".to_string(),
-    }
+    tcl_syntax::naming::reported_qname_namespace(
+        qname,
+        tcl_syntax::naming::ReportedQNameNamespacePurpose::LiteralPrefix,
+    )
 }
 
 /// Type a registry-declared class constructor call as `OBJECT(class)` when
@@ -5176,5 +5174,27 @@ mod tests {
             Some(&TypeShape::Int),
             "i64::MIN still fits a wide"
         );
+    }
+}
+
+#[cfg(test)]
+mod reported_namespace_tests {
+    use super::function_namespace;
+
+    #[test]
+    fn constructor_advice_reporting_namespace_preserves_literal_prefixes() {
+        // Implementation contract: naming.analysis.reported-qname-namespace-prefix
+        // docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md
+        // Shared analytical name contract:
+        // docs/design/contracts/shared-utility-contracts-rust.md (names / namespaces).
+        // Actual consumer purpose selection; reporting text grants no lookup identity.
+        for (qname, expected) in [
+            ("n::p", "n"),
+            (":::p", ":"),
+            ("::n::", "::n"),
+            ("é::λ", "é"),
+        ] {
+            assert_eq!(function_namespace(qname), expected);
+        }
     }
 }
