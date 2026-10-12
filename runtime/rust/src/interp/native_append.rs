@@ -10,55 +10,131 @@ use tcl_cmd_core::native_append::{
 };
 use tcl_syntax::native_object_append::NativeObjectAppendProtocol;
 
-struct AppendVariable<'a> {
-    interp: &'a mut Interp,
-    name: &'a [u8],
-    receiver: VariableReceiver,
-    home: crate::vars::TraceHome,
-    access: TraceAccess,
-    protocol: NativeObjectAppendProtocol,
-    objects: RuntimeAppendObjects,
-    pending: Option<PreparedAppendValue<RuntimeAppendValue>>,
+trait VariableAppendObjects:
+    tcl_cmd_core::native_append::NativeAppendObjects<Value = RuntimeAppendValue>
+{
+    fn finish_append<T>(
+        &self,
+        reached: Result<T, tcl_syntax::value::ValueError>,
+    ) -> Result<T, tcl_cmd_core::CmdError>;
+}
+impl VariableAppendObjects for RuntimeAppendObjects {
+    fn finish_append<T>(
+        &self,
+        reached: Result<T, tcl_syntax::value::ValueError>,
+    ) -> Result<T, tcl_cmd_core::CmdError> {
+        reached.map_err(Into::into)
+    }
+}
+impl VariableAppendObjects for crate::value_ops::OriginalRuntimeAppendObjects {
+    fn finish_append<T>(
+        &self,
+        reached: Result<T, tcl_syntax::value::ValueError>,
+    ) -> Result<T, tcl_cmd_core::CmdError> {
+        self.finish(reached)
+    }
 }
 
-impl NativeAppendVariable for AppendVariable<'_> {
+/// The actual caller's frame and selected receiver observation. These callbacks
+/// transport existing original checks and update its expected publication only.
+pub(super) struct OriginalAppendVariable {
+    pub(super) current: std::rc::Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+    pub(super) entered: std::rc::Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>>,
+    pub(super) select: std::rc::Rc<dyn Fn(Result<Option<*mut TclObj>, crate::frame::VarError>)>,
+    pub(super) refuse: std::rc::Rc<dyn Fn(tcl_syntax::value::ValueError) -> tcl_cmd_core::CmdError>,
+}
+
+// The neutral owner keeps its actual owned receiver drop order. An original
+// caller borrows the independently captured receiver without another rmw role.
+enum AppendReceiverReference<'a> {
+    Owned(VariableReceiver),
+    Original(&'a VariableReceiver),
+}
+impl std::ops::Deref for AppendReceiverReference<'_> {
+    type Target = VariableReceiver;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Owned(receiver) => receiver,
+            Self::Original(receiver) => receiver,
+        }
+    }
+}
+
+struct AppendVariable<'a, O> {
+    interp: &'a mut Interp,
+    name: &'a [u8],
+    receiver: AppendReceiverReference<'a>,
+    home: std::borrow::Cow<'a, crate::vars::TraceHome>,
+    access: TraceAccess,
+    protocol: NativeObjectAppendProtocol,
+    objects: O,
+    original: Option<OriginalAppendVariable>,
+    pending: Option<PreparedAppendValue<RuntimeAppendValue>>,
+}
+impl<O> AppendVariable<'_, O> {
+    fn check_original(&mut self, selected: bool) -> Result<(), Code> {
+        if let Some(original) = &self.original {
+            let reached = if selected {
+                (original.current)()
+            } else {
+                (original.entered)()
+            };
+            reached.map_err(|first| self.interp.report_cmd_error(first))?;
+        }
+        Ok(())
+    }
+}
+impl<O: VariableAppendObjects> NativeAppendVariable for AppendVariable<'_, O> {
     type Value = RuntimeAppendValue;
     type Error = Code;
 
     fn append_operand(&mut self, source: &RuntimeAppendValue) -> Result<(), Code> {
+        self.check_original(true)?;
         if let Some(pending) = &mut self.pending {
-            return append_continuation(&self.objects, pending, source)
-                .map_err(|error| self.interp.report_cmd_error(error.into()));
+            let reached = append_continuation(&self.objects, pending, source);
+            return self
+                .objects
+                .finish_append(reached)
+                .map_err(|first| self.interp.report_cmd_error(first));
         }
         let original = self
             .receiver
             .read_initial()
             .map_err(|error| crate::builtins::var_error(self.interp, self.name, error))?
             .map(RuntimeAppendValue::borrowed);
-        let prepared = append_object(&self.objects, self.protocol, original.as_ref(), source)
-            .map_err(|error| self.interp.report_cmd_error(error.into()))?;
+        let reached = append_object(&self.objects, self.protocol, original.as_ref(), source);
+        let prepared = self
+            .objects
+            .finish_append(reached)
+            .map_err(|first| self.interp.report_cmd_error(first))?;
         self.pending = Some(prepared);
         Ok(())
     }
 
     fn publish(&mut self) -> Result<RuntimeAppendValue, Code> {
+        self.check_original(true)?;
         let pending = self
             .pending
             .take()
             .expect("pending native append value")
             .into_value();
-        self.receiver
-            .store(pending.as_ptr())
-            .map_err(|error| crate::builtins::var_error(self.interp, self.name, error))?;
-        // The variable owns the object before observers run. A protective
-        // working hold must not alter their native copy-on-write observations.
+        if let Some(original) = &self.original {
+            (original.select)(Ok(Some(pending.as_ptr())));
+        }
+        if let Err(error) = self.receiver.store(pending.as_ptr()) {
+            self.check_original(false)?;
+            return Err(crate::builtins::var_error(self.interp, self.name, error));
+        }
+        // The actual variable role precedes working retirement and write observers.
         drop(pending);
-        if self
+        self.check_original(true)?;
+        let failed = self
             .interp
             .fire_var_trace_resolved(&self.home, &self.access, b"write")
             .map_err(|first| self.interp.refuse_native_execution(first))?
-            .is_guest_error()
-        {
+            .is_guest_error();
+        self.check_original(false)?;
+        if failed {
             return Err(crate::builtins::var_error(
                 self.interp,
                 self.name,
@@ -68,10 +144,33 @@ impl NativeAppendVariable for AppendVariable<'_> {
         if self.interp.host_refusal_pending() {
             return Err(Code::Error);
         }
-        match self.receiver.read() {
-            Ok(Some(value)) => Ok(RuntimeAppendValue::borrowed(value)),
-            Ok(None) | Err(_) => Ok(RuntimeAppendValue::fresh_string(b"")),
+        if let Some(original) = &self.original {
+            if self.receiver.check_current().is_err() {
+                return Err(self.interp.report_cmd_error((original.refuse)(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original compiled String append receiver",
+                    ),
+                )));
+            }
         }
+        let selected = self.receiver.read();
+        if let Some(original) = &self.original {
+            if selected == Err(crate::frame::VarError::NameProtocolUnavailable) {
+                return Err(self.interp.report_cmd_error((original.refuse)(
+                    tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                        "original compiled String append result scalar role",
+                    ),
+                )));
+            }
+            // The existing live receiver may be legally replaced by a write trace.
+            (original.select)(selected);
+        }
+        let result = match selected {
+            Ok(Some(value)) => RuntimeAppendValue::borrowed(value),
+            Ok(None) | Err(_) => RuntimeAppendValue::fresh_string(b""),
+        };
+        self.check_original(false)?;
+        Ok(result)
     }
 }
 
@@ -366,15 +465,19 @@ impl Interp {
         self.append_retained_operands(name, receiver, home, access, issued.recipe(), sources)
     }
 
-    /// An admitted variable instruction has already selected its physical
-    /// receiver. This door does not resolve its reporting name again.
-    pub(super) fn append_native_captured(
+    /// Same actual captured receiver and Core append worker under the caller's
+    /// original frame/operand/currentness owner, without another name lookup.
+    pub(super) fn append_native_captured_using(
         &mut self,
-        captured: super::native_variable_names::OriginalCVariableCapture,
+        captured: &super::native_variable_names::OriginalCVariableCapture,
         sources: &[*mut TclObj],
+        objects: crate::value_ops::OriginalRuntimeAppendObjects,
+        original: OriginalAppendVariable,
     ) -> Code {
-        let dialect = self.native_invocation_dialect();
-        let Some(protocol) = dialect.native_object_append_protocol(None) else {
+        let Some(protocol) = self
+            .native_invocation_dialect()
+            .native_object_append_protocol(None)
+        else {
             return self.refuse_native_access(
                 tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
                     "native compiled append",
@@ -388,13 +491,15 @@ impl Interp {
             &captured.home,
             false,
         );
-        self.append_retained_operands(
+        self.append_retained_operands_using(
             &captured.root,
-            captured.receiver,
-            captured.home,
+            AppendReceiverReference::Original(&captured.receiver),
+            std::borrow::Cow::Borrowed(&captured.home),
             access,
             protocol.recipe(),
             sources,
+            objects,
+            Some(original),
         )
     }
 
@@ -418,11 +523,45 @@ impl Interp {
             dialect,
             binary_recipe: dialect.byte_array_string_recipe(Some(tcl_registry::native_string_materialization::LogicalStringProvider::Tcl84CoreSimulation)),
         };
-        let sources: Vec<_> = sources
+        self.append_retained_operands_using(
+            name,
+            AppendReceiverReference::Owned(receiver),
+            std::borrow::Cow::Owned(home),
+            access,
+            protocol,
+            sources,
+            objects,
+            None,
+        )
+    }
+
+    fn append_retained_operands_using<'a, O: VariableAppendObjects>(
+        &'a mut self,
+        name: &'a [u8],
+        receiver: AppendReceiverReference<'a>,
+        home: std::borrow::Cow<'a, crate::vars::TraceHome>,
+        access: TraceAccess,
+        protocol: NativeObjectAppendProtocol,
+        sources: &[*mut TclObj],
+        objects: O,
+        original: Option<OriginalAppendVariable>,
+    ) -> Code {
+        if let Some(original) = &original {
+            if let Err(first) = (original.current)() {
+                return self.report_cmd_error(first);
+            }
+        }
+        if receiver.is_constant() {
+            return crate::builtins::var_error(self, name, crate::frame::VarError::IsConstant);
+        }
+        if receiver.is_array() && !receiver.is_element() {
+            return crate::builtins::var_error(self, name, crate::frame::VarError::IsArray);
+        }
+        let sources = sources
             .iter()
             .copied()
             .map(RuntimeAppendValue::borrowed)
-            .collect();
+            .collect::<Vec<_>>();
         let mut operation = AppendVariable {
             interp: self,
             name,
@@ -431,14 +570,32 @@ impl Interp {
             access,
             protocol,
             objects,
+            original,
             pending: None,
         };
-        match append_operands(&mut operation, protocol, &sources) {
+        let reached = append_operands(&mut operation, protocol, &sources);
+        let reached = match reached {
             Ok(value) => {
                 operation.interp.set_result(value.as_ptr());
-                Code::Ok
+                let current = operation.check_original(true);
+                drop(value);
+                match current {
+                    Ok(()) => Code::Ok,
+                    Err(first) => first,
+                }
             }
-            Err(code) => code,
+            Err(first) => first,
+        };
+        // Mandatory real working cleanup occurs before the same original
+        // postcheck, including failures before actual variable publication.
+        if operation.original.is_some() {
+            drop(operation.pending.take());
+        }
+        // The neutral field drop sequence remains owned receiver/home before
+        // its unpublished working value. Original cleanup checks its borrower.
+        match operation.check_original(true) {
+            Ok(()) => reached,
+            Err(first) => first,
         }
     }
 }

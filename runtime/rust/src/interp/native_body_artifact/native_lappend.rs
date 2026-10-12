@@ -174,7 +174,8 @@ impl Interp {
                         original
                             .check(self)
                             .map_err(|first| self.report_cmd_error(first))?;
-                        let code = self.append_native_captured(capture, &[value.as_ptr()]);
+                        let code =
+                            self.body_append_string_objects(capture, &[value.as_ptr()], &original)?;
                         original
                             .check(self)
                             .map_err(|first| self.report_cmd_error(first))?;
@@ -236,6 +237,72 @@ impl Interp {
             .check(self)
             .map_err(|first| self.report_cmd_error(first))?;
         reached
+    }
+
+    fn body_append_string_objects(
+        &mut self,
+        capture: OriginalCVariableCapture,
+        sources: &[*mut TclObj],
+        original: &Rc<BodyObjectOperation>,
+    ) -> Result<Code, Code> {
+        let selected = Rc::new(AppendReceiver::new(capture));
+        let headers = Rc::new(
+            OriginalArguments::enter(self, sources)
+                .map_err(|first| self.report_cmd_error(first))?,
+        );
+        let current_selected = selected.clone();
+        let current_headers = headers.clone();
+        let current_original = original.clone();
+        let actual = self.clone();
+        let current: Rc<dyn Fn() -> Result<(), CmdError>> = Rc::new(move || {
+            current_selected.check(&actual, &current_original)?;
+            current_headers.check_for(&actual)
+        });
+        let objects = original
+            .objects_using(self, current.clone())
+            .map_err(|first| self.report_cmd_error(first))?;
+        let dialect = self.native_invocation_dialect();
+        let append = objects
+            .original_append_objects(crate::value_ops::RuntimeAppendObjects {
+                dialect,
+                binary_recipe: dialect.byte_array_string_recipe(None),
+            })
+            .map_err(|first| self.report_cmd_error(first))?;
+        let entered_original = original.clone();
+        let entered_actual = self.clone();
+        let entered_selected = selected.clone();
+        let select = selected.clone();
+        let refuse = original.clone();
+        let owner = crate::interp::native_append::OriginalAppendVariable {
+            current,
+            entered: Rc::new(move || {
+                entered_original.check(&entered_actual)?;
+                entered_selected
+                    .capture
+                    .receiver
+                    .check_current()
+                    .map_err(|_| {
+                        entered_original
+                            .refuse(unavailable("original compiled String append receiver"))
+                    })?;
+                if entered_selected.capture.receiver.read_initial()
+                    == Err(crate::frame::VarError::NameProtocolUnavailable)
+                {
+                    return Err(entered_original
+                        .refuse(unavailable("original compiled String append scalar role")));
+                }
+                Ok(())
+            }),
+            select: Rc::new(move |value| select.expected.set(value)),
+            refuse: Rc::new(move |error| refuse.refuse(error)),
+        };
+        let reached = self.append_native_captured_using(&selected.capture, sources, append, owner);
+        drop(headers);
+        drop(selected);
+        original
+            .check(self)
+            .map_err(|first| self.report_cmd_error(first))?;
+        Ok(reached)
     }
 
     fn body_argument_list(
@@ -567,3 +634,7 @@ impl Interp {
 #[cfg(test)]
 #[path = "native_lappend/original_boundary_tests.rs"]
 mod original_boundary_tests;
+
+#[cfg(test)]
+#[path = "native_lappend/original_string_boundary_tests.rs"]
+mod original_string_boundary_tests;
