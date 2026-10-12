@@ -3874,3 +3874,8 @@ Unicode word owner. Symbolic records contain no SourceName or NameKey, Native
 policy, command allocation or entered frame. A supplied binding inventory keeps
 its separate Native, hosted or unavailable contract; it cannot fall back to the
 standalone route. Conflicting Native release/point profiles remain unavailable.
+
+
+Actual VM activation cleanup records its original physical execution target before body callbacks. Plain procedure Frames also retain only weak call-frame and namespace births through the same matching retirement worker as OO procedure exits; OO Method-purpose requirements remain separate. Saved targets carry no entered Scope across suspension. Unwind retains its original target when it consumes the final Frame, and an empty tailcall continuation derives a cleanup-only target from its already issued currency rather than the callback-selected current interpreter.
+
+Mandatory abort retires activation-owned script, operand, result, step-scope and temporary-publication owners in that authentic physical target, then transports the first full typed cause through same-target cleanup and restoration. The actual selected call/namespace kernel preserves callback-reborn activations and any child left current. Readonly independent target observations issue no Native receipt. These software source controls establish no Native callback schedule, object-reference equivalence or broader activation lifecycle coverage.

@@ -113,6 +113,29 @@ impl OriginalOoCleanup {
             property_recipe,
         }
     }
+    /// Readonly physical cleanup observations; never issue a new execution owner.
+    fn observe(vm: &mut Vm) -> Self {
+        let owner = vm.owner_nonce;
+        let interpreter = vm.cur;
+        let context = Rc::downgrade(&vm.native_operation_context);
+        let namespace_traversal = vm.name_policy_protocol()
+            .and_then(|policy| policy.recipe().namespace_command_teardown());
+        let method_cache_selected = vm.actual_native_invocation_dialect()
+            .native_tcloo_method_cache_protocol().is_some();
+        let property_recipe = vm.actual_native_invocation_dialect()
+            .native_property_lookup_protocol();
+        let (operation, entry_failure) = match NativeOperationScope::current_entered(vm) {
+            Ok(operation) => (operation, None),
+            Err(first) => {
+                let first = CmdError::from_execution_refusal(first);
+                retain_error(vm, &first);
+                (None, Some(first))
+            }
+        };
+        Self { owner, interpreter, context, operation, entry_failure,
+            namespace_traversal, method_cache_selected, property_recipe }
+    }
+
     fn saved(&self) -> SavedOriginalOoCleanup {
         SavedOriginalOoCleanup {
             owner: self.owner,
@@ -209,13 +232,17 @@ impl OriginalOoCleanup {
         result
     }
     pub(crate) fn check(&self, vm: &mut Vm) -> Result<(), CmdError> {
+        if let Some(first) = vm.execution_refusal.clone() {
+            return Err(CmdError::from_execution_refusal(first));
+        }
         if let Some(first) = &self.entry_failure {
             return Err(first.clone());
         }
-        self.operation
-            .as_ref()
-            .expect("entered original cleanup")
-            .check(vm)
+        match &self.operation {
+            Some(operation) => operation.check(vm),
+            None if self.physical(vm) && vm.cur == self.interpreter => Ok(()),
+            None => Err(Self::missing(vm)),
+        }
     }
     pub(crate) fn check_cleanup(&self, vm: &mut Vm) -> Result<(), CmdError> {
         if let Some(first) = &self.entry_failure {
@@ -224,12 +251,15 @@ impl OriginalOoCleanup {
         if !self.physical(vm) {
             return Err(Self::missing(vm));
         }
-        self.operation
-            .as_ref()
-            .expect("entered original cleanup")
-            .currency()
-            .check_saved_target(vm, self.interpreter)
-            .map_err(CmdError::from_execution_refusal)
+        if let Some(first) = vm.execution_refusal.clone() {
+            return Err(CmdError::from_execution_refusal(first));
+        }
+        match &self.operation {
+            Some(operation) => operation.currency()
+                .check_saved_target(vm, self.interpreter)
+                .map_err(CmdError::from_execution_refusal),
+            None => Ok(()),
+        }
     }
     /// The already retained object namespace is a mandatory cleanup holder.
     pub(crate) fn retire_namespace(

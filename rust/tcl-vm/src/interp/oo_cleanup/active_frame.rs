@@ -199,8 +199,32 @@ pub(crate) struct OriginalOoCallExit {
     call: CallFrameObservation,
     namespace: NamespaceActivationObservation,
     method: Option<OriginalOoCleanupFrame>,
+    /// A plain procedure has no selected OO Method purpose.
+    procedure_only: bool,
 }
 impl OriginalOoCallExit {
+    /// Capture exact call/namespace births at the actual procedure body entry.
+    /// Saved metadata holds no entered Scope or additional Native object role.
+    pub(crate) fn capture_procedure(vm: &mut Vm) -> Option<Self> {
+        let original = OriginalOoCleanup::observe(vm);
+        let call = CallFrameObservation::capture(vm);
+        let namespace = vm.resolution_stacks.observe_activation();
+        if let Err(error) = original.check(vm) {
+            retain_error(vm, &error);
+        }
+        match (call, namespace) {
+            (Some(call), Some(namespace)) => Some(Self {
+                original: original.saved(), call, namespace, method: None,
+                procedure_only: true,
+            }),
+            _ => {
+                let error = original.refuse(vm, "original procedure entry activation");
+                retain_error(vm, &error);
+                None
+            }
+        }
+    }
+
     pub(crate) fn in_original<T>(
         &self,
         vm: &mut Vm,
@@ -222,7 +246,7 @@ impl OriginalOoCallExit {
     ) -> Result<(), CmdError> {
         original.check(vm)?;
         let state = original.state_mut(vm)?;
-        let method = self.method.as_ref().is_some_and(|selected| {
+        let method = self.procedure_only || self.method.as_ref().is_some_and(|selected| {
             state.oo.call_stack.len() == selected.position() + 1
                 && state
                     .oo
@@ -306,6 +330,7 @@ impl OriginalOoActivation {
             call: self.call.as_ref()?.clone(),
             namespace: self.namespace.as_ref()?.clone(),
             method: self.method.clone(),
+            procedure_only: false,
         })
     }
     pub(crate) fn push_method(&mut self, vm: &mut Vm, frame: OoFrame) -> Result<(), CmdError> {

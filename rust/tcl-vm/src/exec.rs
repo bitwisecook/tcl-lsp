@@ -254,6 +254,10 @@ pub(crate) struct Frame {
     is_proc: bool,
     /// Authentic OO procedure exit keeps readonly original cleanup observations.
     oo_call_exit: Option<crate::interp::oo_cleanup::OriginalOoCallExit>,
+    /// Original physical target and weak plain-procedure cleanup births.
+    /// Neither retains an entered Scope across coroutine suspension.
+    original_target: Option<crate::interp::native_operation_currency::SavedExecutionTarget>,
+    procedure_call_exit: Option<crate::interp::oo_cleanup::OriginalOoCallExit>,
     /// A *transparent* script activation (`eval`/`uplevel`/`catch`/`subst` body
     /// run on the explicit stack so a `yield` inside it stays yieldable). It owns
     /// no `Vm` call-frame; on completion its result is delivered to the parent
@@ -659,6 +663,8 @@ impl Frame {
             last_options: Value::empty(),
             is_proc,
             oo_call_exit: None,
+            original_target: None,
+            procedure_call_exit: None,
             is_script: false,
             replay_namespace_restore: None,
             selected_frame_restore: None,
@@ -1687,6 +1693,13 @@ impl Vm {
     }
 
     fn push_frame(&mut self, acts: &mut Vec<Frame>, mut frame: Frame) {
+        frame.original_target = Some(
+            crate::interp::native_operation_currency::SavedExecutionTarget::capture(self),
+        );
+        if frame.is_proc && frame.oo_call_exit.is_none() {
+            frame.procedure_call_exit =
+                crate::interp::oo_cleanup::OriginalOoCallExit::capture_procedure(self);
+        }
         if self.uses_jim_error_stack() {
             let parent = acts
                 .last()
@@ -1960,6 +1973,9 @@ impl Vm {
 
     fn drive_loop(&mut self, acts: &mut Vec<Frame>, mode: DriveMode) -> RunExit {
         loop {
+            if let Some(original) = acts.last().and_then(|frame| frame.original_target.as_ref()) {
+                let _ = original.check_current(self);
+            }
             for original in acts
                 .iter()
                 .flat_map(|activation| activation.exec_leave.iter())
@@ -1967,9 +1983,10 @@ impl Vm {
             {
                 if matches!(original, OriginalExecutionOwner::Parked(_)) {
                     let _ = original.check(self);
-                    self.refuse_host_command(
+                    let refused = self.refuse_host_command(
                         "parked VM continuation has no entered execution owner".into(),
                     );
+                    drop(refused);
                     break;
                 }
                 let _ = original.check(self);
@@ -2183,56 +2200,86 @@ impl Vm {
     /// or guest leave/unset callbacks. The returned carrier is internal only;
     /// the host boundary returns the retained typed refusal instead.
     pub(crate) fn abort_refused_activations(&mut self, acts: &mut Vec<Frame>) -> Completion<Value> {
-        let original_scopes: Vec<_> = acts
-            .iter()
+        self.abort_refused_activations_using(acts, None)
+    }
+
+    fn abort_refused_activations_using(
+        &mut self,
+        acts: &mut Vec<Frame>,
+        saved: Option<&crate::interp::native_operation_currency::SavedExecutionTarget>,
+    ) -> Completion<Value> {
+        // Capture only already-issued frame/continuation metadata before consuming
+        // the last activation. The callback-selected current target is not a donor.
+        let target = saved.cloned().or_else(|| acts.last()
+            .and_then(|activation| activation.original_target.clone()));
+        let original_scopes: Vec<_> = acts.iter()
             .flat_map(|activation| activation.exec_leave.iter())
-            .chain(self.pending_exec_leave.iter())
-            .flat_map(|context| context.original_scopes.iter().cloned())
-            .collect();
-        let currencies: Vec<_> = original_scopes
-            .iter()
-            .map(|owner| owner.currency().clone())
-            .collect();
-        let cleanup = self.original_activation_cleanup(&currencies);
+            .flat_map(|context| context.original_scopes.iter().cloned()).collect();
+        for original in &original_scopes { let _ = original.check(self); }
         while let Some(mut activation) = acts.pop() {
-            activation.close_native_script();
-            if activation.is_proc {
-                if let Some(exit) = &activation.oo_call_exit {
-                    if let Err(error) =
-                        exit.in_original(self, |vm, original| exit.retire(vm, original))
-                    {
-                        crate::interp::oo_cleanup::retain_error(self, &error);
+            let original = activation.original_target.take();
+            if let Some(original) = original {
+                let retired = original.in_original(self, |vm| {
+                    activation.close_native_script();
+                    if activation.is_proc {
+                        if let Some(exit) = activation.oo_call_exit.as_ref()
+                            .or(activation.procedure_call_exit.as_ref())
+                        {
+                            if let Err(error) = exit.in_original(vm, |vm, original| exit.retire(vm, original)) {
+                                crate::interp::oo_cleanup::retain_error(vm, &error);
+                            }
+                        }
+                    } else if let Some(previous) = activation.replay_namespace_restore.take() {
+                        vm.leave_replay_namespace(previous);
                     }
-                } else {
-                    self.release_native_procedure_execution();
-                    self.pop_call_frame();
-                    self.pop_ns();
+                    vm.restore_execution_frame(activation.selected_frame_restore.take());
+                    for context in activation.exec_leave.drain(..) {
+                        vm.pop_exec_step_scopes(context.step_scopes);
+                        drop(context);
+                    }
+                    if let Some(name) = activation.cleanup_proc.take() {
+                        let retired = vm.take_command_unchecked(&name);
+                        drop(retired);
+                    }
+                    if let Some(registration) = activation.lambda_registration.take() {
+                        vm.retire_original_lambda_registration(&registration);
+                        drop(registration);
+                    }
+                    // Actual owned operands/results retire before the saved target's
+                    // post-cleanup and post-restoration full first-cause checks.
+                    drop(activation);
+                });
+                if let Err(first) = retired {
+                    self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first));
                 }
-            } else if let Some(previous) = activation.replay_namespace_restore.take() {
-                self.leave_replay_namespace(previous);
-            }
-            self.restore_execution_frame(activation.selected_frame_restore.take());
-            for context in activation.exec_leave {
-                self.pop_exec_step_scopes(context.step_scopes);
-            }
-            if let Some(name) = activation.cleanup_proc {
-                self.take_command_unchecked(&name);
-            }
-            if let Some(registration) = activation.lambda_registration {
-                self.retire_original_lambda_registration(&registration);
+            } else {
+                // A hand-built activation without an original physical observation
+                // supplies no authority to pop any callback-created frame or namespace.
+                let error: tcl_cmd_core::CmdError = tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original activation cleanup target",
+                ).into();
+                crate::interp::oo_cleanup::retain_error(self, &error);
+                drop(activation);
             }
         }
-        if let Some(req) = self.pending.procedure_call.take() {
-            self.retire_original_lambda_registration(&req.registration);
+        if let Some(target) = target {
+            let retired = target.in_original(self, |vm| {
+                if let Some(req) = vm.pending.procedure_call.take() {
+                    vm.retire_original_lambda_registration(&req.registration);
+                    drop(req);
+                }
+                let pending = std::mem::take(&mut vm.pending);
+                drop(pending);
+                if let Some(context) = vm.pending_exec_leave.take() {
+                    vm.pop_exec_step_scopes(context.step_scopes);
+                    drop(context);
+                }
+            });
+            if let Err(first) = retired {
+                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first));
+            }
         }
-        self.pending = crate::interp::PendingControl::default();
-        if let Some(context) = self.pending_exec_leave.take() {
-            self.pop_exec_step_scopes(context.step_scopes);
-        }
-        for original in &original_scopes {
-            let _ = original.check(self);
-        }
-        let _ = self.check_original_scopes(&cleanup);
+        for original in &original_scopes { let _ = original.check(self); }
         err("")
     }
 
@@ -2271,9 +2318,10 @@ impl Vm {
                 if let Some(context) = self.pending_exec_leave.take() {
                     let Some(activation) = acts.last_mut() else {
                         self.pending_exec_leave = Some(context);
-                        self.refuse_host_command(
+                        let refused = self.refuse_host_command(
                             "suspended VM continuation has no activation owner".into(),
                         );
+                        drop(refused);
                         return Some(RunExit::Done(self.abort_refused_activations(acts)));
                     };
                     activation.exec_leave.push(context);
@@ -2716,7 +2764,9 @@ impl Vm {
         acts: &[Frame],
         c: &mut Completion<Value>,
     ) -> Option<TailcallReq> {
-        if let Some(exit) = act.oo_call_exit.clone() {
+        if let Some(exit) = act.oo_call_exit.as_ref()
+            .or(act.procedure_call_exit.as_ref()).cloned()
+        {
             let reached = exit.in_original(self, |vm, original| {
                 if let Err(error) = exit.check_running(vm, original) {
                     crate::interp::oo_cleanup::retain_error(vm, &error);
@@ -2856,11 +2906,17 @@ impl Vm {
             .chain(self.pending_exec_leave.iter())
             .flat_map(|context| context.original_scopes.iter().cloned())
             .collect();
+        let target = acts.last().and_then(|frame| frame.original_target.clone());
+        if let Some(target) = &target { let _ = target.check_current(self); }
         let reached = self.unwind_in_original_scope(acts, c);
+        if self.execution_refusal.is_some() {
+            drop(reached);
+            return Some(self.abort_refused_activations_using(acts, target.as_ref()));
+        }
         for scope in &original {
             if self.original_owner_refusal(scope).is_some() {
                 drop(reached);
-                let completion = self.abort_refused_activations(acts);
+                let completion = self.abort_refused_activations_using(acts, target.as_ref());
                 let _ = scope.check(self);
                 return Some(completion);
             }
@@ -9938,13 +9994,25 @@ impl Vm {
             original_list,
             original_scope,
         } = request;
+        let target = match crate::interp::native_operation_currency::SavedExecutionTarget::from_currency(
+            original_scope.currency(),
+        ) {
+            Ok(target) => target,
+            Err(first) => {
+                self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
+                drop((namespace, words, original_list));
+                return Some(crate::command::completion_from_cmd_error(
+                    self, tcl_cmd_core::CmdError::from_execution_refusal(first),
+                ));
+            }
+        };
         let mut original_scope = original_scope;
         let original_scope = match original_scope.resume(self) {
             Ok(scope) => scope,
             Err(error) => {
                 let completion = crate::command::completion_from_cmd_error(self, error);
                 drop((namespace, words, original_list));
-                let cleanup = self.abort_refused_activations(acts);
+                let cleanup = self.abort_refused_activations_using(acts, Some(&target));
                 drop(completion);
                 return Some(cleanup);
             }
@@ -10003,7 +10071,7 @@ impl Vm {
         })();
         if let Some(_first) = self.original_scope_refusal(&original_scope) {
             drop(reached);
-            let completion = self.abort_refused_activations(acts);
+            let completion = self.abort_refused_activations_using(acts, Some(&target));
             let _ = original_scope.check(self);
             Some(self.finish_original_completion(&original_scope, completion))
         } else {
@@ -10014,6 +10082,9 @@ impl Vm {
 
 #[cfg(test)]
 mod original_name_dispatch_tests;
+
+#[cfg(test)]
+mod original_activation_cleanup_tests;
 
 #[cfg(test)]
 mod tests {

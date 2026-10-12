@@ -86,6 +86,21 @@ impl SavedExecutionTarget {
         Self { owner, interpreter, context, currency }
     }
 
+    /// Describe only the physical target already issued by this authentic currency.
+    /// This permits mandatory cleanup after the last activation has been consumed.
+    pub(crate) fn from_currency(
+        original: &NativeOperationCurrency,
+    ) -> Result<Self, NativeExecutionError> {
+        let interpreter = usize::try_from(original.interpreter.interpreter)
+            .map(InterpId).map_err(|_| unavailable())?;
+        Ok(Self {
+            owner: original.interpreter.owner,
+            interpreter,
+            context: Rc::downgrade(&original.owner),
+            currency: Ok(Some(original.clone())),
+        })
+    }
+
     fn owns_target(&self, vm: &Vm) -> bool {
         self.owner == vm.owner_nonce
             && self.context.upgrade().is_some_and(|context| {
