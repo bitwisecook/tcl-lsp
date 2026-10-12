@@ -1,0 +1,74 @@
+--- a/rust/tcl-compiler/src/command_binding/declaration_preview.rs
++++ b/rust/tcl-compiler/src/command_binding/declaration_preview.rs
+@@ -427,18 +427,65 @@
+     ) -> Option<OriginalProcedureReadDeclaration> {
+         // naming.compiler.original-analysis-metadata-context
+         // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
++        #[cfg(test)]
++        let trace_enabled = std::env::var_os("TCL_LSP_TRACE_W210_INNER_PREDICATE").is_some()
++            && self.root_origin.as_ref().is_some_and(|origin| {
++                origin.source_image().bytes()
++                    == include_bytes!("../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl")
++            });
++        #[cfg(test)]
++        let trace_hash = {
++            use std::hash::{Hash, Hasher};
++            let mut hash = std::collections::hash_map::DefaultHasher::new();
++            if let Some(origin) = &self.root_origin {
++                origin.source_image().bytes().hash(&mut hash);
++            }
++            hash.finish()
++        };
++        #[cfg(test)]
++        let trace = |stage: &str, verdict: &str| {
++            if trace_enabled {
++                eprintln!("W210_INNER stage={stage} verdict={verdict} source_hash={trace_hash:016x}");
++            }
++        };
+         let metadata = crate::registry_invocation::InvocationMetadataContext::for_analysis_input(
+             registry, input,
+-        )?;
+-        let site = tokens.source_binding.as_ref()?.invocation_site()?;
+-        if !self.matches_original_source_image(site.source.source_image(), input.lexer_config()) {
++        );
++        #[cfg(test)]
++        trace("metadata-context", if metadata.is_some() { "Some" } else { "Refused" });
++        let metadata = metadata?;
++        let binding = tokens.source_binding.as_ref();
++        #[cfg(test)]
++        trace("token-binding", if binding.is_some() { "Some" } else { "Refused" });
++        let binding = binding?;
++        let site = binding.invocation_site();
++        #[cfg(test)]
++        trace("original-site", if site.is_some() { "Some" } else { "Refused" });
++        let site = site?;
++        #[cfg(test)]
++        if trace_enabled {
++            let input_equal = binding.lookup_state.as_ref().map(|snapshot| {
++                snapshot.state.baseline.metadata_context.source_analysis_input() == Some(input)
++            });
++            eprintln!("W210_INNER site={} input_equal={input_equal:?}", site.offset);
++        }
++        let image_current = self.matches_original_source_image(site.source.source_image(), input.lexer_config());
++        #[cfg(test)]
++        trace("original-image-config", if image_current { "Current" } else { "Refused" });
++        if !image_current {
+             return None;
+         }
+-        if tokens
++        let purpose = tokens
+             .source_binding
+             .as_ref()?
+-            .original_source_advice_purpose(tokens, metadata, registry)?
+-            == crate::command_binding::OriginalInvocationSourcePurpose::Logical
++            .original_source_advice_purpose(tokens, metadata, registry);
++        #[cfg(test)]
++        trace("original-source-advice-purpose", match purpose.as_ref() {
++            Some(crate::command_binding::OriginalInvocationSourcePurpose::Logical) => "Logical",
++            Some(_) => "NonLogical",
++            None => "Refused",
++        });
++        if purpose? == crate::command_binding::OriginalInvocationSourcePurpose::Logical
+         {
+             let recipe = self.original_logical_procedure_declaration(tokens, registry, input)?;
+             return Some(OriginalProcedureReadDeclaration {

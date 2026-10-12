@@ -348,16 +348,14 @@ catalogues.
 
 ## Compiler fact contracts
 
-Notes about a change to a **compiler fact** — something an analyser pass,
-diagnostic, or downstream tool reads from the compiler and used to be able
-to assume was fixed for the life of the process, and no longer can — live
-under [`compiler/`](compiler/README.md).
+Notes about the context and lifetime of **compiler facts** read by analyser
+passes, diagnostics and downstream tools live under
+[`compiler/`](compiler/README.md). Consumers must retain the selected fact
+owner and key cached answers on its current identity.
 
 - [kcs-qa-is-the-command-registry-fixed-at-compile-time.md](compiler/kcs-qa-is-the-command-registry-fixed-at-compile-time.md)
-  — why the command registry the analyser consults is no longer fixed at
-  compile time now that SpecTcl packs can load at runtime, and what that
-  means for W002/W123 and any consumer that memoises "is this command
-  known".
+  — how runtime SpecTcl packs affect command availability and W002/W123,
+  and which registry identity cached command-existence answers require.
 - [kcs-qa-what-does-a-value-transfer-declaration-say.md](compiler/kcs-qa-what-does-a-value-transfer-declaration-say.md)
   — where the constant-propagation pass learns what a command computes and
   which variables it writes: the registry's three-state `semantics`

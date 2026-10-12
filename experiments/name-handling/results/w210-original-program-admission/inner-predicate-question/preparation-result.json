@@ -1,0 +1,17 @@
+{
+  "status": "proposed_generated_unapplied_unexecuted",
+  "owner": "rust/tcl-compiler/src/command_binding/declaration_preview.rs",
+  "owner_sha256": "aa7aa950137ebea78be511866a1b4c4d27f61cc301d3ed8d4b47517c02dacb66",
+  "fixture_sha256": "82f6602d5492c1b321f6a26186f80741e5fd4b1a3f9c4a9f09d05dae508911ef",
+  "patch_lines": 74,
+  "first_source_purpose_predicate": "tokens.source_binding.as_ref()?.original_source_advice_purpose(tokens, metadata, registry)?",
+  "preceding_predicates": [
+    "for_analysis_input",
+    "token-binding",
+    "invocation_site",
+    "matches_original_source_image"
+  ],
+  "output": "Stage/verdict/source hash/site offset and actual retained input-equality only; no owner addresses/input/env/device text.",
+  "generation": "prepare.py generated a proposed patch only; production Rust remained exact before hash. No Cargo/Git/tracking/canonical change.",
+  "next_execution": "Wait for shared clock source freeze and coordinator cache grant; apply only one-owner patch, measure only original C8.4 control, then restore exact owner. No semantic repair."
+}

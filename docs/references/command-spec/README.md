@@ -114,8 +114,9 @@ the file is unaffected.
 Worth knowing: `CommandSpec::completion` is the *Tcl completion-code*
 contract for the compiler, not LSP completion; `FormSpec` feeds only the
 `usage:` suffix on arity diagnostics and one append-argument quick fix;
-document links and the formatter's clause-list layout are name-hardcoded
-(`source`, `switch`) rather than registry-driven today.
+document links select the registry's source handler and source-navigation
+operands; clause-list formatting reads the selected `case_list` descriptor.
+Both retain the current analysis and original operand mapping.
 
 ## Optimisations by field
 
@@ -131,8 +132,8 @@ gate is the shared purity classifier: `Traits::PURE` (or
 | O102 load forwarding | literal into uses | Blocked by the same aliasing/trace traits and by any barrier statement |
 | O103 pure-proc folding | call → constant | Every callee must classify pure — one unregistered command in a proc poisons it |
 | O104 / O130 chain folds | `set`+`append`/`lappend` → one `set` | Escape gate is registry-driven; the heads themselves are name-hardcoded, so third-party RMW commands cannot join |
-| O105 redundancy (GVN) | reuse a prior identical call | Legacy path: `PURE \| CSE_CANDIDATE`. The strict "Common" path additionally wants `result_stability: ReferentiallyTransparent`, `world_effects` / `state_transitions` declared empty — but its dispatch proof is deliberately unprovable today, so full-redundancy reuse never fires (test-pinned); partial redundancy and O106 use the legacy path and do |
-| O106 loop hoisting (LICM) | invariant out of loop | `PURE \| CSE_CANDIDATE`, every nested substitution also pure — the most directly attainable win for a spec author |
+| O105 redundancy (GVN) | reuse a prior identical call | Production requires source-faithful semantic facts, `PURE \| CSE_CANDIDATE`, reusable `result_stability`, closed empty effects/transitions, and a complete per-site dispatch proof. Versioned-world results also key on their declared read domains; missing proof declines reuse |
+| O106 loop hoisting (LICM) | invariant out of loop | The production path uses the same semantic eligibility and dispatch proofs as GVN, plus the function's SCCP executability and loop-invariance checks; traits alone do not authorise a hoist |
 | O107 / O112 unreachable + constant branches | dead blocks, `if {0}` | Need structured IR: only commands with a `lowering_hook` (`If` / `While` / `For` / `Switch`) participate; the hook enum is closed |
 | O108 / O109 / O126 / O127 dead code, dead stores, inlining | removal / inlining | Purity classifier; `VarRead` / `WHOLE_ARRAY_ARG` roles prevent false "unused"; `READS_BEFORE_WRITE` protects RMW feeds; `DESTROYS_VARIABLE` keeps the killed store alive |
 | O114 `incr` idiom | `set x [expr {$x+1}]` → `incr` | Needs the variable typed `Int` — via `return_type` / `var_write_typing` |

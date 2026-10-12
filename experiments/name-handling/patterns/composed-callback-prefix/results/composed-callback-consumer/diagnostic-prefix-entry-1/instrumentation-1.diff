@@ -1,0 +1,39 @@
+--- rust/tcl-compiler/src/realm/source_transition_advice.rs original
++++ rust/tcl-compiler/src/realm/source_transition_advice.rs diagnostic
+@@ -533,16 +533,33 @@
+         input: &crate::analyser::ResolvedAnalysisInput,
+         original: &[tcl_lexer::NativeWord],
+     ) -> Option<crate::command_binding::OriginalSourceAuthoredCommandPrefix> {
+-        self.matches_resolved_analysis_input(input).then_some(())?;
++        let input_matches = self.matches_resolved_analysis_input(input);
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!(
++                "COMPOSED_PREFIX_REALM offset={:?} input_matches={input_matches} original_words={}",
++                original.first().map(|word| word.span().start()),
++                original.len()
++            );
++        }
++        input_matches.then_some(())?;
+         let image = self.original_source_image()?;
+         let config = input.lexer_config();
+-        self.matches_original_source_image(image, config)
+-            .then_some(())?;
++        let image_matches = self.matches_original_source_image(image, config);
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!("COMPOSED_PREFIX_IMAGE image_matches={image_matches}");
++        }
++        image_matches.then_some(())?;
+         let context = input.context_registry();
+         let prepared = self.source_advice.get_or_prepare(&context, || {
+             self.bindings
+                 .original_source_transition_advice_tape(&context)
+         });
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!(
++                "COMPOSED_PREFIX_TAPE prepared={}",
++                prepared.as_ref().is_some()
++            );
++        }
+         let prefix = prepared
+             .as_ref()
+             .as_ref()?

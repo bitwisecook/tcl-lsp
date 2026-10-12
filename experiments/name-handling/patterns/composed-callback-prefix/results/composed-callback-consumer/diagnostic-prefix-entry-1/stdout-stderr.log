@@ -1,0 +1,41 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+    Finished `test` profile [unoptimized] target(s) in 1m 26s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103)
+
+running 1 test
+COMPOSED_PREFIX_VISIT offset=Some(0) head=Some([105, 110, 116, 101, 114, 112]) descriptor=interp list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(39) head=Some([111, 111, 58, 58, 99, 108, 97, 115, 115]) descriptor=oo::class list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(265) head=Some([117, 112, 100, 97, 116, 101]) descriptor=update list_builder=false native_result=None argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(273) head=Some([115, 101, 116]) descriptor=set list_builder=false native_result=Some(VariableValue { variable_at: 0, phase: AfterRead }) argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(0) head=Some([105, 110, 116, 101, 114, 112]) descriptor=interp list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(39) head=Some([111, 111, 58, 58, 99, 108, 97, 115, 115]) descriptor=oo::class list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(265) head=Some([117, 112, 100, 97, 116, 101]) descriptor=update list_builder=false native_result=None argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(273) head=Some([115, 101, 116]) descriptor=set list_builder=false native_result=Some(VariableValue { variable_at: 0, phase: AfterRead }) argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_QUESTION case=positive offset=174 body_config_matches=true full_image_matches=true builder_schema=true
+COMPOSED_PREFIX_REALM offset=Some(174) input_matches=true original_words=4
+COMPOSED_PREFIX_IMAGE image_matches=true
+COMPOSED_PREFIX_TAPE prepared=true
+COMPOSED_PREFIX_ENTRY offset=174 state=absent-offset represented=false producer_advice=false map_count=0 offsets=[]
+COMPOSED_PREFIX_RESULT case=positive retained=false
+COMPOSED_PREFIX_VISIT offset=Some(0) head=Some([105, 110, 116, 101, 114, 112]) descriptor=interp list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(39) head=Some([111, 111, 58, 58, 99, 108, 97, 115, 115]) descriptor=oo::class list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(319) head=Some([117, 112, 100, 97, 116, 101]) descriptor=update list_builder=false native_result=None argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(327) head=Some([115, 101, 116]) descriptor=set list_builder=false native_result=Some(VariableValue { variable_at: 0, phase: AfterRead }) argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(0) head=Some([105, 110, 116, 101, 114, 112]) descriptor=interp list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(39) head=Some([111, 111, 58, 58, 99, 108, 97, 115, 115]) descriptor=oo::class list_builder=false native_result=None argument_offset=1 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(319) head=Some([117, 112, 100, 97, 116, 101]) descriptor=update list_builder=false native_result=None argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_VISIT offset=Some(327) head=Some([115, 101, 116]) descriptor=set list_builder=false native_result=Some(VariableValue { variable_at: 0, phase: AfterRead }) argument_offset=0 arity=Some(true)
+COMPOSED_PREFIX_QUESTION case=unknown-writer offset=185 body_config_matches=true full_image_matches=true builder_schema=true
+COMPOSED_PREFIX_REALM offset=Some(185) input_matches=true original_words=4
+COMPOSED_PREFIX_IMAGE image_matches=true
+COMPOSED_PREFIX_TAPE prepared=true
+COMPOSED_PREFIX_ENTRY offset=185 state=absent-offset represented=false producer_advice=false map_count=0 offsets=[]
+COMPOSED_PREFIX_RESULT case=unknown-writer retained=false
+test references::tests::composed_callback_prefix_tests::diagnostic_composed_callback_prefix_original_entry ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3003 filtered out; finished in 1.94s
+

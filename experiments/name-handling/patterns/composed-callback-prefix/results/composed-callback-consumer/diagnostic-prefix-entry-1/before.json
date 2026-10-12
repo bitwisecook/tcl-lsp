@@ -1,0 +1,26 @@
+{
+  "question": "For the unchanged positive/adverse original method source, does authored-prefix lookup find no tape, an absent builder offset, a retained refusal or an admitted target schema?",
+  "started_at_utc": "2026-10-12T22:13:48.056170+00:00",
+  "subject_commit": "70787c0541d107987e94ec143f81b2877824bdc9",
+  "temporary_files": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "rust/tcl-lsp-core/src/references.rs"
+  ],
+  "backup_directory": "/tmp/composed-prefix-diag-59ivo5wj",
+  "original_source_hashes": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": "81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "ff024ebeac3736c15167f2e644a6c9e8a5c4345f9e5a2d07708826c7a9889262",
+    "rust/tcl-lsp-core/src/references.rs": "7d559f79e57e94b3ce4823765ac4d060c5c7b4863abda6bb47c75a8239d55f7c"
+  },
+  "source_inputs": {
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca"
+  },
+  "diagnostic_only": true,
+  "assertion_policy": "existing four concrete tests unchanged; separate diagnostic reports receipt state without manufacturing admission",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "trace_environment": {
+    "TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY": "1"
+  }
+}

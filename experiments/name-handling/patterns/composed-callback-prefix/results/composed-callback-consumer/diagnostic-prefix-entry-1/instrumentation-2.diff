@@ -1,0 +1,41 @@
+--- rust/tcl-lsp-core/src/references.rs original
++++ rust/tcl-lsp-core/src/references.rs diagnostic
+@@ -6108,6 +6108,38 @@
+         }
+ 
+         #[test]
++        fn diagnostic_composed_callback_prefix_original_entry() {
++            for (case, source) in [("positive", POSITIVE), ("unknown-writer", UNKNOWN_WRITER)] {
++                let analysis = analyse_source(source, "tcl8.6");
++                let (producer, _, _) = original_builder(source, &analysis);
++                let input = analysis.resolved_input.as_ref().unwrap();
++                let context = input.context_registry();
++                let schema = source_registry_words(source, &analysis, &producer);
++                eprintln!(
++                    "COMPOSED_PREFIX_QUESTION case={case} offset={} body_config_matches={} full_image_matches={} builder_schema={}",
++                    producer.argv[0].span.start(),
++                    analysis.body_lexer_config == Some(input.lexer_config()),
++                    analysis.matches_original_source_image(
++                        &tcl_lexer::SourceImage::document(source),
++                        input.lexer_config()
++                    ),
++                    schema.as_ref().and_then(|words| words.with_source_schema(
++                        &context,
++                        |selected| selected
++                            .semantics
++                            .traits
++                            .contains(tcl_registry::Traits::BUILDS_COMMAND_PREFIX)
++                    )) == Some(true),
++                );
++                let prefix = source_authored_command_prefix(source, &analysis, &producer);
++                eprintln!(
++                    "COMPOSED_PREFIX_RESULT case={case} retained={}",
++                    prefix.is_some()
++                );
++            }
++        }
++
++        #[test]
+         fn composed_callback_prefix_original_advice_keeps_builder_and_each_written_operand() {
+             for release in ["tcl8.6", "tcl9.0", "tcl9.1"] {
+                 for (case, source) in [

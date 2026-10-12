@@ -1,0 +1,43 @@
+{
+  "question": "For the unchanged positive/adverse original method source, does authored-prefix lookup find no tape, an absent builder offset, a retained refusal or an admitted target schema?",
+  "started_at_utc": "2026-10-12T22:13:48.056170+00:00",
+  "subject_commit": "70787c0541d107987e94ec143f81b2877824bdc9",
+  "temporary_files": [
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs",
+    "rust/tcl-lsp-core/src/references.rs"
+  ],
+  "backup_directory": "/tmp/composed-prefix-diag-59ivo5wj",
+  "original_source_hashes": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": "81903657c7b10bfe9e1633cf7e6ba308d913650149f4d89603a767e3c5532c0d",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "ff024ebeac3736c15167f2e644a6c9e8a5c4345f9e5a2d07708826c7a9889262",
+    "rust/tcl-lsp-core/src/references.rs": "7d559f79e57e94b3ce4823765ac4d060c5c7b4863abda6bb47c75a8239d55f7c"
+  },
+  "source_inputs": {
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl": "3d3a231fc88a3d762649412c7c2b81b1182fb2cd2eb0c8b9d61f864b55b7e4fa",
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl": "bbe019099e554bc88e95cca06ee28f9de22144ea3dede9fac265bb4aedaf34ca"
+  },
+  "diagnostic_only": true,
+  "assertion_policy": "existing four concrete tests unchanged; separate diagnostic reports receipt state without manufacturing admission",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "trace_environment": {
+    "TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY": "1"
+  },
+  "instrumented_source_hashes": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": "8ca4e7aeed29bbcf3c95b8b30fd2e4e3028d8c811e1a53d1e85f3ca106b91225",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "f326671ffcc8f335dd569264ff99d90c7ffffdee5cfc71a0e2fdb115f9bd7806",
+    "rust/tcl-lsp-core/src/references.rs": "0b544419f75789ffc41ef574c0c4bba2cac0295ca8981835684d8aac69132c81",
+    "rust/tcl-syntax/src/native_tcl_utf.rs": "37a70761fba973bdc6fd3805bef6832d74f768722a23b440297f503309eb765b",
+    "rust/tcl-syntax/src/value.rs": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "rust/tcl-lsp-core/src/inlay_hints.rs": "a667391cf5277ca9817476902514857bb25df13dd543ac6795b9b1485d59e096",
+    "rust/tcl-lsp-core/src/rename_safety.rs": "c9c1d327ff21078116c3185a83f8ddb9f95ed92593ca5594095da0316bde3265",
+    "rust/tcl-compiler/src/command_binding.rs": "b9edda77ce2d50ba1713911a9f23f1bd75989d1324e51260226590d39722aabd",
+    "rust/tcl-compiler/src/provider_fixtures.rs": "6d4facc342f6fd1f99590398f90691c380d12a308a7818d1d6b09f26f4ab3161",
+    "rust/tcl-compiler/src/script_binds.rs": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f",
+    "rust/tcl-lsp-core/Cargo.toml": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "diagnostic_selector": "references::tests::composed_callback_prefix_tests::diagnostic_composed_callback_prefix_original_entry",
+  "snapshot_scope": "listed exact normal core dependency/temporary diagnostic files only; clock holds shared syntax/cmd-core files, excluded runtime files not part of snapshot"
+}

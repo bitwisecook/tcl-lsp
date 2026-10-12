@@ -1,0 +1,31 @@
+{
+  "receipt_scope": "known executed diagnostic invocation; no new run",
+  "command_argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j",
+    "2",
+    "-p",
+    "tcl-lsp-core",
+    "--lib",
+    "references::tests::composed_callback_prefix_tests::diagnostic_composed_callback_prefix_original_entry",
+    "--",
+    "--exact",
+    "--nocapture"
+  ],
+  "exact_shell_command": "set -o pipefail\nsource /tmp/name-env.sh\nTCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY=1 CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues cargo test --offline -j 2 -p tcl-lsp-core --lib references::tests::composed_callback_prefix_tests::diagnostic_composed_callback_prefix_original_entry -- --exact --nocapture 2>&1 | tee /workspace/tcl-lsp/experiments/name-handling/patterns/composed-callback-prefix/results/composed-callback-consumer/diagnostic-prefix-entry-1/stdout-stderr.log",
+  "cwd": "/workspace/tcl-lsp",
+  "environment_selectors": {
+    "sourced_script": "/tmp/name-env.sh",
+    "TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY": "1",
+    "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-issues"
+  },
+  "capture_session_started_at_utc": "2026-10-12T22:13:48.056170+00:00",
+  "process_started_at_utc": "not separately timestamped; capture-session start above precedes temporary instrumentation and execution",
+  "completed_at_utc": "2026-10-12T22:16:26.395886+00:00",
+  "process_exit_code": 0,
+  "tee_stream": "stdout-stderr.log",
+  "actual_diagnostic_count": 1,
+  "actual_original_source_measurement_count": 2
+}

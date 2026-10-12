@@ -1,0 +1,78 @@
+--- rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs original
++++ rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs diagnostic
+@@ -186,6 +186,20 @@
+         &self,
+         offset: u32,
+     ) -> Option<&OriginalSourceAuthoredCommandPrefix> {
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            let state = match self.authored_prefixes.get(&offset) {
++                None => "absent-offset",
++                Some(None) => "retained-refusal",
++                Some(Some(_)) => "retained-prefix",
++            };
++            eprintln!(
++                "COMPOSED_PREFIX_ENTRY offset={offset} state={state} represented={} producer_advice={} map_count={} offsets={:?}",
++                self.represented.contains(&offset),
++                self.advice.contains_key(&offset),
++                self.authored_prefixes.len(),
++                self.authored_prefixes.keys().collect::<Vec<_>>(),
++            );
++        }
+         self.authored_prefixes.get(&offset)?.as_ref()
+     }
+     pub(super) fn merge_authored_prefix(
+@@ -286,6 +300,21 @@
+     ) {
+         // naming.source.original-authored-command-prefix-data
+         // docs/design/analysis/name-resolution-proofs/source-original-authored-command-prefix-data.md
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!(
++                "COMPOSED_PREFIX_VISIT offset={:?} head={:?} descriptor={} list_builder={} native_result={:?} argument_offset={} arity={:?}",
++                invocation.native.first().map(|word| word.span().start()),
++                invocation.native.first().map(|word| word.bytes()),
++                schema.canonical_command,
++                schema
++                    .semantics
++                    .traits
++                    .contains(Traits::BUILDS_COMMAND_PREFIX),
++                schema.semantics.native_result,
++                schema.semantics.argument_offset,
++                schema.facts().arity_accepts_frozen_arguments(),
++            );
++        }
+         if tape.authored_prefixes.len() >= 256
+             || !schema
+                 .semantics
+@@ -394,7 +423,15 @@
+         if written.iter().any(|word| word.original.group().expand) {
+             return None;
+         }
+-        let (command, mut arguments, lineage) = graph.resolve(&head)?;
++        let resolved = graph.resolve(&head);
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!(
++                "COMPOSED_PREFIX_TARGET_GRAPH head={:?} resolved={}",
++                head.bytes(),
++                resolved.is_some()
++            );
++        }
++        let (command, mut arguments, lineage) = resolved?;
+         for (ordinal, argument) in arguments.iter_mut().enumerate() {
+             argument.origin =
+                 crate::registry_invocation::InvocationWordOrigin::BindingPrefix(ordinal);
+@@ -519,7 +556,14 @@
+                     .with_dialect(self.dialect),
+                 tcl_dialect::model::InvocationRealm::RuleLoader,
+             );
+-        let schema = resolution.resolved()?;
++        let resolved = resolution.resolved();
++        if std::env::var_os("TCL_LSP_TRACE_COMPOSED_PREFIX_ENTRY").is_some() {
++            eprintln!(
++                "COMPOSED_PREFIX_TARGET_SCHEMA command={command} resolved={}",
++                resolved.is_some()
++            );
++        }
++        let schema = resolved?;
+         let (roles, complete) = self.authored_roles(&schema);
+         let roles = complete
+             .then(|| {

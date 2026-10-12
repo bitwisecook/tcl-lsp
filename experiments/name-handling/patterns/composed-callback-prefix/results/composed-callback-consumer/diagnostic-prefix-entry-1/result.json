@@ -1,0 +1,88 @@
+{
+  "question": "For the unchanged positive/adverse original method source, does authored-prefix lookup find no tape, an absent builder offset, a retained refusal or an admitted target schema?",
+  "status": "exact-diagnostic-measured-original-inputs-instrumentation-restored",
+  "completed_at_utc": "2026-10-12T22:16:26.395886+00:00",
+  "executed_diagnostic_count": 1,
+  "source_input_measurement_count": 2,
+  "process_exit_code": 0,
+  "diagnostic_conformance_scope": "measurement only; passing diagnostic is not acceptance of existing four controls",
+  "observations": [
+    {
+      "case": "positive",
+      "builder_offset": 174,
+      "body_config_matches": true,
+      "full_image_matches": true,
+      "builder_schema": true,
+      "realm_input_matches": true,
+      "realm_image_matches": true,
+      "prepared_tape": true,
+      "entry_state": "absent-offset",
+      "builder_represented": false,
+      "builder_producer_advice": false,
+      "authored_prefix_map_count": 0,
+      "target_graph_schema_guards": "unreached for this builder",
+      "retained_prefix": false
+    },
+    {
+      "case": "unknown-writer",
+      "builder_offset": 185,
+      "body_config_matches": true,
+      "full_image_matches": true,
+      "builder_schema": true,
+      "realm_input_matches": true,
+      "realm_image_matches": true,
+      "prepared_tape": true,
+      "entry_state": "absent-offset",
+      "builder_represented": false,
+      "builder_producer_advice": false,
+      "authored_prefix_map_count": 0,
+      "target_graph_schema_guards": "unreached for this builder",
+      "retained_prefix": false
+    }
+  ],
+  "causal_observation": "prepared original source tape exists and admission/source/builder schema checks pass; the method-body builder is not represented and has no offset entry. No retained refusal or target-schema rejection was reached for that builder. First missing receipt is source producer inventory admission under original method body, not target dispatch or visibility.",
+  "compiled_instrumented_source_hashes": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": "8ca4e7aeed29bbcf3c95b8b30fd2e4e3028d8c811e1a53d1e85f3ca106b91225",
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": "f326671ffcc8f335dd569264ff99d90c7ffffdee5cfc71a0e2fdb115f9bd7806",
+    "rust/tcl-lsp-core/src/references.rs": "0b544419f75789ffc41ef574c0c4bba2cac0295ca8981835684d8aac69132c81",
+    "rust/tcl-syntax/src/native_tcl_utf.rs": "37a70761fba973bdc6fd3805bef6832d74f768722a23b440297f503309eb765b",
+    "rust/tcl-syntax/src/value.rs": "7469bb97fdff078e10928ef28667cd1e21378c341669682ae1fdb4d070a5005e",
+    "rust/tcl-cmd-core/src/list.rs": "aa38e487d96d4179d94c408a2be84eb001ff2f4a18c10128ef633d04070eef60",
+    "rust/tcl-lsp-core/src/inlay_hints.rs": "a667391cf5277ca9817476902514857bb25df13dd543ac6795b9b1485d59e096",
+    "rust/tcl-lsp-core/src/rename_safety.rs": "c9c1d327ff21078116c3185a83f8ddb9f95ed92593ca5594095da0316bde3265",
+    "rust/tcl-compiler/src/command_binding.rs": "b9edda77ce2d50ba1713911a9f23f1bd75989d1324e51260226590d39722aabd",
+    "rust/tcl-compiler/src/provider_fixtures.rs": "6d4facc342f6fd1f99590398f90691c380d12a308a7818d1d6b09f26f4ab3161",
+    "rust/tcl-compiler/src/script_binds.rs": "79b67e1d58c31aba77a1e9b643bea6126839d730973ada8f310b572d8d60ed0f",
+    "rust/tcl-lsp-core/Cargo.toml": "d43b2fdd4fde0b21e08f20ecf9683b7f5e5d9f7e90e86b3808405038be838640",
+    "Cargo.lock": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49"
+  },
+  "compiled_test_binary": "tmp/name-target-issues/debug/deps/tcl_lsp_core-ff8efa1ff2b55103",
+  "compiled_test_binary_sha256": "064bee1e1e909f4e45c14e8a45f238f94b54986530b03a2534bc9a1ab9cfccdf",
+  "raw_combined_stream_sha256": "dfb83eacb9d09a03d62245f772ea2050fb8a6ad2cf787689c5fe44c3871f9d9e",
+  "instrumented_source_unchanged_during_build": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": true,
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": true,
+    "rust/tcl-lsp-core/src/references.rs": true,
+    "rust/tcl-syntax/src/native_tcl_utf.rs": true,
+    "rust/tcl-syntax/src/value.rs": true,
+    "rust/tcl-cmd-core/src/list.rs": true,
+    "rust/tcl-lsp-core/src/inlay_hints.rs": true,
+    "rust/tcl-lsp-core/src/rename_safety.rs": true,
+    "rust/tcl-compiler/src/command_binding.rs": true,
+    "rust/tcl-compiler/src/provider_fixtures.rs": true,
+    "rust/tcl-compiler/src/script_binds.rs": true,
+    "rust/tcl-lsp-core/Cargo.toml": true,
+    "Cargo.lock": true
+  },
+  "original_files_restored_exactly": {
+    "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": true,
+    "rust/tcl-compiler/src/realm/source_transition_advice.rs": true,
+    "rust/tcl-lsp-core/src/references.rs": true
+  },
+  "original_source_inputs_unchanged": {
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/positive.tcl": true,
+    "experiments/name-handling/patterns/composed-callback-prefix/probes/unknown-writer.tcl": true
+  },
+  "issues_cache": "released after exact restoration; next compile must rebuild from restored source",
+  "authority": "readonly diagnostic source/tape state only; no Native/scoped entry, new production behaviour, native runtime lookup or edit grant"
+}
