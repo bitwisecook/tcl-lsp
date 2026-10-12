@@ -173,6 +173,8 @@ mod original_body_namespace;
 mod original_script_parse_entry_tests;
 #[cfg(test)]
 mod original_restored_nested_declaration_tests;
+#[cfg(test)]
+mod original_restoration_obligation_tests;
 pub(crate) use conditional_body::SourceConditionalBodyEntry;
 pub use conditional_body::{SourceCallerFrameInvocationTemplate, SourceDeclaredReceiverBodyEntry};
 pub use source_declared_method_template::OriginalDeclaredSelfMethodTemplate;
@@ -7171,9 +7173,10 @@ impl SourceCommandBindings {
         })
     }
 
-    /// Restore every rebased cache carrier from its original source instance.
-    /// Phase-region dependencies require a separate relocation contract and
-    /// are deliberately declined here instead of retaining stale provenance.
+    /// Restore carriers from their selected original source instance.
+    /// Native compiler obligations must match that boundary in full and stay
+    /// unresolved. Phase-region dependencies require a separate relocation
+    /// contract and are declined here instead of retaining stale provenance.
     pub fn restore_script_bindings(&self, script: &mut Script) -> bool {
         let mut valid = true;
         crate::ir::for_each_script_mut(script, &mut |script| {
@@ -7194,13 +7197,28 @@ impl SourceCommandBindings {
                 valid = false;
                 return;
             };
+            // Restoring source bindings does not resolve a compiler entry.
+            // Retain only the complete obligation already recorded at this
+            // original boundary; a cache cannot supply or repair its source,
+            // required provider, failure contexts or dependency generations.
+            let failure = bindings.native_compilation_failure_at(source.base());
+            let provider_required = bindings.native_compilation_provider_required_at(source.base())
+                || failure.is_some();
+            let original_obligation = match script.native_compilation_admission.as_deref() {
+                Some(admission) => {
+                    admission.provider_required == provider_required
+                        && admission.failure.as_deref() == failure
+                        && admission.source.as_ref() == Some(&source)
+                        && bindings.native_compilation_source_at(source.base()) == Some(&source)
+                }
+                None => !provider_required,
+            };
+            if script.native_compilation_failure.as_deref() != failure || !original_obligation {
+                valid = false;
+                return;
+            }
             script.namespace_context = Some(Box::new(namespace));
             {
-                if let Some(admission) = &mut script.native_compilation_admission {
-                    let admission = Arc::make_mut(admission);
-                    valid &= !admission.requires_native_provider();
-                    admission.source = Some(source.clone());
-                }
                 script.implicit_math_invocations =
                     bindings.implicit_math_invocations_for_script(&source);
                 script.expression_preparations =
