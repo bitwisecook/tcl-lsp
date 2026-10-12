@@ -918940,7 +918940,7 @@
           "id": "implementation-1",
           "role": "implementation",
           "path": "rust/tcl-registry/src/state_transition.rs",
-          "sha256": "b01a7f5c810fbbb97e0d6aea8160d99bd439da7c12c41e84a21083ccf9ecb76d",
+          "sha256": "06d12d822b88a6dc1195b106efecaba9d9332734671c02dfcaa1d1ed09bb7608",
           "description": "Retain exact native payload and effective operand ordinal as independent metadata.",
           "contains": "from_argument"
         },
@@ -918948,7 +918948,7 @@
           "id": "implementation-2",
           "role": "implementation",
           "path": "rust/tcl-registry/src/state_transition.rs",
-          "sha256": "b01a7f5c810fbbb97e0d6aea8160d99bd439da7c12c41e84a21083ccf9ecb76d",
+          "sha256": "06d12d822b88a6dc1195b106efecaba9d9332734671c02dfcaa1d1ed09bb7608",
           "description": "Discharge only represented identity obligations without validating control operands or execution.",
           "contains": "represents_native_identity_subject"
         },

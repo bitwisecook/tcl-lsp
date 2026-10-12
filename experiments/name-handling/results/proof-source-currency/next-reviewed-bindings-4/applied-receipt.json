@@ -1,0 +1,19 @@
+{
+  "scope": "Exactly2 implementation sha256 fields /1 record /1 state-transition owner /1 canonical page",
+  "approval": "root inspected entire old/current delegation and borrowed maximal-colon-run helper equivalence; only exact2 known-native-byte-value bindings approved",
+  "proposal": "review.json",
+  "manifest_before_sha256": "e88ed2e843f0c25994a52c3a7d238ca4883291359a8454957b127fd18ad9c7ac",
+  "manifest_after_sha256": "4a074465f61527811996bc91dca1fda97a928a04301f132b237783a160be424e",
+  "records_before_after": 2606,
+  "all2606_record_objects_identical_after_inverse2_hash_fields": true,
+  "all_provider_oracle_native_variant_status_wording_and_already_current_fields_preserved": true,
+  "all13_declined_and9_already_current_bindings_unchanged": true,
+  "exact_old_binding_tuples_and_source_hashes_verified": true,
+  "helper_full_source_sha256_rechecked": {"path": "rust/tcl-syntax/src/naming.rs", "sha256": "4808699cc117bb840c8ce9e9360bd7186f3f294ffb239d8ece2b75279ebf52f4", "symbols": ["qualifier_component_extents", "written_separator_extent"], "lines": [192, 251], "required_precondition": "Recheck full helper SHA and this exact maximal-colon-run equivalence before renewal."},
+  "source_owner_digests_unchanged": [{"path": "rust/tcl-lsp-core/src/diagnostic_subject.rs", "sha256": "6a049fb96949fffa7cb125b769d50f51c279ed005ba1bf08c6cfa8c2254ae852"}, {"path": "rust/tcl-registry/src/resolved_invocation.rs", "sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd"}, {"path": "rust/tcl-registry/src/state_transition.rs", "sha256": "06d12d822b88a6dc1195b106efecaba9d9332734671c02dfcaa1d1ed09bb7608"}, {"path": "rust/tcl-registry/src/lib.rs", "sha256": "470180fd53f131b4b6d628c7e42e7d3640e720d4e5a9107de86d0f0309a906d6"}, {"path": "rust/tcl-registry/src/registry.rs", "sha256": "1de8aafe803a4ca72bdd3374c6348938f1e75ec4f9c7b2501127e6e27de17024"}],
+  "canonical_pages": [{"record_id": "naming.invocation.known-native-byte-values", "path": "docs/design/analysis/name-resolution-proofs/known-native-byte-values.md", "before_sha256": "919c1e2c810887c0fc60bcdf25915bdfe0a5124506677d331b6f3cd7a76e5002", "after_sha256": "65b3bf3fc0e6e6df34f4f151b7636a0a912eb76f4e4a128f3dd18369d8a88e6e"}],
+  "page_changes_only_2_allowed_digest_replacements": true,
+  "selected_record_schema_errors": [],
+  "renderer_sha256": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+  "execution": "No full checker, Cargo, Rust/native execution, source edit or Git mutation; exact tuples, full-object/page inverse, frozen source/helper hashes, selected schema and canonical render only. All separate consumer questions stay open; no native extent/decode/publication/completion/edit or new acceptance claim."
+}
