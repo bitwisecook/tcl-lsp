@@ -1,0 +1,7 @@
+can't create procedure "::tcl::clock::add": unknown namespace
+    while executing
+"proc ::tcl::clock::$cmd args {return deferred}"
+    (procedure "boot" line 1)
+    invoked from within
+"boot"
+    (file "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl" line 2)

@@ -1,0 +1,74 @@
+
+    if (cmdName == NULL) {
+	if (nameCount == 1) {
+	    ensembleFlags = TCL_ENSEMBLE_PREFIX;
+	    cmdName = Tcl_DStringValue(&buf) + 5;
+	} else {
+	    ns = ns->parentPtr;
+	    cmdName = nameParts[nameCount - 1];
+	}
+    }
+
+    /*
+     * Switch on compilation always for core ensembles now that we can do
+     * nice bytecode things with them.  Do it now.  Waiting until later will
+     * just cause pointless epoch bumps.
+     */
+
+    ensembleFlags |= ENSEMBLE_COMPILE;
+    ensemble = Tcl_CreateEnsemble(interp, cmdName, ns, ensembleFlags);
+
+    /*
+     * Create the ensemble mapping dictionary and the ensemble command procs.
+     */
+
+    if (ensemble != NULL) {
+	Tcl_Obj *mapDict, *toObj;
+	Command *cmdPtr;
+
+	TclDStringAppendLiteral(&buf, "::");
+	TclNewObj(mapDict);
+	for (i=0 ; map[i].name != NULL ; i++) {
+	    TclNewStringObj(toObj, Tcl_DStringValue(&buf),
+		    Tcl_DStringLength(&buf));
+	    Tcl_AppendToObj(toObj, map[i].name, TCL_AUTO_LENGTH);
+	    TclDictPut(NULL, mapDict, map[i].name, toObj);
+
+	    if (map[i].proc2 || map[i].nreProc2) {
+		/*
+		 * If the command is unsafe, hide it when we're in a safe
+		 * interpreter. The code to do this is really hokey! It also
+		 * doesn't work properly yet; this function is always
+		 * currently called before the safe-interp flag is set so the
+		 * Tcl_IsSafe check fails.
+		 */
+
+		if (map[i].unsafe && Tcl_IsSafe(interp)) {
+		    cmdPtr = (Command *)
+			    Tcl_NRCreateCommand2(interp, "___tmp", map[i].proc2,
+			    map[i].nreProc2, map[i].clientData, NULL);
+		    Tcl_DStringSetLength(&hiddenBuf, hiddenLen);
+		    if (Tcl_HideCommand(interp, "___tmp",
+			    Tcl_DStringAppend(&hiddenBuf, map[i].name,
+				    TCL_AUTO_LENGTH))) {
+			Tcl_Panic("%s", Tcl_GetStringResult(interp));
+		    }
+		    /* don't compile unsafe subcommands in safe interp */
+		    cmdPtr->compileProc = NULL;
+		} else {
+		    /*
+		     * Not hidden, so just create it. Yay!
+		     */
+
+		    cmdPtr = (Command *)
+			    Tcl_NRCreateCommand2(interp, TclGetString(toObj),
+			    map[i].proc2, map[i].nreProc2, map[i].clientData,
+			    NULL);
+		    cmdPtr->compileProc = map[i].compileProc;
+		}
+	    }
+	}
+	Tcl_SetEnsembleMappingDict(interp, ensemble, mapDict);
+    }
+
+    Tcl_DStringFree(&buf);

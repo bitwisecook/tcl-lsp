@@ -1,0 +1,61 @@
+{
+  "capture_source_sha256": "a03a5aa8779d09a6bbef75fd8796221bac32ce3c7fc9a00774af5b8a802420d0",
+  "validation": [
+    {
+      "case": "help",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/capture.py",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout": "usage: capture.py [-h] --output-dir OUTPUT_DIR\n                  [--question {registration,compiled-foreach,all}]\n                  [--runner RUNNER]\n\nReplay clock evidence into a required fresh destination.\n\noptions:\n  -h, --help            show this help message and exit\n  --output-dir OUTPUT_DIR\n                        Required new destination; an existing path is refused.\n  --question {registration,compiled-foreach,all}\n  --runner RUNNER       Existing native runner for registration controls; no\n                        Cargo build is performed.\n",
+      "stderr": ""
+    },
+    {
+      "case": "required-destination",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/capture.py"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: capture.py [-h] --output-dir OUTPUT_DIR\n                  [--question {registration,compiled-foreach,all}]\n                  [--runner RUNNER]\ncapture.py: error: the following arguments are required: --output-dir\n"
+    },
+    {
+      "case": "existing-destination",
+      "argv": [
+        "python3",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/capture.py",
+        "--question",
+        "compiled-foreach",
+        "--output-dir",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach/reference-shells"
+      ],
+      "exit_code": 2,
+      "stdout": "",
+      "stderr": "usage: capture.py [-h] --output-dir OUTPUT_DIR\n                  [--question {registration,compiled-foreach,all}]\n                  [--runner RUNNER]\ncapture.py: error: --output-dir must name a nonexistent fresh destination\n"
+    },
+    {
+      "case": "retained-original-captures",
+      "changed_paths": [],
+      "original_file_count": 122,
+      "exception": "README.md intentionally updated",
+      "run_py_sha256": "2a64e3c6fb762c3ebcbb16d060500988dda8b09d08d7a5cf484f712762792feb"
+    }
+  ],
+  "registration_replay": {
+    "output_directory": "/tmp/name-clock-registration-capture-validation",
+    "record_sha256": "6b2c29f5dff836d47a7fd898d82f32253e56198a5fba292bf721f1649f79aa23",
+    "compile_record_sha256": "644d57c661e8587ce830db5df12ef0f856065c42c542cf37964f87643496fab5",
+    "compiled_probe": "/tmp/name-clock-registration-capture-validation/probe-c86",
+    "scenario_count": 18,
+    "scope": "Fresh-destination replay only; original retained results were not overwritten."
+  },
+  "reference_shell_capture_source_snapshot": {
+    "path": "compiled-foreach/reference-shells/capture-source.py",
+    "sha256": "f405c08983b8d23558f24d762ab8fa0b599f105925a2627079448da749fd8462",
+    "scope": "Exact source used for the six retained unchanged-input oracle executions; maintained replay adds its own exact source copy."
+  },
+  "retained_original_capture_changes": []
+}

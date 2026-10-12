@@ -404,8 +404,7 @@ impl Interp {
                 let captured = BodyListArguments::capture(
                     self,
                     original,
-                    (storage != Storage::StackLists)
-                        .then_some(operation.prepared.temporaries[index]),
+                    (storage != Storage::StackLists).then(|| operation.prepared.temporaries[index]),
                 )
                 .map_err(|error| self.report_cmd_error(error))?;
                 let copy = if storage == Storage::LocalGroupCopy {

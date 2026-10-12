@@ -1,0 +1,133 @@
+   Compiling zeroize v1.9.0
+   Compiling subtle v2.6.1
+   Compiling autocfg v1.5.1
+   Compiling rand_core v0.10.1
+   Compiling getrandom v0.4.3
+   Compiling cmov v0.5.4
+   Compiling hybrid-array v0.4.15
+   Compiling ctutils v0.4.2
+   Compiling num-traits v0.2.19
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling memchr v2.8.3
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling num-integer v0.1.47
+   Compiling num-bigint v0.5.1
+   Compiling digest v0.11.3
+   Compiling sha2 v0.11.0
+   Compiling base64ct v1.8.3
+   Compiling pem-rfc7468 v1.0.0
+   Compiling cpubits v0.1.1
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling crypto-bigint v0.7.5
+   Compiling der v0.8.2
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling spki v0.8.0
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling ff v0.14.0
+   Compiling aho-corasick v1.1.5
+   Compiling syn v2.0.119
+   Compiling regex-syntax v0.8.11
+   Compiling group v0.14.0
+   Compiling pkcs8 v0.11.0
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling regex-automata v0.4.18
+   Compiling minimal-lexical v0.2.1
+   Compiling base16ct v1.0.0
+   Compiling unicode-general-category v1.1.0
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling serde_core v1.0.229
+   Compiling time-core v0.1.9
+   Compiling num-conv v0.2.2
+   Compiling time-macros v0.2.32
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling sec1 v0.8.1
+   Compiling nom v7.1.3
+   Compiling regex v1.13.1
+   Compiling synstructure v0.13.2
+   Compiling deranged v0.5.8
+   Compiling zmij v1.0.23
+   Compiling powerfmt v0.2.0
+   Compiling asn1-rs-derive v0.6.0
+   Compiling rusticata-macros v4.1.0
+   Compiling elliptic-curve v0.14.1
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling time v0.3.55
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling asn1-rs-impl v0.2.0
+   Compiling primefield v0.14.0
+   Compiling tcl-host-c-abi v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-c-abi)
+   Compiling hmac v0.13.0
+   Compiling signature v3.0.0
+   Compiling displaydoc v0.2.7
+   Compiling serde_json v1.0.151
+   Compiling hashbrown v0.17.1
+   Compiling equivalent v1.0.2
+   Compiling asn1-rs v0.7.2
+   Compiling rfc6979 v0.6.0
+   Compiling indexmap v2.14.2
+   Compiling wnaf v0.14.1
+   Compiling ring v0.17.14
+   Compiling oid-registry v0.8.1
+   Compiling serde v1.0.229
+   Compiling itoa v1.0.18
+   Compiling primeorder v0.14.0
+   Compiling ecdsa v0.17.0
+   Compiling num-bigint v0.4.8
+   Compiling serde_derive v1.0.229
+   Compiling getrandom v0.2.17
+   Compiling untrusted v0.9.0
+   Compiling der-parser v10.0.0
+   Compiling crypto-primes v0.7.2
+   Compiling pkcs1 v0.8.0-rc.4
+   Compiling data-encoding v2.11.1
+   Compiling lazy_static v1.5.1
+   Compiling x509-parser v0.18.1
+   Compiling p256 v0.14.0
+   Compiling rsa v0.10.0-rc.18
+   Compiling p384 v0.14.0
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling base64 v0.23.1
+   Compiling tcl-engine-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-api)
+   Compiling ipnet v2.12.2
+   Compiling tcl-pkg-model v0.1.0 (/workspace/tcl-lsp/rust/tcl-pkg-model)
+   Compiling xxhash-rust v0.8.19
+   Compiling tcl-userdirs v0.1.0 (/workspace/tcl-lsp/rust/tcl-userdirs)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+error[E0004]: non-exhaustive patterns: `&SourceCommandTransitionObligation::ConditionalCNamespaceApplicability` and `&SourceCommandTransitionObligation::ConditionalCBodyApplicability` not covered
+   --> rust/tcl-lsp-core/src/diagnostic_subject.rs:351:15
+    |
+351 |         match value {
+    |               ^^^^^ patterns `&SourceCommandTransitionObligation::ConditionalCNamespaceApplicability` and `&SourceCommandTransitionObligation::ConditionalCBodyApplicability` not covered
+    |
+note: `SourceCommandTransitionObligation` defined here
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice.rs:221:1
+    |
+221 | pub enum SourceCommandTransitionObligation {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+...
+244 |     ConditionalCNamespaceApplicability,
+    |     ---------------------------------- not covered
+...
+247 |     ConditionalCBodyApplicability,
+    |     ----------------------------- not covered
+    = note: the matched value is of type `&SourceCommandTransitionObligation`
+help: ensure that all possible cases are being handled by adding a match arm with a wildcard pattern, a match arm with multiple or-patterns as shown, or multiple match arms
+    |
+387 ~             },
+388 +             &SourceCommandTransitionObligation::ConditionalCNamespaceApplicability | &SourceCommandTransitionObligation::ConditionalCBodyApplicability => todo!()
+    |
+
+For more information about this error, try `rustc --explain E0004`.
+error: could not compile `tcl-lsp-core` (lib) due to 1 previous error

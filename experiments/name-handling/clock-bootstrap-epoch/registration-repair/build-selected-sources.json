@@ -1,0 +1,110 @@
+[
+  {
+    "source": "rust/tcl-registry/src/commands/tcl/clock_.rs",
+    "source_sha256": "d14d505224449421d62d5b0cdd5a90a894714e802b5f90d1f809f3b0bfb179f4",
+    "snapshot": "build-selected-sources/rust--tcl-registry--src--commands--tcl--clock_.rs.gz",
+    "snapshot_sha256": "1f37d75e913482dc298eb1ac5baab4c29b9ddb3713104ad41062211768f1b7b0"
+  },
+  {
+    "source": "rust/tcl-registry/src/invocation_words.rs",
+    "source_sha256": "d9946ab12d1386197840b2292ac93bdbdf18b79c809aec33ec73bb46f204ac55",
+    "snapshot": "build-selected-sources/rust--tcl-registry--src--invocation_words.rs.gz",
+    "snapshot_sha256": "93d424c008617ab327888a09f1c8e73776106b53b4dd62a144d1f67619c23e57"
+  },
+  {
+    "source": "runtime/rust/src/cmd_clock.rs",
+    "source_sha256": "fb240fba55f7fd2319324a320c46d3d2ad83013eba4c9aef5ac2db587574e1cb",
+    "snapshot": "build-selected-sources/runtime--rust--src--cmd_clock.rs.gz",
+    "snapshot_sha256": "ce2f9b2ef570a1c6fd07e26c9159e6b79f782ce2f2db33319a42d25b79838bd1"
+  },
+  {
+    "source": "runtime/rust/src/interp/stock_ensembles.rs",
+    "source_sha256": "215804c26e0320bf0988d0b3b36facf1f8a2fe65f5f75bf3f7d6cd94266ab5c0",
+    "snapshot": "build-selected-sources/runtime--rust--src--interp--stock_ensembles.rs.gz",
+    "snapshot_sha256": "d0205ecc101b9e121fc36cca1ce3eb91813e4dd72baea972d51a3e9cb311c38d"
+  },
+  {
+    "source": "runtime/rust/src/interp/native_compilation.rs",
+    "source_sha256": "a6a2863425472d72361cf1f806b8e5e53df338701acc9f77fa9b3fbd53db6d64",
+    "snapshot": "build-selected-sources/runtime--rust--src--interp--native_compilation.rs.gz",
+    "snapshot_sha256": "2076b32cb88572abea687270f9cb362335f2df7c51b343acf29daa4b40e6e094"
+  },
+  {
+    "source": "runtime/rust/src/interp/native_body_artifact.rs",
+    "source_sha256": "8e982eb33fc4b61799890a2f1b9d0e382d61c1fd8ae4f7d92ccb95a94af8c7d7",
+    "snapshot": "build-selected-sources/runtime--rust--src--interp--native_body_artifact.rs.gz",
+    "snapshot_sha256": "d59b201f9c9c54a1e682250fc27bcf41435524447476e43169694e158826c8ea"
+  },
+  {
+    "source": "runtime/rust/src/namespace.rs",
+    "source_sha256": "782727b73ef81684ca51710f98ca57c0195b9551ce650c9aa7fd99d02ff94ab2",
+    "snapshot": "build-selected-sources/runtime--rust--src--namespace.rs.gz",
+    "snapshot_sha256": "cbbb4fd29d25d2025104def734feaec278f1f9f3a42a1361599691f4329fdcd2"
+  },
+  {
+    "source": "rust/tcl-registry/src/native_procedure.rs",
+    "source_sha256": "f60fb6e65b2d19b0eebf07d3964637ffdcd05d8fcd6d514500db3cb4c680cd45",
+    "snapshot": "build-selected-sources/rust--tcl-registry--src--native_procedure.rs.gz",
+    "snapshot_sha256": "6366aebf32bc27019f4c1a115cd71a723f709b5960af5e0e4c46e1ad54e586f9"
+  },
+  {
+    "source": "rust/tcl-registry/src/registry.rs",
+    "source_sha256": "1de8aafe803a4ca72bdd3374c6348938f1e75ec4f9c7b2501127e6e27de17024",
+    "snapshot": "build-selected-sources/rust--tcl-registry--src--registry.rs.gz",
+    "snapshot_sha256": "90496af52c9696102c926b3f8e958efeb60ce494d33c517fa716f149f4ae0a62"
+  },
+  {
+    "source": "runtime/rust/examples/run_script.rs",
+    "source_sha256": "3fcea3a17ad815f2379bd26cfd963332667a0f75986a71f7c58182b2caae83a7",
+    "snapshot": "build-selected-sources/runtime--rust--examples--run_script.rs.gz",
+    "snapshot_sha256": "46de55a4a03c9239b8eca3234f1e787be1b7b82d9579900e79ec13f26b9d0d07"
+  },
+  {
+    "source": "runtime/rust/build.rs",
+    "source_sha256": "fd1fea9d02fa1dd7d869a71effa55af9c73e78183b1a805d28cd828fc6680a34",
+    "snapshot": "build-selected-sources/runtime--rust--build.rs.gz",
+    "snapshot_sha256": "f1b32fd430a53bf51aa1c1acdf6c1632c790397eb59237df8f3deb781e31f520"
+  },
+  {
+    "source": "runtime/rust/Cargo.toml",
+    "source_sha256": "a86fd0e9c18a2ceb79b349de4774034f69bc8f64d789943d9afd3af1a40aae05",
+    "snapshot": "build-selected-sources/runtime--rust--Cargo.toml.gz",
+    "snapshot_sha256": "78140db595d848c3114346eb150b7452b47ecfa33920232d92b783287211fe59"
+  },
+  {
+    "source": "runtime/rust/Cargo.lock",
+    "source_sha256": "9d443380f0a6b037dc316d37435bebb070fad74bd740cd965e58674aaac840e4",
+    "snapshot": "build-selected-sources/runtime--rust--Cargo.lock.gz",
+    "snapshot_sha256": "3c303fba30fd9e82b7962342fbebbbebbd816cbd42daeb2a07e469d9aeb2c388"
+  },
+  {
+    "source": "Cargo.toml",
+    "source_sha256": "be9a04037dd51d212225298ae2be84d860bd18094b8837d262a4f20193f5a90a",
+    "snapshot": "build-selected-sources/Cargo.toml.gz",
+    "snapshot_sha256": "5b528ecb9ed824e536acaebdd5b3eb3f7ac1fbc5b4f66ce49b16687149bda294"
+  },
+  {
+    "source": "Cargo.lock",
+    "source_sha256": "8e69497ec845728ac95add2347af78121af04017be74736fd34cf1dcb18bea49",
+    "snapshot": "build-selected-sources/Cargo.lock.gz",
+    "snapshot_sha256": "9d148ebeb22a4e6ec4283018726a0b74d640235ff3714638448a562c29e9253a"
+  },
+  {
+    "source": "runtime/rust/src/interp/native_body_artifact/native_each.rs",
+    "source_sha256": "7dc7ecfc148dc867e261bea25ac2cc5988ddb24e9b3388c0dac4fc415633bba6",
+    "snapshot": "build-selected-sources/runtime--rust--src--interp--native_body_artifact--native_each.rs.gz",
+    "snapshot_sha256": "113d4593fb9176d89136143316038ebff0ac56c3d49b30ac8d078cbe291843cb"
+  },
+  {
+    "source": "runtime/rust/src/cmd_mathfunc.rs",
+    "source_sha256": "9db913c70f08c478aa0d80a94a7f01762a73bdace4b0274f8f2eb896b8e3ec33",
+    "snapshot": "build-selected-sources/runtime--rust--src--cmd_mathfunc.rs.gz",
+    "snapshot_sha256": "dfbaa063eb582c7b331b24acb6dc735c9ba97fe9b04a78cf9dbd9228d3af4e76"
+  },
+  {
+    "source": "runtime/rust/src/builtins.rs",
+    "source_sha256": "76fdb7541c54f6a1e254966f992497e85f05aee6dfb5fb1274957477afb30f0a",
+    "snapshot": "build-selected-sources/runtime--rust--src--builtins.rs.gz",
+    "snapshot_sha256": "0269361c75d94cc9888f6568b882e3fd82047688e96e37b95cd5ea451c865ee4"
+  }
+]

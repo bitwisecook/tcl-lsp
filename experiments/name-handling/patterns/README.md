@@ -309,3 +309,10 @@ wrong targets and missed provable targets. Completion candidates, navigation,
 rename and optimisation have different proof obligations; every surface must
 consume the same shared facts. Keep those implementation results in the
 canonical consumer integration map.
+
+The [clock bootstrap questions](../clock-bootstrap-epoch/registration-repair/README.md)
+retain actual C8.6 registration and compiler-epoch observations. Separate
+[mathfunc](../clock-bootstrap-epoch/registration-repair/mathfunc-bootstrap/README.md)
+and [procedure/foreach](../clock-bootstrap-epoch/registration-repair/compiled-foreach/README.md)
+questions retain original inputs and provider-specific outcomes; stock-shell
+completion supplies no native iterator lifetime or F5 answer.

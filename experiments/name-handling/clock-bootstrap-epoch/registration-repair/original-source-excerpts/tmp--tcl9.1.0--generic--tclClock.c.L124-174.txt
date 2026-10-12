@@ -1,0 +1,51 @@
+ */
+struct ClockCommand {
+    const char *name;		/* The tail of the command name. The full name
+				 * is "::tcl::clock::<name>". When NULL marks
+				 * the end of the table. */
+    Tcl_ObjCmdProc2 *objCmdProc;	/* Function that implements the command. This
+				 * will always have the ClockClientData sent
+				 * to it, but may well ignore this data. */
+    CompileProc *compileProc;	/* The compiler for the command. */
+    int useClientData;		/* Whether to use the shared ClockClientData
+				 * with this command. */
+};
+
+/*
+ * Table of command created by this file, excluding the compiled parts of the
+ * [clock] ensemble, as those are defined below (and never need access to the
+ * ClockClientData).
+ */
+static const struct ClockCommand clockCommands[] = {
+    {"add",		ClockAddObjCmd,		TclCompileBasicMin1ArgCmd, 1},
+    {"format",		ClockFormatObjCmd,	TclCompileBasicMin1ArgCmd, 1},
+    {"getenv",		ClockGetenvObjCmd,	NULL, 1},
+    {"scan",		ClockScanObjCmd,	TclCompileBasicMin1ArgCmd, 1},
+    {"ConvertLocalToUTC", ClockConvertlocaltoutcObjCmd, NULL, 1},
+    {"GetDateFields",	ClockGetdatefieldsObjCmd, NULL, 1},
+    {"GetJulianDayFromEraYearMonthDay",
+			ClockGetjuliandayfromerayearmonthdayObjCmd, NULL, 1},
+    {"GetJulianDayFromEraYearWeekDay",
+			ClockGetjuliandayfromerayearweekdayObjCmd, NULL, 1},
+    {"catch",		TclSafeCatchCmd,	NULL, 0},
+    {NULL, NULL, NULL, 0}
+};
+
+/*
+ * Definition of the [clock] ensemble.
+ *
+ * [clock add], [clock format] and [clock scan] have special clientData, so
+ * we just tell the ensemble that they'll be there instead of maxing them at
+ * this point.
+ */
+const EnsembleImplMap tclClockImplMap[] = {
+    {"add",		NULL,			NULL, NULL, NULL, 1},
+    {"clicks",		ClockClicksObjCmd,	TclCompileClockClicksCmd, NULL, NULL, 0},
+    {"format",		NULL,			NULL, NULL, NULL, 1},
+    {"microseconds",	ClockMicrosecondsObjCmd,TclCompileClockReadingCmd, NULL, INT2PTR(CLOCK_READ_MICROS), 0},
+    {"milliseconds",	ClockMillisecondsObjCmd,TclCompileClockReadingCmd, NULL, INT2PTR(CLOCK_READ_MILLIS), 0},
+    {"monotonic",	ClockMonotonicObjCmd,TclCompileClockReadingCmd, NULL, INT2PTR(CLOCK_READ_MONOTONIC), 0},
+    {"scan",		NULL,			NULL, NULL, NULL, 1},
+    {"seconds",		ClockSecondsObjCmd,	TclCompileClockReadingCmd, NULL, INT2PTR(CLOCK_READ_SECS), 0},
+    {NULL, NULL, NULL, NULL, NULL, 0}
+};

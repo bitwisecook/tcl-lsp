@@ -1,0 +1,71 @@
+ *	Installs the commands and creates the client data
+ *
+ *----------------------------------------------------------------------
+ */
+
+void
+TclClockInit(
+    Tcl_Interp *interp)		/* Tcl interpreter */
+{
+    const struct ClockCommand *clockCmdPtr;
+    char cmdName[50];		/* Buffer large enough to hold the string
+				 *::tcl::clock::GetJulianDayFromEraYearMonthDay
+				 * plus a terminating NUL. */
+    ClockClientData *data;
+    int i;
+
+    /* Structure of the 'clock' ensemble */
+
+    static const EnsembleImplMap clockImplMap[] = {
+	{"add",          NULL,                    TclCompileBasicMin1ArgCmd, NULL, NULL,       0},
+	{"clicks",       ClockClicksObjCmd,       TclCompileClockClicksCmd,  NULL, NULL,       0},
+	{"format",       NULL,                    TclCompileBasicMin1ArgCmd, NULL, NULL,       0},
+	{"microseconds", ClockMicrosecondsObjCmd, TclCompileClockReadingCmd, NULL, INT2PTR(1), 0},
+	{"milliseconds", ClockMillisecondsObjCmd, TclCompileClockReadingCmd, NULL, INT2PTR(2), 0},
+	{"scan",         NULL,                    TclCompileBasicMin1ArgCmd, NULL, NULL      , 0},
+	{"seconds",      ClockSecondsObjCmd,      TclCompileClockReadingCmd, NULL, INT2PTR(3), 0},
+	{NULL,           NULL,                    NULL,                      NULL, NULL,       0}
+    };
+
+    /*
+     * Safe interps get [::clock] as alias to a parent, so do not need their
+     * own copies of the support routines.
+     */
+
+    if (Tcl_IsSafe(interp)) {
+	return;
+    }
+
+    /*
+     * Create the client data, which is a refcounted literal pool.
+     */
+
+    data = (ClockClientData *)ckalloc(sizeof(ClockClientData));
+    data->refCount = 0;
+    data->literals = (Tcl_Obj **)ckalloc(LIT__END * sizeof(Tcl_Obj*));
+    for (i = 0; i < LIT__END; ++i) {
+	data->literals[i] = Tcl_NewStringObj(literals[i], -1);
+	Tcl_IncrRefCount(data->literals[i]);
+    }
+
+    /*
+     * Install the commands.
+     * TODO - Let Tcl_MakeEnsemble do this?
+     */
+
+#define TCL_CLOCK_PREFIX_LEN 14 /* == strlen("::tcl::clock::") */
+    memcpy(cmdName, "::tcl::clock::", TCL_CLOCK_PREFIX_LEN);
+    for (clockCmdPtr=clockCommands ; clockCmdPtr->name!=NULL ; clockCmdPtr++) {
+	strcpy(cmdName + TCL_CLOCK_PREFIX_LEN, clockCmdPtr->name);
+	data->refCount++;
+	Tcl_CreateObjCommand(interp, cmdName, clockCmdPtr->objCmdProc, data,
+		ClockDeleteCmdProc);
+    }
+
+    /* Make the clock ensemble */
+
+    TclMakeEnsemble(interp, "clock", clockImplMap);
+}
+
+/*
+ *----------------------------------------------------------------------

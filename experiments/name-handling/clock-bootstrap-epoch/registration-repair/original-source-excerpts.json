@@ -1,0 +1,114 @@
+[
+  {
+    "source": "tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "first_line": 236,
+    "last_line": 306,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclClock.c.L236-306.txt",
+    "excerpt_sha256": "f9653edd03f276e17b1484c184fd87bc46fe50164bcfc6444fa19ba9e0112c3e"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclEnsemble.c",
+    "source_sha256": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+    "first_line": 1505,
+    "last_line": 1645,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclEnsemble.c.L1505-1645.txt",
+    "excerpt_sha256": "029dd9139960f542618fd0f9492fef665d1eb63824a1c2fcfbb1c80d57ea2f5f"
+  },
+  {
+    "source": "tmp/tcl8.6.18/library/init.tcl",
+    "source_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "first_line": 169,
+    "last_line": 195,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--library--init.tcl.L169-195.txt",
+    "excerpt_sha256": "2bdf00557e1362629094132b3a3655aa2477ba2cad48ed93be374e28d6a32735"
+  },
+  {
+    "source": "tmp/tcl9.0.4/generic/tclClock.c",
+    "source_sha256": "ceda0e2655bf4a431710a737aa9019c256362c9fe5065a670db55b67a00182c9",
+    "first_line": 124,
+    "last_line": 151,
+    "excerpt": "original-source-excerpts/tmp--tcl9.0.4--generic--tclClock.c.L124-151.txt",
+    "excerpt_sha256": "8a575101466d00ba53dcce0376e1b7f328004c466dcb60e5b46ed64bdebc0aba"
+  },
+  {
+    "source": "tmp/tcl9.0.4/generic/tclClock.c",
+    "source_sha256": "ceda0e2655bf4a431710a737aa9019c256362c9fe5065a670db55b67a00182c9",
+    "first_line": 249,
+    "last_line": 278,
+    "excerpt": "original-source-excerpts/tmp--tcl9.0.4--generic--tclClock.c.L249-278.txt",
+    "excerpt_sha256": "d2b74a332e5fd82e19e128a48ecf2319e98f04065030236e894568f404857a7d"
+  },
+  {
+    "source": "tmp/tcl9.0.4/library/init.tcl",
+    "source_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "first_line": 109,
+    "last_line": 121,
+    "excerpt": "original-source-excerpts/tmp--tcl9.0.4--library--init.tcl.L109-121.txt",
+    "excerpt_sha256": "c69aa4b5f0a8ef2e4244ead64da429eb9a02a3bb73f38e5fd4f37a9ff850361c"
+  },
+  {
+    "source": "tmp/tcl9.1.0/generic/tclClock.c",
+    "source_sha256": "807e7146701eb3d11f29bc317964140cd2fe60ee7e5832bbe2b9d2b4b8473524",
+    "first_line": 124,
+    "last_line": 174,
+    "excerpt": "original-source-excerpts/tmp--tcl9.1.0--generic--tclClock.c.L124-174.txt",
+    "excerpt_sha256": "3bb2df164319eceb779e8b0f5943a6ec000df3b07b87936b691572c4328ea4bc"
+  },
+  {
+    "source": "tmp/tcl9.1.0/generic/tclClock.c",
+    "source_sha256": "807e7146701eb3d11f29bc317964140cd2fe60ee7e5832bbe2b9d2b4b8473524",
+    "first_line": 270,
+    "last_line": 288,
+    "excerpt": "original-source-excerpts/tmp--tcl9.1.0--generic--tclClock.c.L270-288.txt",
+    "excerpt_sha256": "f15d31ac66d6388942513574a60849de0a2ceceab50ff140bb03bc0418264bbd"
+  },
+  {
+    "source": "tmp/tcl9.1.0/generic/tclBasic.c",
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "first_line": 425,
+    "last_line": 435,
+    "excerpt": "original-source-excerpts/tmp--tcl9.1.0--generic--tclBasic.c.L425-435.txt",
+    "excerpt_sha256": "5b72833b4aac1f115c3718f214f1d28d070e256775a2ab3b61b9bb1afb983c17"
+  },
+  {
+    "source": "tmp/tcl9.1.0/generic/tclBasic.c",
+    "source_sha256": "5f52206bed251629baedd8ef8cc0f7ae1237bf9a7edc7d4bca76d3932f8870d2",
+    "first_line": 1133,
+    "last_line": 1161,
+    "excerpt": "original-source-excerpts/tmp--tcl9.1.0--generic--tclBasic.c.L1133-1161.txt",
+    "excerpt_sha256": "f4aa86cba2f61979587c51e41988117f74343ad669ac11222af8991e84cf6b0e"
+  },
+  {
+    "source": "tmp/tcl9.1.0/generic/tclEnsemble.c",
+    "source_sha256": "3ad1e9efbb692a831d5d4b7545e3030868621532bb62ba94c551c0ce42983664",
+    "first_line": 1635,
+    "last_line": 1708,
+    "excerpt": "original-source-excerpts/tmp--tcl9.1.0--generic--tclEnsemble.c.L1635-1708.txt",
+    "excerpt_sha256": "0d99b501d2c002d9b471fe1bdf1847207b3737f9e067c38a1128e652d61ffa0b"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclBasic.c",
+    "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "first_line": 334,
+    "last_line": 377,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclBasic.c.L334-377.txt",
+    "excerpt_sha256": "47edf77e245a388b8a2b164e459037ba67c95aa2f3f88b80bbc4fadcc6d271fb"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclBasic.c",
+    "source_sha256": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "first_line": 914,
+    "last_line": 930,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclBasic.c.L914-930.txt",
+    "excerpt_sha256": "bfa48e8f2c54ac92f21bb2d73282d743ff5387c12dd84d1f481ba53d6365aa24"
+  },
+  {
+    "source": "tmp/tcl8.6.18/library/init.tcl",
+    "source_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "first_line": 85,
+    "last_line": 129,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--library--init.tcl.L85-129.txt",
+    "excerpt_sha256": "52cbc75c6fd4e934271f6a7e9c9a84e07ff824e311f61a9787977fa33c4777bb"
+  }
+]

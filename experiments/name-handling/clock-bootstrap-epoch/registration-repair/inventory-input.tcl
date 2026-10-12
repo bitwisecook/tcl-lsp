@@ -1,0 +1,5 @@
+puts [list PRIVATE [lsort [info commands ::tcl::clock::*]]]
+puts [list ENSEMBLE [namespace ensemble exists ::clock]]
+puts [list MAP [namespace ensemble configure ::clock -map]]
+puts [list PREFIXES [namespace ensemble configure ::clock -prefixes]]
+puts [list SUBCOMMANDS [namespace ensemble configure ::clock -subcommands]]

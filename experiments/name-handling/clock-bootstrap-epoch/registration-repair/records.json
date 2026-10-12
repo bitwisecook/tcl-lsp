@@ -1,0 +1,294 @@
+{
+  "question": "Does C8.6 clock registration repair preserve authentic deferred maps and known compiler currency; what still prevents matching real init?",
+  "compile_argv": [
+    "cc",
+    "-DHAVE_UNISTD_H=1",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/unix",
+    "-I/workspace/tcl-lsp/tmp/tcl8.6.18/generic",
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/probe.c",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a",
+    "-lm",
+    "-ldl",
+    "-lpthread",
+    "-lz",
+    "-o",
+    "/tmp/name-clock-registration-repair-c86"
+  ],
+  "compile_exit_code": 0,
+  "source_sha256": {
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/probe.c": "27f51cc2be6456ced95a966c021dce68c72715e8d29798b250f26a9e2c195c39",
+    "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/run.py": "2a64e3c6fb762c3ebcbb16d060500988dda8b09d08d7a5cf484f712762792feb",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclInt.h": "e9e70f6461d7c4b37173173956040b647914157c28425ec859730cd8eaef4d2e",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclClock.c": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclEnsemble.c": "2c86e298e6beaad843ca15885ba454367117cdcbed43c509c69110521159a642",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/generic/tclBasic.c": "19e28c2c9fbcd27e7e538a06960f0d806d04f8c25d94499cf9eb9031f8440198",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/libtcl8.6.a": "a3a8abdeadd8aafa007d3bc9fa199b9cf48d43d01735ff41b3fcf33abb4019d6"
+  },
+  "runtime_selected_source_snapshots": "build-selected-sources.json",
+  "runs": [
+    {
+      "case": "c-fresh",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::fresh"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-clock-add",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::clock::add"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-clock-format",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::clock::format"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-clock-scan",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::clock::scan"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-clock-seconds",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::clock::seconds"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-clock-getenv",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::clock::getenv"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-mathfunc-min",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::mathfunc::min"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-tcl-mathfunc-max",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "::tcl::mathfunc::max"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "c-init",
+      "argv": [
+        "/tmp/name-clock-registration-repair-c86",
+        "init"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "6d10691821b3e3d1b9ac00398aba2a08eaba5c0fe3bc8f92c2d10f795781c53b",
+      "input_path": null,
+      "input_sha256": null,
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-replacement",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/replacement-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/replacement-input.tcl",
+      "input_sha256": "7f14d5b96c152585c582d42c6f8c20abdd5422d5990e5c93a41520873b5c4d98",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-fresh",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/fresh-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/fresh-input.tcl",
+      "input_sha256": "5e5bda4682af096caf7b606096fe1e7018e25feaf9ec4a298550942ee2adea44",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-inventory",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/inventory-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/inventory-input.tcl",
+      "input_sha256": "da3acfb833304f7e2e0334aca8c256bbde3e0678abb40be702f61893ad87f712",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-map-dispatch",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/map-dispatch-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/map-dispatch-input.tcl",
+      "input_sha256": "f875be6ec21e421f63c34439dfff6c65e030813212f0d5273e5f35713769f532",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-reading",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/reading-input.tcl"
+      ],
+      "exit_code": 0,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/reading-input.tcl",
+      "input_sha256": "899f153cfcf79f4249b36e1945fdce1dc9ec4e18f90bb0593f9944d39b1e763a",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-mathfunc-min-replacement",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/mathfunc-min-replacement-input.tcl"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/mathfunc-min-replacement-input.tcl",
+      "input_sha256": "e74bbbff8ca73c2cde0db700304ef68c0b56194d548a0ae4611902f4f7bdd089",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-startup",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/startup-input.tcl",
+      "input_sha256": "4acce5d2a860f41d7695ecdac170a9783694d1c1cf9a139b408fc0231a319093",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-startup-inventory",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/inventory-input.tcl"
+      ],
+      "exit_code": 2,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/inventory-input.tcl",
+      "input_sha256": "da3acfb833304f7e2e0334aca8c256bbde3e0678abb40be702f61893ad87f712",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    },
+    {
+      "case": "runtime-calendar",
+      "argv": [
+        "/tmp/name-clock-registration-repair-runner-final",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/calendar-input.tcl"
+      ],
+      "exit_code": 1,
+      "timed_out": false,
+      "binary_sha256": "30daec4913c81454a7772be9efbb73446b64bc44784d8ec7ab0b51af05123281",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/calendar-input.tcl",
+      "input_sha256": "e4ee65b32ef1dcae4fa4b3110923b8d98fd53742bdef34a6236de5152424c457",
+      "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library"
+    }
+  ]
+}

@@ -1,0 +1,210 @@
+{
+  "question": "compiled-foreach",
+  "capture_source": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/capture.py",
+  "capture_source_sha256": "f405c08983b8d23558f24d762ab8fa0b599f105925a2627079448da749fd8462",
+  "output_directory": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach/reference-shells",
+  "process_policy": "Each scenario starts a separate fresh process; input files are never modified.",
+  "F5": "Unmeasured; no C or Jim outcome supplies an F5 answer.",
+  "runs": [
+    {
+      "case": "c8.4.20",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 1,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "binary_sha256_after": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "c8.4.20.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "c8.4.20.stderr.txt",
+      "stderr_sha256": "f1c771ef7b42cf205ba1cc8df345ebad0c663e85a6071108f515e46bedfb696b",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "8.4.20",
+      "library": {
+        "directory": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "inventory": "c8.4.20.library-inventory.json",
+        "inventory_sha256": "113d2d01651bb1474f0bf7793566cbba4181850069f5b8e7b83db63a4e062188",
+        "file_count": 102
+      },
+      "startup": "stock shell; real matching Tcl_Init before unchanged script",
+      "limits": "One fresh process; script mode does not print the final result; no appended query or output marker."
+    },
+    {
+      "case": "c8.5.19",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 0,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "binary_sha256_after": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "c8.5.19.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "c8.5.19.stderr.txt",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "8.5.19",
+      "library": {
+        "directory": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "inventory": "c8.5.19.library-inventory.json",
+        "inventory_sha256": "35cc76aad7e9df22c6e7e35c2b690b2d5ae18b2e2377b90dadfe3f529007632f",
+        "file_count": 826
+      },
+      "startup": "stock shell; real matching Tcl_Init before unchanged script",
+      "limits": "One fresh process; script mode does not print the final result; no appended query or output marker."
+    },
+    {
+      "case": "c8.6.18",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 0,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "binary_sha256_after": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "c8.6.18.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "c8.6.18.stderr.txt",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "8.6.18",
+      "library": {
+        "directory": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "inventory": "c8.6.18.library-inventory.json",
+        "inventory_sha256": "00c4672a8edc427292e4eb90c62fd4acc1f180eb84ff8bb0e08806fe30f49209",
+        "file_count": 832
+      },
+      "startup": "stock shell; real matching Tcl_Init before unchanged script",
+      "limits": "One fresh process; script mode does not print the final result; no appended query or output marker."
+    },
+    {
+      "case": "c9.0.4",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 0,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "binary_sha256_after": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "c9.0.4.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "c9.0.4.stderr.txt",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "9.0.4",
+      "library": {
+        "directory": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "inventory": "c9.0.4.library-inventory.json",
+        "inventory_sha256": "ecef436ce1ca3983f9f10f8fa7820ed7847d229b87f16e022136ab1ae7360fda",
+        "file_count": 840
+      },
+      "startup": "stock shell; real matching Tcl_Init before unchanged script",
+      "limits": "One fresh process; script mode does not print the final result; no appended query or output marker."
+    },
+    {
+      "case": "c9.1.0",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 0,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "binary_sha256_after": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "c9.1.0.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "c9.1.0.stderr.txt",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "environment": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "9.1.0",
+      "library": {
+        "directory": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "inventory": "c9.1.0.library-inventory.json",
+        "inventory_sha256": "d4818e7ffa17d408c3802111dd85f1d4cd2d17fa309e40aba11240d380c7ffa5",
+        "file_count": 841
+      },
+      "startup": "stock shell; real matching Tcl_Init before unchanged script",
+      "limits": "One fresh process; script mode does not print the final result; no appended query or output marker."
+    },
+    {
+      "case": "jim-5bac7c9",
+      "argv": [
+        "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+        "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl"
+      ],
+      "cwd": "/workspace/tcl-lsp",
+      "exit_code": 0,
+      "timed_out": false,
+      "timeout_seconds": 30,
+      "binary_sha256_before": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "binary_sha256_after": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "input_path": "/workspace/tcl-lsp/experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl",
+      "input_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+      "stdout": "jim-5bac7c9.stdout.txt",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr": "jim-5bac7c9.stderr.txt",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "environment": {
+        "TCL_LIBRARY": null,
+        "TCLLIBPATH": null,
+        "JIMLIB": null
+      },
+      "release": "0.84-9-g5bac7c9",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "maintained_pin": "/workspace/tcl-lsp/rust/tcl-test-support/jim-reference.txt",
+      "maintained_pin_sha256": "0808a582c3e9a7191196b430bfdb4b17341d50a603bfca8e678c0d78808beaba",
+      "library": {
+        "startup_source_hashes": "jim-startup-source-hashes.json",
+        "startup_source_hashes_sha256": "abd83d7b0de66520fd39d3a410e718aa256a22d87f80e00f1ea0514391cd125b",
+        "configured_tree": "/workspace/tcl-lsp/tmp/jimtcl-oracle"
+      },
+      "startup": "stock Jim shell; embedded initjimsh and configured static extensions; no C Tcl init substitution",
+      "limits": "One fresh process executing the unchanged script; selected build-source hashes do not independently authenticate embedded bytes."
+    }
+  ]
+}

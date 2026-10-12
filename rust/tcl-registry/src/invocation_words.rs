@@ -335,6 +335,8 @@ pub enum CompletionOptionsPolicy {
 /// Native private namespace used by an ensemble implementation rewrite.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum EnsembleImplementationFamily {
+    /// C Tcl 8.6's clock ensemble has deferred script bootstrap members.
+    Clock,
     /// Tcl's info ensemble has private implementations from 8.5.
     Info,
     /// Tcl's namespace ensemble became privately callable in 8.6.
@@ -349,6 +351,15 @@ pub enum EnsembleImplementationFamily {
     Binary,
     /// Tcl's file ensemble has private workers from C Tcl 8.6.
     File,
+}
+
+/// Initial ensemble geometry, independently of registered callback tokens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NativeEnsembleBootstrap {
+    /// Actual namespace that owns the ensemble.
+    pub namespace: &'static str,
+    /// Mapped targets whose commands the distribution library creates later.
+    pub deferred_members: &'static [&'static [u8]],
 }
 
 impl InvocationDialect {
@@ -712,6 +723,9 @@ impl InvocationDialect {
     ) -> Option<&'static str> {
         use tcl_dialect::TclVersion;
         match (family, self.tcl_version) {
+            (EnsembleImplementationFamily::Clock, _) => self
+                .clock_bootstrap_ensemble()
+                .map(|bootstrap| bootstrap.namespace),
             (EnsembleImplementationFamily::Info, Some(version)) if version >= TclVersion::V8_5 => {
                 Some("::tcl::info")
             }
@@ -740,6 +754,20 @@ impl InvocationDialect {
                 Some("::tcl::file")
             }
             _ => None,
+        }
+    }
+
+    /// Authored initial map entries that do not publish a worker command.
+    #[must_use]
+    pub fn ensemble_bootstrap_deferred_members(
+        self,
+        family: EnsembleImplementationFamily,
+    ) -> &'static [&'static [u8]] {
+        match family {
+            EnsembleImplementationFamily::Clock => self
+                .clock_bootstrap_ensemble()
+                .map_or(&[], |bootstrap| bootstrap.deferred_members),
+            _ => &[],
         }
     }
     /// Concat protocol proved for this native engine. Jim requires representation

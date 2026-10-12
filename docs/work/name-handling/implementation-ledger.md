@@ -217,3 +217,11 @@ ownership; use small jobs and update this snapshot before handoff.
   joins pinned Snit/httpd/Wiki sites to exactC/Jim outcomes and existing shared
   consumers. Proposed composed held-out positive/negative pair remains unexecuted;
   Clay/Snit host/frame provenance and F5 outcomes remain unmeasured.
+
+- Clock registration checkpoint includes runtime and registry scalar controls
+  (one pass each), exactC8.6 map/hooks/epochs and separate mathfunc/foreach
+  questions. StockC8.5–9.1 and pinnedJim complete the unchanged foreach input;
+  C8.4 cannot publish into the missing clock namespace; F5 is unmeasured.
+  NativeC8.6 still SIGABRTs. Map membership matches, observable map ordering
+  differs; worker-order equivalence is unproved. Source-style correction after
+  build is exactrustfmt and separately recorded, not a new execution receipt.

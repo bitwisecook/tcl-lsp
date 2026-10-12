@@ -1,0 +1,16 @@
+[
+  {
+    "path": "rust/tcl-registry/src/commands/tcl/clock_.rs",
+    "executed_build_source_sha256": "d14d505224449421d62d5b0cdd5a90a894714e802b5f90d1f809f3b0bfb179f4",
+    "current_sha256": "7798ca4004a3fd7c74c7e1b096d748a1071515897b9de84767402a332c9b4c8d",
+    "change": "exact rustfmt of executed source with actual crate edition2024; no semantic edit",
+    "new_execution_claim": false
+  },
+  {
+    "path": "rust/tcl-registry/src/invocation_words.rs",
+    "executed_build_source_sha256": "d9946ab12d1386197840b2292ac93bdbdf18b79c809aec33ec73bb46f204ac55",
+    "current_sha256": "748de37352a7cf1a9bb7cb983d4dbd5e3858edefaed998264e45a6acf9d6eb05",
+    "change": "exact rustfmt of executed source with actual crate edition2024; no semantic edit",
+    "new_execution_claim": false
+  }
+]
