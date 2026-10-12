@@ -322201,7 +322201,7 @@
         {
           "id": "sourceperf-current633-7d862f0767b6",
           "path": "runtime/rust/src/typed_value.rs",
-          "sha256": "7aba761b7bd89ed2ab218cd23822ab6913e7aa7e7c5244fb32b6021b5d0486e6",
+          "sha256": "ff737614a8c60987f0489ce06de98d68aac166bf48d2079a53e5ee344a697128",
           "role": "implementation",
           "description": "The same scalar/Number and failure-presentation workers carry actual original currency/header and lazy retained Jim Host. Optional entered frame/storage checks also bracket String, failed workers and checked primary adoption; full typed cause precedes Guest projection."
         },
@@ -322435,6 +322435,27 @@
           "path": "rust/tcl-cmd-core/src/encoding/original_names/tests.rs",
           "sha256": "3ec19e0baf511c4ae882cae2aab07bbc8baec504a54eb4efbd92de788ae87dd7",
           "description": "Current filename source/software controls and selected source/codec owner. Original operation/header checks and filesystem byte/reporting extents retain their independent purposes; source declarations provide no execution or Native callback/reference outcome."
+        },
+        {
+          "id": "original-switch-owner-ac921ffc4530",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion.rs",
+          "sha256": "e8689981536f0f83bcb94012b005f41fba66022924265d5ee461c5f062388ef1",
+          "description": "Current original compiled switch and scalar source/software stages. Genuine body/frame/header checks and first-cause transport precede later work; definitions provide no execution or Native chronology."
+        },
+        {
+          "id": "original-switch-owner-33be417ad52e",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch.rs",
+          "sha256": "3d679c78482b51dd13becb797770c012f12acd3157e97d4c678a52062635fc34",
+          "description": "Current original compiled switch and scalar source/software stages. Genuine body/frame/header checks and first-cause transport precede later work; definitions provide no execution or Native chronology."
+        },
+        {
+          "id": "original-switch-owner-70ad4b1f627c",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "sha256": "930e9de25f7df9a39d35f504d667adaee77c342c6fb3e83bc2f86fb41f5366f0",
+          "description": "Current original compiled switch and scalar source/software stages. Genuine body/frame/header checks and first-cause transport precede later work; definitions provide no execution or Native chronology."
         }
       ],
       "source_anchors": [],
@@ -322963,6 +322984,21 @@
           "path": "runtime/rust/src/interp/native_encoding_source.rs",
           "symbol": "SourceOps::external_filename_bytes",
           "purpose": "Pass selected units through the actual filesystem converter while retaining genuine original argv/currency and full first Host cause on both outcomes."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch.rs",
+          "symbol": "Interp::execute_body_switch",
+          "purpose": "Capture the existing body operation before subject callbacks, check genuine selected stages and owned cleanup before continuation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_conversion.rs",
+          "symbol": "BodyObjectOperation::scalar",
+          "purpose": "Thin actual selected scalar stage supplies captured body/frame/header checks to the same shared probe/cache/failure workers."
+        },
+        {
+          "path": "runtime/rust/src/typed_value.rs",
+          "symbol": "native_scalar_getter_with_stage_check",
+          "purpose": "The existing scalar getter kernel accepts optional original caller stages; neutral None shares its prior probe and reached failure behavior."
         }
       ],
       "tests": [
@@ -326889,6 +326925,36 @@
           "selector": "interp::native_encoding_source::tests::original_filename_supplied_codec_checks_currency_before_open",
           "status": "linked",
           "assertion": "A supplied converter changes and restores interpreter context; retained original argv currency refuses before open and preserves its complete first Host cause."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_exact_lower_keeps_actual_shared_and_unshared_roles",
+          "status": "linked",
+          "assertion": "The actual Exact/nocase worker preserves its genuine shared copy and unshared mutation roles, original CString key extent, native refcounts and primary free effects under the captured body operation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_scalar_retirement_checks_frame_and_first_host_before_cache",
+          "status": "linked",
+          "assertion": "The actual selected Wide/Boolean primitive checks original frame birth and full first Host refusal during old-primary retirement before scalar cache adoption; input sharing and spelling remain exact."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_lower_refusal_precedes_string_mutation_and_later_stage",
+          "status": "linked",
+          "assertion": "Host refusal, actual context ABA or variable-frame replacement during reached primary free stops before unshared String mutation and the later original getter, preserving the original typed first cause and result."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_guest_scalar_failure_preserves_existing_public_getter_fields",
+          "status": "linked",
+          "assertion": "A genuine rejected Wide conversion retains the existing public getter Guest fields through the same probe/failure workers without publishing a scalar cache or inventing a Host refusal."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_switch/original_stages_tests.rs",
+          "selector": "interp::native_body_artifact::native_switch::original_stages_tests::original_switch_selected_bodies_keep_exact_integer_and_empty_regexp_results",
+          "status": "linked",
+          "assertion": "Actual selected Exact, integer and empty-regexp body paths preserve their ordinary public results under genuine Native command ingress; this software definition provides no new external observation."
         }
       ],
       "replay": {
