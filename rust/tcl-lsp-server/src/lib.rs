@@ -31855,9 +31855,9 @@ fn refine_original_w123_diagnostics(
         .collect()
 }
 
-/// Borrow the complete checked Logical reporting owner. A current catalogue
-/// generation is only a store-currency check; its nominal profile cannot
-/// replace the analysis's independently retained availability or lexer.
+/// Borrow the complete checked Logical reporting owner. Immutable structural
+/// store currency is separate from its retained availability and lexer; a
+/// nominal profile supplies neither original input nor Native source advice.
 fn workspace_reporting_context<'a>(
     analysis: &'a AnalysisResult,
     registry: &CommandRegistry,
@@ -31869,7 +31869,7 @@ fn workspace_reporting_context<'a>(
     let context = input.borrowed_context_registry();
     let image = analysis.retained_command_realm()?.original_source_image()?;
     let config = analysis.body_lexer_config?;
-    if context.commands().semantic_key() != registry.semantic_key()
+    if context.commands().snapshot().semantic_key() != registry.snapshot().semantic_key()
         || !analysis.matches_original_source_image(image, config)
     {
         return None;

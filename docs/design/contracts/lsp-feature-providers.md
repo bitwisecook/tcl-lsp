@@ -159,3 +159,9 @@ Transport and wiring: `rust/tcl-lsp-server/src/lib.rs`.
 - [workspace/indexing contracts](workspace-indexing.md)
 - [cross-file diagnostics](cross-file-diagnostics.md)
 - [shared utility contracts](shared-utility-contracts-rust.md)
+
+Workspace reporting checks the requested command store against the retained
+context through `RegistrySnapshot::semantic_key`. The complete structural store
+identity does not replace current `ContextRegistry` availability or the original
+Logical source and lexer configuration. Matching a profile does not supply that
+store currency or Native source advice.

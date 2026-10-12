@@ -339,7 +339,7 @@ fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_ow
     let mut descriptor = changed.get("set").unwrap().clone();
     descriptor.name = "workspace_reporting_pack_change";
     changed.insert(descriptor);
-    assert_ne!(changed.semantic_key(), registry.semantic_key());
+    assert_ne!(changed.snapshot().semantic_key(), registry.snapshot().semantic_key());
     assert!(!select(&analysis, &changed));
     assert!(
         settle_cross_file_calls(&index, &analysis, &changed, "file:///caller.tcl")
@@ -370,4 +370,77 @@ fn original_workspace_reporting_refuses_pack_generations_and_withdrawn_source_ow
         select(&analysis, registry),
         "the restored genuine owner remains nonvacuous"
     );
+}
+
+#[test]
+fn original_workspace_reporting_currency_keeps_full_store_and_independent_context() {
+    // naming.consumer.original-workspace-diagnostic-refinement
+    // docs/design/analysis/name-resolution-proofs/original-workspace-diagnostic-refinement.md
+    let source = "donated VALUE";
+    let baseline = lexical_analysis(source);
+    let original_input = baseline.resolved_input.as_ref().unwrap();
+    let store = baseline
+        .resolved_registry()
+        .unwrap()
+        .snapshot()
+        .shared_registry();
+    let current_input = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        original_input.analyser_profile(),
+        original_input.unit_profile(),
+        Arc::new(
+            original_input
+                .borrowed_context_registry()
+                .with_command_store(Arc::clone(&store)),
+        ),
+        original_input.lexer_config(),
+    );
+    let analysis = reporting_analysis_with_input(source, &current_input);
+    let registry = analysis.resolved_registry().unwrap();
+    let current = workspace_reporting_context(&analysis, &store).unwrap();
+    assert!(current.resolve_command("try").is_some());
+
+    let input = analysis.resolved_input.as_ref().unwrap();
+    let older = tcl_compiler::analyser::ResolvedAnalysisInput::new(
+        input.analyser_profile(),
+        input.unit_profile(),
+        Arc::new(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4")
+                .default_context_registry()
+                .with_command_store(Arc::clone(&store)),
+        ),
+        input.lexer_config(),
+    );
+    let older_analysis = reporting_analysis_with_input(source, &older);
+    let older_context = workspace_reporting_context(&older_analysis, &store).unwrap();
+    assert!(older_context.resolve_command("try").is_none());
+    assert!(Arc::ptr_eq(current.commands(), older_context.commands()));
+
+    let mut foreign = store.project_for_profile(registry.profile().unwrap());
+    let mut descriptor = foreign.get("set").unwrap().clone();
+    descriptor.name = "workspace_reporting_currency_foreign";
+    foreign.insert(descriptor);
+    assert_eq!(
+        foreign
+            .profile()
+            .map(tcl_dialect::DialectProfile::cache_key),
+        registry
+            .profile()
+            .map(tcl_dialect::DialectProfile::cache_key),
+    );
+    assert_ne!(
+        foreign.snapshot().semantic_key(),
+        registry.snapshot().semantic_key()
+    );
+    assert!(workspace_reporting_context(&analysis, &foreign).is_none());
+
+    let mut missing = analysis.clone();
+    missing.resolved_input = None;
+    assert!(workspace_reporting_context(&missing, &store).is_none());
+    let mut stale = analysis.clone();
+    let config = stale.body_lexer_config.as_mut().unwrap();
+    config.strict_quoting = !config.strict_quoting;
+    assert!(workspace_reporting_context(&stale, &store).is_none());
+    let native = native_analysis(source, "tcl8.6");
+    assert!(workspace_reporting_context(&native, native.resolved_registry().unwrap()).is_none());
+    assert!(workspace_reporting_context(&analysis, &store).is_some());
 }
