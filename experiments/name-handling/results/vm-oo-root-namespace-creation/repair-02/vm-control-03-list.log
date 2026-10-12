@@ -1,0 +1,3 @@
+cmd_oo::native_context::definition_exit::tests::original_class_definition_failure_tears_down_only_its_allocated_original_record: test
+
+1 test, 0 benchmarks

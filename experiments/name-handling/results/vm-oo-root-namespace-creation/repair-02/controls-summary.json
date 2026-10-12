@@ -1,0 +1,52 @@
+{
+  "build_exit": 0,
+  "current_exact_controls": 17,
+  "current_pass": 11,
+  "current_fail": 6,
+  "new_public_namespace_control": "pass",
+  "unchanged_original_constructor_control": "pass",
+  "original_oo_subset_controls": 16,
+  "original_oo_subset_pass": 10,
+  "original_oo_subset_fail": 6,
+  "retained_prior_oo_subset_pass": 7,
+  "retained_prior_oo_subset_fail": 9,
+  "comparison_limit": "different actual dependency snapshots; no all-29 rerun or isolated single-source attribution",
+  "failures": [
+    {
+      "ordinal": 3,
+      "name": "cmd_oo::native_context::definition_exit::tests::original_class_definition_failure_tears_down_only_its_allocated_original_record",
+      "log": "vm-control-03.log",
+      "exit_code": 101
+    },
+    {
+      "ordinal": 4,
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+      "log": "vm-control-04.log",
+      "exit_code": 101
+    },
+    {
+      "ordinal": 7,
+      "name": "cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object",
+      "log": "vm-control-07.log",
+      "exit_code": 101
+    },
+    {
+      "ordinal": 15,
+      "name": "interp::oo_cleanup::active_frame::tests::original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace",
+      "log": "vm-control-15.log",
+      "exit_code": 101
+    },
+    {
+      "ordinal": 16,
+      "name": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+      "log": "vm-control-16.log",
+      "exit_code": 101
+    },
+    {
+      "ordinal": 17,
+      "name": "interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace",
+      "log": "vm-control-17.log",
+      "exit_code": 101
+    }
+  ]
+}

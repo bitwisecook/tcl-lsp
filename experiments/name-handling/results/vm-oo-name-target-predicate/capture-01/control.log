@@ -1,0 +1,24 @@
+
+running 1 test
+test cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback ... OO_TARGET owner=1 interpreter=0 target=1 stage=capture.object_present current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.object_birth_live current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.object_present current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.object_birth_same current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.creation_same current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.namespace_same current=true
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.destroyed_same current=true
+OO_NAMESPACE token=25 arena_present=true world_live=true declared=false intern_same=true dying=false deferred_owner=false retained=false
+OO_TARGET owner=1 interpreter=0 target=1 stage=current.namespace_owner current=false
+
+thread 'cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback' (230366) panicked at rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs:32:10:
+actual C9.1 class construction: ValueAccessRefusal(CommandProtocolUnavailable("original OO Name target/facet"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1195 filtered out; finished in 0.21s
+

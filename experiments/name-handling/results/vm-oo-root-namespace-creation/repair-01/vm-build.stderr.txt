@@ -1,0 +1,16 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+error[E0425]: cannot find value `ROOT_NS` in this scope
+    --> rust/tcl-vm/src/cmd_oo.rs:5015:55
+     |
+5015 |                 Namespaces::find_namespace_bytes(&vm, ROOT_NS, &reported.result.string_bytes()),
+     |                                                       ^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `ROOT_NS` in this scope
+    --> rust/tcl-vm/src/cmd_oo.rs:5040:17
+     |
+5040 |                 ROOT_NS,
+     |                 ^^^^^^^ not found in this scope
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `tcl-vm` (lib test) due to 2 previous errors

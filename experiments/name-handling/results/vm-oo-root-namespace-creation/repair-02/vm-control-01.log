@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 0.38s
+

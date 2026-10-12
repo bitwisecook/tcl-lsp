@@ -1,0 +1,9 @@
+VERSION|9.1.0
+ORIGINAL_ROOT|::oo::object|object=1|owned=1|found_same=1
+EXISTS|::oo::Obj1|code=0|converted=0|observed=1|expected=1
+ORIGINAL_ROOT|::oo::class|object=1|owned=1|found_same=1
+EXISTS|::oo::Obj2|code=0|converted=0|observed=1|expected=1
+ORIGINAL_ROOT|::oo::configurable|object=1|owned=1|found_same=1
+EXISTS|::oo::Obj19|code=0|converted=0|observed=1|expected=1
+ABSENT|find_absent=1
+EXISTS|::missing_original_oo_private_namespace|code=0|converted=0|observed=0|expected=0

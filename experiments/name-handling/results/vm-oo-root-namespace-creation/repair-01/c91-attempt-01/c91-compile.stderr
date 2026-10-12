@@ -1,0 +1,19 @@
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c: In function ‘main’:
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c:28:9: error: unknown type name ‘Tcl_Object’; did you mean ‘Tcl_Obj’?
+   28 |         Tcl_Object object = Tcl_GetObjectFromObj(interp, name);
+      |         ^~~~~~~~~~
+      |         Tcl_Obj
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c:28:29: error: implicit declaration of function ‘Tcl_GetObjectFromObj’; did you mean ‘Tcl_GetSizeIntFromObj’? [-Wimplicit-function-declaration]
+   28 |         Tcl_Object object = Tcl_GetObjectFromObj(interp, name);
+      |                             ^~~~~~~~~~~~~~~~~~~~
+      |                             Tcl_GetSizeIntFromObj
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c:29:41: error: implicit declaration of function ‘Tcl_GetObjectNamespace’; did you mean ‘Tcl_GetCurrentNamespace’? [-Wimplicit-function-declaration]
+   29 |         Tcl_Namespace *owned = object ? Tcl_GetObjectNamespace(object) : NULL;
+      |                                         ^~~~~~~~~~~~~~~~~~~~~~
+      |                                         Tcl_GetCurrentNamespace
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c:29:72: error: pointer/integer type mismatch in conditional expression [-Wint-conversion]
+   29 |         Tcl_Namespace *owned = object ? Tcl_GetObjectNamespace(object) : NULL;
+      |                                                                        ^
+/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-01/probe.c:33:30: warning: comparison between pointer and integer
+   33 |             roots[i], object != NULL, owned != NULL, same);
+      |                              ^~

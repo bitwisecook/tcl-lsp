@@ -1,0 +1,15 @@
+
+running 1 test
+test cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object ... 
+thread 'cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object' (234206) panicked at rust/tcl-vm/src/exec.rs:9170:9:
+command requires a genuine native expression provider
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+
+failures:
+
+failures:
+    cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 2.07s
+

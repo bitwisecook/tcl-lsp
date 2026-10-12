@@ -1,0 +1,7 @@
+c42806b9b98bcd58ba5358d2d81b3b834fface5f4e4670dea6458e496703a68d  rust/tcl-vm/src/cmd_oo.rs
+00655962b43a5330e75f92085efd56293ff670ef1f2609d3e1ee6b7d4d484e4b  rust/tcl-vm/src/cmd_oo/native_context.rs
+6cb00b707fb7bf9e1db2c75b612e379669b19932b3dba814e657323214dccda4  rust/tcl-vm/src/interp.rs
+f2abb0b2ca6fa8cf621f158f209a48ee20ec2a08073d2f2c4af541ddf0babbbd  tmp/tcl9.1.0/generic/tclOO.c
+328332ea741e91bd653c3b5bd84ae417c6c4f049fe96724328a06441a0fc108e  rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v3/probe.c
+77f46a8051bb6597385c613dfe1b294025bd31b8122a3c1b8824f351a7ea1ee5  rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v3/9.1.0/receipt.json
+ff6c606feb4c748a95fff764459ebe5d1ba25360a0bb9c23ef174ce6e02ef0ab  rust/tcl-vm/tests/data/native_oo_bootstrap_capability/v3/9.1.0/stdout.tsv

@@ -1,0 +1,88 @@
+diff --git a/rust/tcl-vm/src/cmd_oo.rs b/rust/tcl-vm/src/cmd_oo.rs
+index b9370f343..8920ed02e 100644
+--- a/rust/tcl-vm/src/cmd_oo.rs
++++ b/rust/tcl-vm/src/cmd_oo.rs
+@@ -1129,6 +1129,7 @@ fn bootstrap(vm: &mut Vm) {
+     vm.oo.class_root = Some(class_root);
+     for (root, root_id) in [("oo::object", object_root), ("oo::class", class_root)] {
+         let private_namespace = fresh_obj_name(vm);
++        vm.declare_namespace_key(&private_namespace);
+         vm.oo.classes.insert(root_id, Class::default());
+         vm.oo.objects.insert(
+             root_id,
+@@ -1180,6 +1181,7 @@ fn bootstrap(vm: &mut Vm) {
+         },
+     );
+     let configurable_namespace = fresh_obj_name(vm);
++    vm.declare_namespace_key(&configurable_namespace);
+     vm.oo.objects.insert(
+         configurable_root,
+         Object {
+@@ -4982,6 +4984,67 @@ mod native_byte_name_tests {
+     }
+ }
+ 
++#[cfg(test)]
++mod original_bootstrap_namespace_tests {
++    use super::*;
++    use tcl_runtime_api::{Namespaces, ROOT_NS};
++
++    #[test]
++    fn original_c91_bootstrap_objects_publish_their_actual_private_namespaces() {
++        let mut vm = crate::native_fixture::core(crate::environment::profile_for_dialect("tcl9.1"));
++        for (name, object) in [
++            ("::oo::object", vm.oo.object_root.unwrap()),
++            ("::oo::class", vm.oo.class_root.unwrap()),
++            ("::oo::configurable", vm.oo.configurable_root.unwrap()),
++        ] {
++            let namespace = vm.oo.objects[&object]
++                .namespace_token
++                .expect("original object namespace incarnation");
++            let reported = vm
++                .try_invoke_command(
++                    "info",
++                    &[
++                        Value::string("object"),
++                        Value::string("namespace"),
++                        Value::string(name),
++                    ],
++                )
++                .expect("actual public object namespace observation");
++            assert_eq!(reported.code, Code::Ok, "{name}");
++            assert_eq!(
++                Namespaces::find_namespace_bytes(&vm, ROOT_NS, &reported.result.string_bytes()),
++                Some(namespace),
++                "{name} must report its actually published namespace incarnation"
++            );
++            assert!(Namespaces::namespace_is_live(&vm, namespace), "{name}");
++            let exists = vm
++                .try_invoke_command("namespace", &[Value::string("exists"), reported.result])
++                .expect("actual public namespace existence observation");
++            assert_eq!(exists.code, Code::Ok, "{name}");
++            assert_eq!(exists.result.string_bytes().as_ref(), b"1", "{name}");
++        }
++        let absent = vm
++            .try_invoke_command(
++                "namespace",
++                &[
++                    Value::string("exists"),
++                    Value::string("::missing_original_oo_private_namespace"),
++                ],
++            )
++            .expect("actual absent namespace observation");
++        assert_eq!(absent.code, Code::Ok);
++        assert_eq!(absent.result.string_bytes().as_ref(), b"0");
++        assert_eq!(
++            Namespaces::find_namespace_bytes(
++                &vm,
++                ROOT_NS,
++                b"::missing_original_oo_private_namespace"
++            ),
++            None
++        );
++    }
++}
++
+ #[cfg(test)]
+ mod original_call_argv_tests {
+     use super::*;

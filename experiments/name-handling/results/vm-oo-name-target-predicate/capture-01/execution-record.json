@@ -1,0 +1,49 @@
+{
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+  "binary_sha256_after": "04cbacef6d85d51eda1b94fef0fd83af4b4d9fa2074136671b643dc1286e539a",
+  "binary_sha256_before": "04cbacef6d85d51eda1b94fef0fd83af4b4d9fa2074136671b643dc1286e539a",
+  "build_command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--no-run",
+    "-j",
+    "2",
+    "--message-format=json-render-diagnostics"
+  ],
+  "build_exit": 0,
+  "cache": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "changed_after_restoration": [],
+  "changed_during_build": [],
+  "changed_during_control": [],
+  "control": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+  "control_command": [
+    "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+    "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+    "--exact",
+    "--nocapture",
+    "--test-threads=1"
+  ],
+  "control_exit": 101,
+  "diagnostic_binary_current_for_restored_source": false,
+  "elapsed_seconds": 110.308,
+  "environment_recipe": "/tmp/name-env.sh",
+  "exactly_one_test_executed": true,
+  "finished_utc": "2026-10-12T22:43:47.011328+00:00",
+  "first_failed_target_predicate": "OO_TARGET owner=1 interpreter=0 target=1 stage=current.namespace_owner current=false",
+  "namespace_failure_terms": [
+    "OO_NAMESPACE token=25 arena_present=true world_live=true declared=false intern_same=true dying=false deferred_owner=false retained=false"
+  ],
+  "outcome": "measured_control",
+  "proposal_sha256": "68ea73333c0c7ba41445ee3fd58cf2abc73764621c2ff6288f6e9f5f5b368bd3",
+  "restored_owners_byte_exact": true,
+  "source_scope_count": 4943,
+  "started_utc": "2026-10-12T22:41:56.703202+00:00",
+  "temporary_owners": [
+    "rust/tcl-vm/src/cmd_oo/original_name_operands.rs",
+    "rust/tcl-vm/src/interp/native_namespace_names.rs"
+  ]
+}

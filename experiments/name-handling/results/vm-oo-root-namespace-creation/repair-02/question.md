@@ -1,0 +1,5 @@
+# Corrected public namespace control build
+
+This necessary retry adds only the public `tcl_runtime_api::ROOT_NS` import to the new cfg(test) module. Production semantics, the original test fixture/caller/arguments/assertions, new control assertions, and public visibility are unchanged. [Failed repair-01](../repair-01/vm-results.md) remains immutable with both E0425 diagnostics and zero executed tests. [Ready source](ready-source.sha256) and [patch](patch.diff) identify the corrected candidate.
+
+The granted sequence remains: truthful offline lib-test rebuild; execute exactly one unchanged original C9.1 definition-exit constructor control first; execute exactly one new public namespace control from the same observed binary. Only if the original passes, run the relevant original OO subset once from that binary. Preserve complete typed later refusals and report unreached assertions. The independent physical [C9.1 oracle](../repair-01/c91-results.md) is unchanged; no broader teardown/incarnation parity claim is made.

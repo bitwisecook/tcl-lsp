@@ -1,0 +1,20 @@
+{
+  "first_attempt": "stopped before C compile/run because current static library differs from retained v3 receipt",
+  "inputs": {
+    "tmp/tcl9.1.0/unix/libtcl9.1.a": {
+      "current": "49ac8e3b49ea4339709ea04590a54be8996f88e3619e0fd5e59a47f131873d65",
+      "retained": "513028850edf096856a29e4e16869aac91cba2ef75c3924aaaaeeb6e45e167db",
+      "same": false
+    },
+    "tmp/tcl9.1.0/generic/tcl.h": {
+      "current": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "retained": "30fa3a517fae1771933cc40955702c942f7be74efcecff4790e7b423dc1be950",
+      "same": true
+    },
+    "tmp/tcl9.1.0/unix/Makefile": {
+      "current": "14f9c5c61b686316d9c6ba9f43a7fbdd6b72735ac09cb034404fd36cd22b7fa6",
+      "retained": "c1ecfb5a77697f0dc6f1057f63ff7aabd75b444f62b5954480aff01ff0565ab1",
+      "same": false
+    }
+  }
+}

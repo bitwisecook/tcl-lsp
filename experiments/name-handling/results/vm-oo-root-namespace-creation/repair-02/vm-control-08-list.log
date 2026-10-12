@@ -1,0 +1,3 @@
+cmd_oo::native_context::definition_exit::tests::original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup: test
+
+1 test, 0 benchmarks

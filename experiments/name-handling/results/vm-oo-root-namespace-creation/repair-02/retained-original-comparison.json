@@ -1,0 +1,203 @@
+{
+  "scope": "same retained control names with original caller arguments and assertions preserved; current dependencies differ, so this is not a whole-input identical-source comparison or single-patch causal attribution",
+  "rows": [
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+      "retained_original_ordinal": 1,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-01.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-01.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_class_definition_failure_tears_down_only_its_allocated_original_record",
+      "retained_original_ordinal": 2,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-02.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-03.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+      "retained_original_ordinal": 3,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-03.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-04.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_rewrite_keeps_full_first_cause_through_physical_restoration",
+      "retained_original_ordinal": 4,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-04.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-05.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_preserves_genuine_replacement_row_and_usage_birth",
+      "retained_original_ordinal": 5,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-05.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-06.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_failed_procedure_constructor_keeps_child_state_and_retires_original_object",
+      "retained_original_ordinal": 6,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-06.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-07.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup",
+      "retained_original_ordinal": 7,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-07.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-08.log",
+      "test_owner_path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+      "retained_test_owner_sha256": "b1e15d807afe0381fcf020891c376ed817007be39eb9d71b098e3c4527d8f920",
+      "current_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "test_owner_identical": false
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_namespace_activation_birth_survives_real_hide_selection_and_flow_transport",
+      "retained_original_ordinal": 8,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-08.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-09.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_namespace_cleanup_refuses_same_token_activation_rebirth_without_popping_it",
+      "retained_original_ordinal": 9,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-09.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-10.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_call_frame_cleanup_refuses_real_same_level_replacement_and_keeps_new_namespace",
+      "retained_original_ordinal": 10,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-10.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-11.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation",
+      "retained_original_ordinal": 11,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-11.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-12.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_dispatch_cleanup_restores_captured_depth_without_decrementing_the_child",
+      "retained_original_ordinal": 12,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-12.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-13.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_call_cleanup_keeps_full_first_host_while_retiring_the_owned_frame_and_namespace",
+      "retained_original_ordinal": 13,
+      "retained_exit_code": 0,
+      "retained_log": "../../vm-test-api-repairs/control-13.log",
+      "current_exit_code": 0,
+      "current_log": "vm-control-14.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_forward_callback_cleanup_uses_the_real_pushed_context_and_original_namespace",
+      "retained_original_ordinal": 14,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-14.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-15.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_method_cleanup_refuses_a_genuinely_new_same_position_context_without_retiring_it",
+      "retained_original_ordinal": 15,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-15.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-16.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    },
+    {
+      "name": "interp::oo_cleanup::active_frame::tests::original_procedure_epilogue_and_abort_retire_only_the_entered_oo_frame_and_namespace",
+      "retained_original_ordinal": 16,
+      "retained_exit_code": 101,
+      "retained_log": "../../vm-test-api-repairs/control-16.log",
+      "current_exit_code": 101,
+      "current_log": "vm-control-17.log",
+      "test_owner_path": "rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs",
+      "retained_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "current_test_owner_sha256": "e3dd394592c5ef46dcf325d83c6da3f3e3b69dd6360ac8b750b88e2866947ea6",
+      "test_owner_identical": true
+    }
+  ],
+  "shared_actual_native_fixture": {
+    "path": "rust/tcl-vm/src/native_fixture.rs",
+    "retained_sha256": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+    "current_sha256": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc",
+    "identical": true
+  }
+}

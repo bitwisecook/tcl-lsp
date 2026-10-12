@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::oo_cleanup::active_frame::tests::original_namespace_activation_birth_survives_real_hide_selection_and_flow_transport ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 0.18s
+

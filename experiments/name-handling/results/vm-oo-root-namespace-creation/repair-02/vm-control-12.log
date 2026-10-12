@@ -1,0 +1,6 @@
+
+running 1 test
+test interp::oo_cleanup::active_frame::tests::original_parked_call_cleanup_retires_original_state_and_preserves_the_child_activation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 0.22s
+
