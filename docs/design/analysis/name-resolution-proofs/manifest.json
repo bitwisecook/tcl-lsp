@@ -322671,7 +322671,7 @@
         {
           "id": "sourceperf-current633-20c349e17092",
           "path": "runtime/rust/src/interp/native_body_artifact/native_control.rs",
-          "sha256": "2bf637e23dc0567a22b6c012113784ba84956f790b4936a6991b9173fc28d659",
+          "sha256": "c6f85cb5d9505bbc2a5693453355e658f818501ed4f381658cce7521844a03ae",
           "role": "implementation",
           "description": "Current authored source/API owner and its linked control declarations, inspected only for the bounded described stages. This hash supplies no executable admission, passed assertion, Native chronology or provider observation."
         },
@@ -323001,7 +323001,7 @@
           "id": "authored-consumer645d-67cdd355c23a",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact.rs",
-          "sha256": "fc72998354c7bb160c2493695edd24e16c2c8a0fa9797499f063d4258da2efa7",
+          "sha256": "88a19960571a9c71ace5bc2a34627dd9412003375d6d07c4c89024de7e6839c9",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         },
         {
@@ -323036,7 +323036,7 @@
           "id": "authored-consumer645d-f293ac052c23",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
-          "sha256": "ed7e2c13def00eeae6aa760d06055b0660043106080092b6a874bd057c1eb1bb",
+          "sha256": "c867ef4472c6a8e44192d5270e843d73180d6514cfd917b45d1cef540b89f928",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         },
         {
@@ -323582,7 +323582,7 @@
           "id": "authored-consumer645g-4829e0575b4e",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_read_boundary_tests.rs",
-          "sha256": "cb8471b321f26c9479724f0abcf6f5c86a8b93635bf37acffe463d3a00d2c6f3",
+          "sha256": "07162f3b6cfe262bd4966cae8a06ec2a50fee0f1d36d4f15f2e583a8cf8e472d",
           "description": "Actual current software control body/document and recursive Rust module binding for interp::native_body_artifact::native_dictionary_scope::original_read_boundary_tests::original_compiled_scope_read_refuses_pending_role_before_missing_metadata_and_keeps_live_replacement. Real callback and role observations are software-only; no passed assertion, owned-image admission or external Native chronology is granted."
         },
         {
@@ -323724,6 +323724,132 @@
           "path": "rust/tcl-vm/src/interp/oo_cleanup/original_target_tests.rs",
           "sha256": "f54086adbc6118a3115d8eadbcc6e0f492b5d77a9e37fbc5a770be518b1711f3",
           "description": "Current software command retirement owner and finite definition controls. Real original generation, role retirement and first-cause purposes remain distinct from Native active callback timing, held-word caches, client-data lifetime and general command-family equivalence."
+        },
+        {
+          "id": "authored-consumer645h-7139fc37d57a",
+          "role": "implementation",
+          "path": "runtime/rust/src/frame/native_variable_names.rs",
+          "sha256": "3daf1a9d093382c1f32eed45fdcb44bf93937201f684b3171900a4f3b8dd512b",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-2f8770ac92df",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations/original_boundary_tests.rs",
+          "sha256": "08dfd57389abab07ab4e6c74392e2b18ff8855c58c55ead7d57f02d4264634bc",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-fe5225a243ee",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/original_preparation_boundary_tests.rs",
+          "sha256": "42ae3c08bfd747a510cbe3514d980df3ffcc3403fae8985cb933e22b9c943542",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-597b5ea1a5c8",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "sha256": "985a0431d844ea7ee2eacff7650ca676ca7eaa9986adf9dfae6f19a304f8fc83",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-3f7147f1aec8",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_literal_pool.rs",
+          "sha256": "95b9ca221ece23b80e6a8bf89f72ec303921fe402dc270638ea4600ccfe0600a",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-e23e958d0690",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_literal_pool/original_registration_tests.rs",
+          "sha256": "be1908f5e320cc1b8e6f0ef328d1271f02f0b0fa5c4f14c1876869311c77d025",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-1446c181b5e2",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_namespace_names.rs",
+          "sha256": "101b76e372d96cf0d66cfa770b63c42cac2ea26232f5e5b3663de08bcbf09166",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-810f13b3db05",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_variable_names.rs",
+          "sha256": "0f13faa08d846ad7bf244267e43b794057e8b827917072e5b6620991e5a340cd",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-5617671597f7",
+          "role": "implementation",
+          "path": "runtime/rust/src/list/native_list_storage.rs",
+          "sha256": "acd71e3b7167f8695d4b004e77a04f5fc12d862306f2713ac255d9e56c323b27",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-c39a5b55da08",
+          "role": "implementation",
+          "path": "runtime/rust/src/obj/native_variable_name.rs",
+          "sha256": "493acd246bd5c8eef43054ad95a8b1e8b68b79a2c2a5d2781b50c0f9ceb61ab1",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-ede9a59cd485",
+          "role": "implementation",
+          "path": "runtime/rust/src/value_ops/native_list_index.rs",
+          "sha256": "ff672edb67803efc27c6270c2ac39d242f2c35e866e521f5b6b609d4d8a582a8",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-532557d441c3",
+          "role": "implementation",
+          "path": "rust/tcl-cmd-core/src/native_list_index.rs",
+          "sha256": "585d151f6db0926789442dfdac8832d1bf4e7fde0bf88ff2e2e93d4e03134b4f",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-0bd5ab4f11ed",
+          "role": "implementation",
+          "path": "rust/tcl-runtime-api/src/native_literal.rs",
+          "sha256": "61096b9c41b8d3619e5308f18cc5deea143e9cc81e0eebea3d385ca8e7746691",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-8577a294d047",
+          "role": "implementation",
+          "path": "rust/tcl-runtime-api/src/native_literal/original_registration_tests.rs",
+          "sha256": "893e4ef477547e03c8f1a5e70298542a7e85a41cc9b7492aaff8a9b268773b08",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-7ef0221b7828",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_command_names.rs",
+          "sha256": "dd0e2dd5e94aa735f4968647f319d06e3b70f7ba1bec2a3d51ccd0a599b55818",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-742e02821244",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/interp/native_variable_names.rs",
+          "sha256": "4d6e6d3dbf4622dc531c73a38a1bdbca864dbe1c44649e4226f03e99c75032e0",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-938c8f3dd237",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/literal_pool.rs",
+          "sha256": "9c285f4066be2096414aa5cd2b70e5e01ab8dc675aa514d0b86115d6dfabbfaf",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
+        },
+        {
+          "id": "authored-consumer645h-2c16bf2362a2",
+          "role": "implementation",
+          "path": "rust/tcl-vm/src/literal_pool/original_registration_tests.rs",
+          "sha256": "93f0d5d96c328a7216e3ba6f1383b3f5e2c590445d688eb09eeea20d7165c645",
+          "description": "Actual reviewed original preparation/variable/List/literal worker or canonical software control source. Original identity, typed-cause and mandatory cleanup invariants only; no owned-image admission, passed assertion, external Native observation, provider outcome or timing equivalence."
         }
       ],
       "source_anchors": [],
@@ -330095,6 +330221,126 @@
           "selector": "cmd_oo::native_bootstrap::abstract_tests::original_abstract_public_rooted_lookup_joins_canonical_token_and_registry_marker",
           "status": "linked",
           "assertion": "Actual C90/C91 software OO bootstrap initialization, public rooted lookup and held compilation entry agree on the canonical abstract object command token, generation and Registry marker. C86 absence and logical-owner abstention are checked. This executes the actual software initializer contract, unlike the pure Registry descriptor control, and supplies no external Native bootstrap outcome. This binds the current source definition only; no passed assertion or new Native observation is attached."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_preparation_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_preparation_boundary_tests::original_preparation_source_string_keeps_frame_and_currency_before_cache_publication",
+          "assertion": "The actual body-source String worker checks the captured original frame and currency before later prepared-cache publication. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_preparation_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_preparation_boundary_tests::original_preparation_old_primary_retirement_checks_real_frame_and_primary_aba_before_adoption",
+          "assertion": "Real old-primary callbacks can withdraw the frame or replace and restore the original primary; the prepared body refuses adoption and retains the first full cause through unused incoming cleanup. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_preparation_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_preparation_boundary_tests::original_preparation_borrowed_name_table_stops_at_actual_first_updater_without_extra_native_hold",
+          "assertion": "A borrowed actual canonical name-table header is projected without an additional Native retain; the first real updater checks the original frame before later name getters or compilation stages. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_read_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_scope::original_read_boundary_tests::original_compiled_scope_read_checks_original_frame_before_selected_read_and_missing_metadata",
+          "assertion": "The actually reached Read observer is followed immediately by the same compiled-frame check before receiver read or missing-variable/private-error metadata; the genuine Guest-failed branch retains its prior read frontier. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_variable_name_checks_first_string_before_cell_and_cache_publication",
+          "assertion": "The first actual variable-name String worker checks the captured compiled frame and header before selected cell lookup or parsed/local cache publication. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_parsed_element_projects_last_native_owners_before_uaf_and_primary_aba_callbacks",
+          "assertion": "The existing parsed root and element are projected with allocation-only leases before the actual element getter; last-owner retirement and primary replacement/restoration refuse original root continuation without a protective Native retain. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_namespace_cache_retirement_checks_same_body_before_adoption",
+          "assertion": "The actual namespace cache worker retains the original compiled operation through old-primary retirement and refuses adoption after a reached frame callback. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_variable_store_retains_successful_write_pending_role_and_legal_replacement",
+          "assertion": "After the actually successful write observer, a pending or withdrawn scalar role is terminal while an ordinary live replacement remains a legal final read. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_store_checks_cell_retirement_before_write_trace_and_later_incoming_host",
+          "assertion": "The same captured compiled frame is checked immediately after actual old-cell retirement while the existing incoming owner is held; mandatory retirement preserves the earlier frame cause before any write trace or later Host cause. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_error_presenter_keeps_first_frame_during_mandatory_private_owner_retirement",
+          "assertion": "The shared actual error presenter checks the original compiled operation at publication and retirement boundaries and preserves the first frame cause through mandatory private-owner cleanup. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/original_variable_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::original_variable_boundary_tests::original_compiled_error_presenter_checks_c84_frame_after_reached_setter_flag_settlement",
+          "assertion": "Selected C84 error setters finish their reached flag and mandatory cleanup stages before the same compiled-frame refusal stops later metadata; generic publication remains a separate purpose. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_list_operations::original_boundary_tests::original_compiled_range_and_assign_check_converter_retirement_before_result_and_target_stores",
+          "assertion": "Compiled Range and Assign keep their actual original source/frame and existing DUP roles through the canonical converter, then refuse result or target-store continuation after a reached retirement callback. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_list_operations::original_boundary_tests::original_list_index_using_checks_scalar_and_list_cache_before_later_original_getters",
+          "assertion": "The same original ListIndex worker checks scalar-failure and List-cache adoption frontiers before later operand getters, retaining the full first typed cause. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_list_operations::original_boundary_tests::original_compiled_list_index_keeps_reached_result_and_input_roles_through_prior_result_retirement",
+          "assertion": "Compiled ListIndex keeps its genuine input PUSH and incoming result roles through the actual old-result retirement; the immediate frame check precedes mandatory result/input cleanup and later trace continuation. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_list_operations/original_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_list_operations::original_boundary_tests::neutral_immediate_none_preserves_frame_callback_conversion_while_original_using_refuses_it",
+          "assertion": "The explicit neutral immediate route preserves the existing converter and callback behavior, while the optional captured original-frame route refuses the demonstrated changed frame in the same worker. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_literal_pool/original_registration_tests.rs",
+          "selector": "interp::native_literal_pool::original_registration_tests::original_literal_registration_reentry_preserves_header_lifetime_and_native_roles",
+          "assertion": "Actual literal updater/free callbacks run outside the world borrow with an allocation-only header lease; registration mutation, frame rebirth, retirement and Host refusal stop later acquisition/publication while original Native reference roles remain observed. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_literal_pool/original_registration_tests.rs",
+          "selector": "interp::native_literal_pool::original_registration_tests::original_local_name_factory_getter_runs_outside_procedure_and_world_borrows",
+          "assertion": "The actual compiled canonical local-name factory runs its genuine String getter outside procedure and world borrows, preserving reference counts and the first Host cause before table or activation publication. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_literal/original_registration_tests.rs",
+          "selector": "native_literal::original_registration_tests::original_registration_episode_refuses_getter_and_factory_mutation_before_acquisition",
+          "assertion": "The shared registration kernel refuses a replaced mutation episode even when nested acquire/release restores the original entry, count and bytes; getter and factory paths cannot adopt under the old episode. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-runtime-api/src/native_literal/original_registration_tests.rs",
+          "selector": "native_literal::original_registration_tests::original_registration_exhaustion_refuses_without_clone_or_slot_publication",
+          "assertion": "The actual shared owner-count exhaustion boundary refuses before any additional original value clone or registration-slot publication. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "rust/tcl-vm/src/literal_pool/original_registration_tests.rs",
+          "selector": "literal_pool::original_registration_tests::original_literal_registration_checks_episode_inside_same_value_string_worker",
+          "assertion": "The VM literal registration checks the same actual mutation episode inside the existing Value String worker, preserving real header/reference roles and refusing nested table mutation before acquisition. Inspected software control only; no passed assertion, external Native callback/role chronology, new provider availability or getter authority is granted.",
+          "status": "linked"
         }
       ],
       "replay": {
