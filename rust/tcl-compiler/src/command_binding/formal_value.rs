@@ -43,7 +43,8 @@ enum FormalValueSource<'a> {
 fn direct_formal_argument_value(
     site: &super::CommandAllocationSite,
     observation: &super::declaration_layout::DeclarationLayoutObservation,
-    source: &SourceSite,
+    // The caller joins the exact source component; this parameter retains debug trace spans.
+    _source: &SourceSite,
     index: usize,
     parameters: &[&str],
     registry: &CommandRegistry,
@@ -56,7 +57,7 @@ fn direct_formal_argument_value(
     // receiver declaration's formal fetch; other aliases remain terminal.
     // The shared resolver, incoming-value graph and original operand
     // checks below still own this formal's slot, writes and observers.
-    trace_formal!(source, "static-bindings", !context.dynamic_bindings);
+    trace_formal!(_source, "static-bindings", !context.dynamic_bindings);
     if context.dynamic_bindings
         || !context.traced.is_empty()
         || !context.untracked_traces.is_empty()
@@ -66,7 +67,7 @@ fn direct_formal_argument_value(
         return None;
     }
     trace_formal!(
-        source,
+        _source,
         "original-topology",
         observation.entry.original_formal_topology().is_some()
     );
@@ -116,7 +117,7 @@ fn direct_formal_argument_value(
         tcl_registry::TraceOperation::Read,
     );
     trace_formal!(
-        source,
+        _source,
         "fresh-scalar-formal",
         topology.fresh_scalar_formal_name(&receiver, context)
     );

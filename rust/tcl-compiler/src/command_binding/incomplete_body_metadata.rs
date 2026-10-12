@@ -187,7 +187,8 @@ fn procedure_namespace(
 }
 
 fn incomplete_procedure_name(
-    site: &CommandAllocationSite,
+    // The caller owns source geometry; this parameter retains debug trace coordinates.
+    _site: &CommandAllocationSite,
     header: &IncompleteHeader,
     target: &super::SourceCommandTarget,
     advice: &OriginalCompilationLookupAdvice,
@@ -224,7 +225,7 @@ fn incomplete_procedure_name(
     if std::env::var_os("TCL_LSP_TRACE_INCOMPLETE_HEADER").is_some() {
         eprintln!(
             "INCOMPLETE_HEADER site={} stage=procedure-roles complete={} accepted={:?} roles={} values={}",
-            site.offset,
+            _site.offset,
             facts.arg_roles_complete,
             facts.arity_accepts_frozen_arguments(),
             facts.arg_roles.len(),
