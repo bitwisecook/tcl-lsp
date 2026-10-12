@@ -322812,7 +322812,7 @@
           "id": "authored-consumer645d-f293ac052c23",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope.rs",
-          "sha256": "c8dfb11ba72c404ac75fe98044a80ef68724051d78fa560bace38da9add8a3fd",
+          "sha256": "ed7e2c13def00eeae6aa760d06055b0660043106080092b6a874bd057c1eb1bb",
           "description": "Actual current authored software control source and genuine module declaration, inspected only for the attached finite assertion. No owned-image admission, passed assertion, external Native observation or provider outcome."
         },
         {
@@ -323148,7 +323148,7 @@
           "id": "authored-consumer645e-3ed7cc191181",
           "role": "implementation",
           "path": "runtime/rust/src/interp/native_append/original_command_boundary_tests.rs",
-          "sha256": "a68511b16856cc36e170f6417d4685961a7b63dd9056d337abb80edcf0ca1fca",
+          "sha256": "2c86aae3a0bff53a459c5f4a3d7432d5e52c5bcb51a0d8af7b03d5c60e2b0a6d",
           "description": "Actual current canonical software control body/document pair and recursive Rust module declarations only; no execution or external Native outcome is inferred."
         },
         {
@@ -323353,6 +323353,20 @@
           "path": "runtime/rust/src/vars/trace_shell.rs",
           "sha256": "ba233bdd65404169a8f7ccf88bd7ebdb393475fded99bd82f83ee67d9d178c44",
           "description": "Current captured trace-shell, registration, configured-role retirement, raw result birth or quiet dictionary owner and finite software controls. Allocation-only descriptions supply no Native reference or lookup authority; authentic first-cause and mandatory cleanup contracts remain distinct from Native callback chronology."
+        },
+        {
+          "id": "authored-consumer645g-4829e0575b4e",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_read_boundary_tests.rs",
+          "sha256": "cb8471b321f26c9479724f0abcf6f5c86a8b93635bf37acffe463d3a00d2c6f3",
+          "description": "Actual current software control body/document and recursive Rust module binding for interp::native_body_artifact::native_dictionary_scope::original_read_boundary_tests::original_compiled_scope_read_refuses_pending_role_before_missing_metadata_and_keeps_live_replacement. Real callback and role observations are software-only; no passed assertion, owned-image admission or external Native chronology is granted."
+        },
+        {
+          "id": "authored-consumer645g-a19039d6a9cb",
+          "role": "implementation",
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_publication_boundary_tests.rs",
+          "sha256": "690a1c45dcff3d8debb50c4352d556fbad9c161efb74f4d7b1c8fad714abd41a",
+          "description": "Actual current software control body/document and recursive Rust module binding for interp::native_body_artifact::native_dictionary_scope::original_publication_boundary_tests::original_compiled_dictionary_publication_retains_frame_before_working_cleanup_and_keeps_replacement. Real callback and role observations are software-only; no passed assertion, owned-image admission or external Native chronology is granted."
         }
       ],
       "source_anchors": [],
@@ -329238,6 +329252,18 @@
           "selector": "interp::stock_ensembles::retirement_tests::original_stock_refresh_checks_new_root_after_the_extracted_old_configuration_retires",
           "status": "linked",
           "assertion": "Actual stock refresh captures the new published root before the extracted old configuration reaches its final free callback. The same original receipt rejects Host, restored context or callback rebind afterward, preserving reached bookkeeping and result without fresh post-callback lookup authority. This associates the current definition only; it supplies no passed assertion or new Native observation."
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_read_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_scope::original_read_boundary_tests::original_compiled_scope_read_refuses_pending_role_before_missing_metadata_and_keeps_live_replacement",
+          "assertion": "After the actually reached successful read observer, the original compiled Dictionary scope refuses a pending or withdrawn scalar role before constructing missing-variable metadata and preserves a legal live replacement. The failed Guest observer branch keeps its existing absence path and reaches no additional read stage. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
+        },
+        {
+          "path": "runtime/rust/src/interp/native_body_artifact/native_dictionary_scope/original_publication_boundary_tests.rs",
+          "selector": "interp::native_body_artifact::native_dictionary_scope::original_publication_boundary_tests::original_compiled_dictionary_publication_retains_frame_before_working_cleanup_and_keeps_replacement",
+          "assertion": "The selected cell and result publishers check and retain the original compiled frame cause immediately after reached publication while the existing incoming owner is still held, then complete mandatory retirement before continuation. Real old-header callbacks and later working-header Host callbacks preserve the earlier cause; ordinary legal replacement and genuine reference roles stay observable. Inspected software control only; no passed assertion, external Native callback/role chronology or new getter authority is granted.",
+          "status": "linked"
         }
       ],
       "replay": {
