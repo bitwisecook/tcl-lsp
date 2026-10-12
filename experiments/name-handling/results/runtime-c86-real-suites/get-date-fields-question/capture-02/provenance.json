@@ -1,0 +1,95 @@
+{
+  "source_before": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/control.c": "b70793bd984ae4610e2c130f4343c872fcf31264a09b1bde1e66b9422ee1acc5",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/c9-input.tcl": "29a6c8e94d4e3657349b403f3ede152fdc71197ce2e2c61f78c37b11aa29440b",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-c9.py": "49697149a900da519e6a6bb45253fe6691408722924ceaff5c22d8cbec5d2cb5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclClock.c": "ceda0e2655bf4a431710a737aa9019c256362c9fe5065a670db55b67a00182c9",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl": "6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "0dfd7f37e596ed66814bc8bdeae3b8edfcd8459b239f7755543cb56aac9bcded",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclClock.c": "807e7146701eb3d11f29bc317964140cd2fe60ee7e5832bbe2b9d2b4b8473524",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl": "f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "49ac8e3b49ea4339709ea04590a54be8996f88e3619e0fd5e59a47f131873d65"
+  },
+  "source_after": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/control.c": "b70793bd984ae4610e2c130f4343c872fcf31264a09b1bde1e66b9422ee1acc5",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/c9-input.tcl": "29a6c8e94d4e3657349b403f3ede152fdc71197ce2e2c61f78c37b11aa29440b",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-c9.py": "49697149a900da519e6a6bb45253fe6691408722924ceaff5c22d8cbec5d2cb5",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/generic/tclClock.c": "ceda0e2655bf4a431710a737aa9019c256362c9fe5065a670db55b67a00182c9",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/clock.tcl": "6b286804649120c7c249d8c2941cee8e1da59211132d985ad97b8ab196073546",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/library/init.tcl": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a": "0dfd7f37e596ed66814bc8bdeae3b8edfcd8459b239f7755543cb56aac9bcded",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/generic/tclClock.c": "807e7146701eb3d11f29bc317964140cd2fe60ee7e5832bbe2b9d2b4b8473524",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/clock.tcl": "f1dc4c6b3bdac23e08b34af6a0fb4b04103d875d2698064d7490151617275d59",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/library/init.tcl": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+    "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a": "49ac8e3b49ea4339709ea04590a54be8996f88e3619e0fd5e59a47f131873d65"
+  },
+  "binary_hashes": {
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.0.4": "06549a599db995cc49d555568d12d52c7a29f69243727068711244c92149d9e3",
+    "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.1.0": "170f3da316be547d6b0251644fea7ab3b844ce08ba58ba815b9035c382a6b03f"
+  },
+  "records": [
+    {
+      "name": "9.0.4/compile",
+      "argv": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.0.4/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/control.c",
+        "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/libtcl9.0.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.0.4"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.0.4/values",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.0.4",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/c9-input.tcl"
+      ],
+      "exit": 0,
+      "stdout_sha256": "8602889551bec16d33f30c00d283669956405240084b59e6e0ccb49c36f0bfd6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/compile",
+      "argv": [
+        "cc",
+        "-DHAVE_UNISTD_H=1",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/unix",
+        "-I/workspace/tcl-lsp/tmp/tcl9.1.0/generic",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/control.c",
+        "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/libtcl9.1.a",
+        "-lm",
+        "-ldl",
+        "-lpthread",
+        "-lz",
+        "-o",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.1.0"
+      ],
+      "exit": 0,
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "9.1.0/values",
+      "argv": [
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/capture-02/control-9.1.0",
+        "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/get-date-fields-question/c9-input.tcl"
+      ],
+      "exit": 0,
+      "stdout_sha256": "3d81da87154e3a3415b656aa0b52b448e18acbfc58ad4c4889d0f9efc8707a94",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "scope": "Three separate C9 version questions after genuine clock format library warmup. Original32 C86-table rows, C90 classic-trace refusal, C91 first compile failure and pinned Jim trace refusal remain capture-01 unchanged. Native target remains C86 only; no overlay/emulation/Rust/Cargo."
+}

@@ -1,0 +1,20 @@
+{
+  "README.md": "907d59bd9f574d6055b14006390841d5fd921649225d2c8b9074f023dabfea3f",
+  "capture.py": "4a9d9d495c5bfb25c74706b572c9d2916af6869a340e49b22e86a24caf09f158",
+  "controls-binary.json": "8600861020939406cf667a3af3990e22a4b6934306e940fa972296de49582431",
+  "controls-command.json": "7a1dcc71ff27e52b235c5955a779d99e8d1f3d4b1dbfff28b844921f1581c312",
+  "controls-process.json": "75358897310e1f9d7998e7e255b447b642e527b3245c711fa9aa3b1324c9a901",
+  "controls-stderr.log": "66f87b1b86dc2653dd82e6717c3981ab635cdf1fae68c9f99f05e0060b20ef92",
+  "controls-stdout.log": "e04b326f62e58dfaa0b0897efe402d531e64d7b01c2a5d4d0cbfcfca577508e3",
+  "gate-binary.json": "47d7ac2c39480b2907e6a93a69f9128d6d456eee91c04bb4a6d99163083873c1",
+  "gate-command.json": "9022dea60e0c5e2555fa48c1bf0d8da42efbd73fdb3ced9c8f8156f2d34d05cb",
+  "gate-process.json": "5e5b0102b26df392c9106c1fc2fe3d65f53f170a4dee6eba81fcc338fc18c39c",
+  "gate-stderr.log": "13036c088cd5b16cf054d8420ec2e11cad06e7078d7a121235b044de821c7b6c",
+  "gate-stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "owner-resolution.log": "017e15af508c1c74445fe2352a9a9698ebb6e156e2a1ddaf674cfda8d75482d0",
+  "question.md": "5ce906cd8edd88007d179becd6b79b23458ca8242a8b8ad4153bccdf252da8d0",
+  "result.json": "e7886020855baccd281394f3efb66e9ce40d2a4259d132c7863272da7712a881",
+  "source-after-controls.json": "566e6bcfecf0fb3ff29e666fce8eced838f27eed56b101bfe7cb54572b7c1619",
+  "source-after.json": "996cf08ceaae5a0ae94d56736abb24849b2cb8e647afd064e9f5cc6629f7348d",
+  "source-before.json": "b69267a24d223d216adab37a494950041ef5ad6e0ad6ec44ee258abf153dd6e2"
+}

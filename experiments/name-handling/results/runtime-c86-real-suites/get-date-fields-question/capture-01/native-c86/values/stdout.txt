@@ -1,0 +1,35 @@
+RELEASE 8.6.18 AVAILABLE 0
+ROW arity0 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW arity2 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW arity4 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW epoch CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW negative CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW leap2000 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW iso2016 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW julian-calendar CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW gregorian-forced CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW changeover-before CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW changeover-at CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW before-first CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW transition-at CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW transition-between CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW seconds-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW changeover-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW both-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW seconds-unsigned CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW unsigned-before-badchange CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW seconds-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW changeover-unsigned CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW changeover-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW outer-list-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW transition-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW offset-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW offset-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW ignored-dst CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW ignored-extra CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW unvisited-bad-row CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW empty-name CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW empty-tzdata CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW c9-zone-name CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+ROW read-effects CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE {TCL LOOKUP COMMAND ::tcl::clock::GetDateFields}
+READ_EFFECTS {::tick ::zone ::change}

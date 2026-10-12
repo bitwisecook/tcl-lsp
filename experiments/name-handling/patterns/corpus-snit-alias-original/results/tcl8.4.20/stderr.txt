@@ -1,0 +1,2 @@
+error reading package index file /workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib/modules/snit/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"
+error reading package index file /workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib/modules/interp/pkgIndex.tcl: wrong # args: should be "package vsatisfies version1 version2"

@@ -1,0 +1,27 @@
+{
+  "corpus_manifest": "experiments/name-handling/patterns/corpus-provenance.json",
+  "corpus_manifest_sha256": "39c979453bf7f36dfd724463b5ac53172aa168ac9f329886d17630cbc1a85d9e",
+  "original_helpers": "modules/interp/interp.tcl:66\u201381",
+  "snit_prefix_implementation": "modules/snit/main2.tcl:2950\u20132987",
+  "package_sources_before": {
+    "modules/interp/interp.tcl": "7a3674edfcdce654c9dc248eedd8670c61084aabde4074ce6c4edcdd4e8e2fea",
+    "modules/interp/pkgIndex.tcl": "7ded6cda5556b304cba8e812fab52785e86c4cb1cb50f9c5d96f885fae89e2dc",
+    "modules/snit/pkgIndex.tcl": "4cdb699e101e5b2a6496628156781a149c87e3d17b54ee6137e2e4cbb6124851",
+    "modules/snit/snit2.tcl": "68b22290c6b0ba900df89c3a68c9376afe8d4d8cd46ca5c8447fdae810cf8717",
+    "modules/snit/main2.tcl": "35e7380cc7beb2e7c16f800ea5d3eb97f8f04a5fd5a0c4d7b6236d28ffc84430",
+    "modules/snit/validate.tcl": "8c3275ec91c0678334e7aab5000f9d9eb54bc010da82173a84b433fa18b3cbe1",
+    "modules/snit/snit.tcl": "58e967d3be6d2263ad48cb5f0a8c108210af2769e9543d9aca19e63579b24c7a",
+    "modules/snit/main1.tcl": "10da02cb3b90d4f32238fa00722f4b51593d3fe83e02185398407d2f8c932422"
+  },
+  "package_sources_after": {
+    "modules/interp/interp.tcl": "7a3674edfcdce654c9dc248eedd8670c61084aabde4074ce6c4edcdd4e8e2fea",
+    "modules/interp/pkgIndex.tcl": "7ded6cda5556b304cba8e812fab52785e86c4cb1cb50f9c5d96f885fae89e2dc",
+    "modules/snit/pkgIndex.tcl": "4cdb699e101e5b2a6496628156781a149c87e3d17b54ee6137e2e4cbb6124851",
+    "modules/snit/snit2.tcl": "68b22290c6b0ba900df89c3a68c9376afe8d4d8cd46ca5c8447fdae810cf8717",
+    "modules/snit/main2.tcl": "35e7380cc7beb2e7c16f800ea5d3eb97f8f04a5fd5a0c4d7b6236d28ffc84430",
+    "modules/snit/validate.tcl": "8c3275ec91c0678334e7aab5000f9d9eb54bc010da82173a84b433fa18b3cbe1",
+    "modules/snit/snit.tcl": "58e967d3be6d2263ad48cb5f0a8c108210af2769e9543d9aca19e63579b24c7a",
+    "modules/snit/main1.tcl": "10da02cb3b90d4f32238fa00722f4b51593d3fe83e02185398407d2f8c932422"
+  },
+  "scope": "Unmodified retained Tcllib source; fixed caller is authored composition. Binary identities match earlier maintained provider receipts, not a new source-to-build equivalence measurement."
+}

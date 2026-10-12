@@ -1,0 +1,5 @@
+FIELD setup_code 31
+FIELD setup_result 63616e27742066696e64207061636b61676520696e7465727020302e312e33
+FIELD setup_error_code 4e4f4e45
+FIELD positive_code 6e6f742d72756e
+FIELD changed_code 6e6f742d72756e

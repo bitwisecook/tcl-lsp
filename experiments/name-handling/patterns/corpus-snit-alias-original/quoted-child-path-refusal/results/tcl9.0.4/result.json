@@ -1,0 +1,27 @@
+{
+  "provider": "tcl9.0.4",
+  "outcome": "composition-refusal-or-different-result",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl",
+    "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib"
+  ],
+  "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+  "started_utc": "2026-10-12T22:39:26.371275+00:00",
+  "elapsed_seconds": 0.03651547800109256,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "{child space}",
+    "interp_package": "0.1.3",
+    "snit_package": "2.3.4",
+    "child_identity": "{child space}",
+    "install_code": "1",
+    "original_prefix": "could not find interpreter \"{child space}\"",
+    "positive_code": "not-run",
+    "changed_code": "not-run"
+  },
+  "stdout_sha256": "7feff29e5bd52c8eb28e18553bbbc9855fc5ead22b503748e4146a04a6b79f1e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

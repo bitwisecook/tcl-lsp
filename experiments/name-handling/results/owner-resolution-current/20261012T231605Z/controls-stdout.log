@@ -1,0 +1,34 @@
+
+running 29 tests
+test owner_resolution::tests::a_multi_line_dispatch_arm_still_counts ... ok
+test owner_resolution::tests::command_guard_category_requires_shared_manager_and_actual_owner ... ok
+test owner_resolution::tests::command_object_categories_reject_text_lookup_and_checked_snapshot_bypasses ... ok
+test owner_resolution::tests::a_gate_alias_resolves_through_its_prerequisite ... ok
+test owner_resolution::tests::dispatch_check_ignores_comments_and_requires_match_arm ... ok
+test owner_resolution::tests::handler_and_ensemble_categories_require_original_selected_owners ... ok
+test owner_resolution::tests::counted_name_facades_reject_local_recipes_and_keep_production_after_tests ... ok
+test owner_resolution::tests::internal_owner_file_attributes_preserve_only_declarations ... ok
+test owner_resolution::tests::associated_fields_and_variants_require_the_exact_public_owner ... ok
+test owner_resolution::tests::internal_owner_rejects_foreign_crates_and_private_sibling_methods ... ok
+test owner_resolution::tests::internal_owner_requires_the_declared_typed_receiver_and_import_route ... ok
+test owner_resolution::tests::internal_owner_scopes_are_explicit_and_public_defaults_stay_strict ... ok
+test owner_resolution::tests::internal_owner_rejects_conditionally_available_route_parts ... ok
+test owner_resolution::tests::counted_name_facade_inventory_uses_shared_purpose_owners ... ok
+test owner_resolution::tests::missing_entry_point_is_reported ... ok
+test owner_resolution::tests::missing_source_is_reported ... ok
+test owner_resolution::tests::module_qualified_entries_require_the_actual_public_module ... ok
+test owner_resolution::tests::missing_make_gate_is_reported ... ok
+test owner_resolution::tests::naming_proof_gate_rejects_incomplete_or_altered_routes ... ok
+test owner_resolution::tests::original_trim_guard_requires_selected_getter_order ... ok
+test owner_resolution::tests::owner_headings_are_limited_to_owner_section ... ok
+test owner_resolution::tests::parses_marked_manifest_rows ... ok
+test owner_resolution::tests::private_functions_do_not_satisfy_public_entry_points ... ok
+test owner_resolution::tests::public_const_and_async_function_owners_are_recognised_without_prefix_collisions ... ok
+test owner_resolution::tests::resolves_make_targets_to_their_actual_xtask_commands ... ok
+test owner_resolution::tests::variable_inventory_guard_rejects_post_sort_and_unchecked_tables ... ok
+test owner_resolution::tests::naming_proof_gate_resolves_the_complete_python_checker ... ok
+test owner_resolution::tests::internal_owner_current_namespace_revision_route_resolves ... ok
+test owner_resolution::tests::missing_declared_owner_row_is_reported ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 270 filtered out; finished in 13.21s
+

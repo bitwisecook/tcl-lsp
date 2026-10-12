@@ -1,0 +1,38 @@
+{
+  "actual_c86": {
+    "generic/tclClock.c": {
+      "sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+      "sections": {
+        "constructor": [
+          210,
+          219
+        ],
+        "worker": [
+          428,
+          519
+        ],
+        "tz_table_conversion": [
+          958,
+          1036
+        ],
+        "transition_lookup": [
+          1149,
+          1197
+        ],
+        "calendar_helpers": [
+          1220,
+          1588
+        ]
+      }
+    },
+    "library/clock.tcl": {
+      "sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+      "caller": [
+        737,
+        747
+      ]
+    }
+  },
+  "runtime_current": "Only ParseFormatArgs/getenv are registered with real Rc owners. Existing actual original all.tcl input/output is split-native-implementation-c86/capture-01/native-original-all-tcl; no worker capture changes there.",
+  "trim_scratch": "/tmp/name-native-trim-unit-delegation.rs.txt, not applied during oracle capture"
+}

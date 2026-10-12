@@ -1,0 +1,23 @@
+{
+  "provider": "jim-5bac7c9",
+  "outcome": "framework-setup-refusal",
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl",
+    "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib"
+  ],
+  "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+  "started_utc": "2026-10-12T22:39:26.372613+00:00",
+  "elapsed_seconds": 0.006089752998377662,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "1",
+    "setup_result": "wrong # args: should be \"package require name ?version?\"\nCan't load package snit",
+    "setup_error_code": "NONE",
+    "positive_code": "not-run",
+    "changed_code": "not-run"
+  },
+  "stdout_sha256": "b6407fbb0e6cf372a40fee31d7e66bb6d9707edbeef0dece8f5166c99390a52f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

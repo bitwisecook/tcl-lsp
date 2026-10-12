@@ -1,0 +1,10 @@
+unknown namespace "::AliasProbe::Snit_inst1" in namespace delete command
+    while executing
+"namespace delete $selfns"
+    (procedure "::snit::RT.DestroyObject" line 49)
+    invoked from within
+"::snit::RT.DestroyObject $type $selfns $win"
+    (procedure "::snit::RT.method.destroy" line 11)
+    invoked from within
+"{::object space} destroy"
+    (file "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl" line 71)

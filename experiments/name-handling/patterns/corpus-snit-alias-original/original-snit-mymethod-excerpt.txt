@@ -1,0 +1,48 @@
+Source: tcltk/tcllib 8a2e288fa02363639784c2f0a8ea6245896c2884 modules/snit/main2.tcl:2944–2990
+# the object's name has changed.  Requires that selfns be defined
+# in the calling context, eg. can only be called in instance
+# code.
+#
+# This is used to implement the "mymethod" command.
+
+proc ::snit::RT.mymethod {args} {
+    upvar 1 selfns selfns
+    return [linsert $args 0 ::snit::RT.CallInstance ${selfns}]
+}
+
+# Calls an instance method for an object given its
+# instance namespace and remaining arguments (the first of which
+# will be the method name.
+#
+# selfns		The instance namespace
+# args			The arguments
+#
+# Uses the selfns to determine $self, and calls the method
+# in the normal way.
+#
+# This is used to implement the "mymethod" command.
+
+proc ::snit::RT.CallInstance {selfns args} {
+    namespace upvar $selfns Snit_instance self
+
+    set retval [catch {uplevel 1 [linsert $args 0 $self]} result]
+
+    if {$retval} {
+        if {$retval == 1} {
+            global errorInfo
+            global errorCode
+            return -code error -errorinfo $errorInfo \
+                -errorcode $errorCode $result
+        } else {
+            return -code $retval $result
+        }
+    }
+
+    return $result
+}
+
+# Looks for the named option in the named variable.  If found,
+# it and its value are removed from the list, and the value
+# is returned.  Otherwise, the default value is returned.
+# If the option is undelegated, it's own default value will be
+# used if none is specified.

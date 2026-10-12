@@ -1,0 +1,35 @@
+RELEASE 9.0.4 AVAILABLE 1
+ROW arity0 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds timezone changeover"} ERRORCODE {TCL WRONGARGS}
+ROW arity2 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds timezone changeover"} ERRORCODE {TCL WRONGARGS}
+ROW arity4 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds timezone changeover"} ERRORCODE {TCL WRONGARGS}
+ROW epoch CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW negative CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW leap2000 CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW iso2016 CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW julian-calendar CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW gregorian-forced CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW changeover-before CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW changeover-at CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW before-first CODE 1 RESULT {can't read "::tcl::clock::TZData({10 100 0 A} {100 200 1 B})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW transition-at CODE 1 RESULT {can't read "::tcl::clock::TZData({10 100 0 A} {100 200 1 B})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW transition-between CODE 1 RESULT {can't read "::tcl::clock::TZData({10 100 0 A} {100 200 1 B})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW seconds-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW changeover-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW both-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW seconds-unsigned CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+ROW unsigned-before-badchange CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+ROW seconds-too-large CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+ROW changeover-unsigned CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW changeover-too-large CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+ROW outer-list-bad CODE 1 RESULT can't\ read\ \"::tcl::clock::TZData(\{)\":\ no\ such\ variable ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW transition-bad CODE 1 RESULT {can't read "::tcl::clock::TZData({bad 0 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW offset-bad CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 bad 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW offset-too-large CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 4294967296 0 GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW ignored-dst CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 bad GMT})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW ignored-extra CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT ignored})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW unvisited-bad-row CODE 1 RESULT {can't read "::tcl::clock::TZData({0 0 0 GMT} bad)": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW empty-name CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 {}})": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW empty-tzdata CODE 1 RESULT {can't read "::tcl::clock::TZData()": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+ROW c9-zone-name CODE 1 RESULT {can't read "::tcl::clock::TZData(:GMT)": no such variable} ERRORCODE {TCL LOOKUP VARNAME ::tcl::clock::TZData}
+C_WORKER present 1 null_hook 0 shared_parser_pool 0 shared_getter_pool 1
+C_COMPLETION 1

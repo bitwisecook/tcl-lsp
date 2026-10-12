@@ -1,0 +1,23 @@
+{
+  "provider": "tcl8.5.19",
+  "outcome": "framework-setup-refusal",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl",
+    "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib"
+  ],
+  "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+  "started_utc": "2026-10-12T22:39:01.351343+00:00",
+  "elapsed_seconds": 0.028669756997260265,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "1",
+    "setup_result": "could not find interpreter \"child\"",
+    "setup_error_code": "TCL LOOKUP INTERP child",
+    "positive_code": "not-run",
+    "changed_code": "not-run"
+  },
+  "stdout_sha256": "0b16160d27a994c00e12bd166a347b34e3c6e484ccc03a7468dc2f43ea392669",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

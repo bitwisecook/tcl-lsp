@@ -1,0 +1,6 @@
+{
+  "path": "tmp/name-target-runtime/debug/xtask",
+  "sha256": "f5ce09baad4fc58dc5ce1cfebe5215dc4833a9983d3797e6aae9946a42d3dca4",
+  "bytes": 233244200,
+  "currency": "Ordinary gate binary rebuilt by the captured current Cargo run; separate from cfg(test) controls binary. Exact scoped7686 inputs unchanged."
+}

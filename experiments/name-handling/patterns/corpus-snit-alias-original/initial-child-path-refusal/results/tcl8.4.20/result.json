@@ -1,0 +1,23 @@
+{
+  "provider": "tcl8.4.20",
+  "outcome": "capture-failure",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl",
+    "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib"
+  ],
+  "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+  "started_utc": "2026-10-12T22:39:01.350884+00:00",
+  "elapsed_seconds": 0.016105151997180656,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "1",
+    "setup_result": "can't find package interp 0.1.3",
+    "setup_error_code": "NONE",
+    "positive_code": "not-run",
+    "changed_code": "not-run"
+  },
+  "stdout_sha256": "961a4a9dd9fd45e7bf62bf0e820a7980ef4369450dcfc2b54c6ce2510a8ff41a",
+  "stderr_sha256": "c1ca1936e274c513f373e416bfbcc1d1fa9d505bb01bcdc05dd4501560df24bb"
+}

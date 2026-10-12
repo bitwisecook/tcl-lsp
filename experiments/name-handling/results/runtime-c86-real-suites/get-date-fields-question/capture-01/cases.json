@@ -1,0 +1,130 @@
+[
+  {
+    "label": "arity0",
+    "args": ""
+  },
+  {
+    "label": "arity2",
+    "args": "0 {}"
+  },
+  {
+    "label": "arity4",
+    "args": "0 {} 2361222 extra"
+  },
+  {
+    "label": "epoch",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "negative",
+    "args": "-1 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "leap2000",
+    "args": "951782400 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "iso2016",
+    "args": "1451606400 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "julian-calendar",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} 2147483647"
+  },
+  {
+    "label": "gregorian-forced",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} 0"
+  },
+  {
+    "label": "changeover-before",
+    "args": "-12219292801 {{-9223372036854775808 0 0 GMT}} 2299161"
+  },
+  {
+    "label": "changeover-at",
+    "args": "-12219292800 {{-9223372036854775808 0 0 GMT}} 2299161"
+  },
+  {
+    "label": "before-first",
+    "args": "9 {{10 100 0 A} {100 200 1 B}} 2361222"
+  },
+  {
+    "label": "transition-at",
+    "args": "100 {{10 100 0 A} {100 200 1 B}} 2361222"
+  },
+  {
+    "label": "transition-between",
+    "args": "99 {{10 100 0 A} {100 200 1 B}} 2361222"
+  },
+  {
+    "label": "seconds-bad",
+    "args": "bad {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "changeover-bad",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} bad"
+  },
+  {
+    "label": "both-bad",
+    "args": "bad {bad} bad"
+  },
+  {
+    "label": "seconds-unsigned",
+    "args": "9223372036854775808 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "unsigned-before-badchange",
+    "args": "9223372036854775808 {{-9223372036854775808 0 0 GMT}} bad"
+  },
+  {
+    "label": "seconds-too-large",
+    "args": "18446744073709551616 {{-9223372036854775808 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "changeover-unsigned",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} 4294967295"
+  },
+  {
+    "label": "changeover-too-large",
+    "args": "0 {{-9223372036854775808 0 0 GMT}} 4294967296"
+  },
+  {
+    "label": "outer-list-bad",
+    "args": "0 \"\\{\" 2361222"
+  },
+  {
+    "label": "transition-bad",
+    "args": "0 {{bad 0 0 GMT}} 2361222"
+  },
+  {
+    "label": "offset-bad",
+    "args": "0 {{-9223372036854775808 bad 0 GMT}} 2361222"
+  },
+  {
+    "label": "offset-too-large",
+    "args": "0 {{-9223372036854775808 4294967296 0 GMT}} 2361222"
+  },
+  {
+    "label": "ignored-dst",
+    "args": "0 {{-9223372036854775808 0 bad GMT}} 2361222"
+  },
+  {
+    "label": "ignored-extra",
+    "args": "0 {{-9223372036854775808 0 0 GMT ignored}} 2361222"
+  },
+  {
+    "label": "unvisited-bad-row",
+    "args": "-1 {{0 0 0 GMT} bad} 2361222"
+  },
+  {
+    "label": "empty-name",
+    "args": "0 {{-9223372036854775808 0 0 {}}} 2361222"
+  },
+  {
+    "label": "empty-tzdata",
+    "args": "0 {} 2361222"
+  },
+  {
+    "label": "c9-zone-name",
+    "args": "0 :GMT 2361222"
+  }
+]

@@ -1,0 +1,7 @@
+RELEASE 9.0.4 AVAILABLE 1
+REAL_CLOCK_WARMUP 1970
+ROW named-gmt CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW c86-table-is-not-zone CODE 1 RESULT {can't read "::tcl::clock::TZData({-9223372036854775808 0 0 GMT})": no such element in array} ERRORCODE {TCL READ VARNAME}
+ROW unsigned-before-badchange CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+C_WORKER present 1 null_hook 0 shared_parser_pool 0 shared_getter_pool 1
+C_COMPLETION 0

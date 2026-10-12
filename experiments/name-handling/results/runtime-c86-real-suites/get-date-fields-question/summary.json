@@ -1,0 +1,103 @@
+{
+  "capture01_rows": {
+    "8.4.20": {
+      "rows": 33,
+      "successful_guest_rows": 0,
+      "guest_errors": 33,
+      "stdout_sha256": "8e5c6fd58e16420876dab065199068436f57728067702e7be0fc9c7501666559",
+      "effect_line": [
+        "READ_EFFECTS {::tick ::zone ::change}"
+      ]
+    },
+    "8.5.19": {
+      "rows": 33,
+      "successful_guest_rows": 17,
+      "guest_errors": 16,
+      "stdout_sha256": "f6b6e0863b8a6ace66aa1a295e4f78af017a20bd318517e5012a7755db652b5f",
+      "effect_line": [
+        "READ_EFFECTS {::tick ::zone ::change}"
+      ]
+    },
+    "8.6.18": {
+      "rows": 33,
+      "successful_guest_rows": 17,
+      "guest_errors": 16,
+      "stdout_sha256": "ea212f99db535e7d4b5536c15d12e428e884c02af01a12ffb51d5a09e51d3691",
+      "effect_line": [
+        "READ_EFFECTS {::tick ::zone ::change}"
+      ]
+    },
+    "9.0.4": {
+      "rows": 32,
+      "successful_guest_rows": 0,
+      "guest_errors": 32,
+      "stdout_sha256": "80eddef78a3b0e7f60ae840fb19f6d9bd10cbc85407936483229059ab1500c63",
+      "effect_line": []
+    },
+    "jim-pinned": {
+      "rows": 32,
+      "successful_guest_rows": 0,
+      "guest_errors": 32,
+      "stdout_sha256": "30ca93ff4e5496530392fcab97c60701d30d03b34f87bceef458153eef5c5233",
+      "effect_line": []
+    },
+    "native-c86": {
+      "rows": 33,
+      "successful_guest_rows": 0,
+      "guest_errors": 33,
+      "stdout_sha256": "ca1e679812b1bd6a1fe2cdf769a332ab672ee67fe734e2b341a63dd2b3ebd408",
+      "effect_line": [
+        "READ_EFFECTS {::tick ::zone ::change}"
+      ]
+    }
+  },
+  "c85_c86_differences": [
+    {
+      "c85": "ROW arity0 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE NONE",
+      "c86": "ROW arity0 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE {TCL WRONGARGS}"
+    },
+    {
+      "c85": "ROW arity2 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE NONE",
+      "c86": "ROW arity2 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE {TCL WRONGARGS}"
+    },
+    {
+      "c85": "ROW arity4 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE NONE",
+      "c86": "ROW arity4 CODE 1 RESULT {wrong # args: should be \"::tcl::clock::GetDateFields seconds tzdata changeover\"} ERRORCODE {TCL WRONGARGS}"
+    },
+    {
+      "c85": "ROW changeover-bad CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE NUMBER}",
+      "c86": "ROW changeover-bad CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE INTEGER}"
+    },
+    {
+      "c85": "ROW unsigned-before-badchange CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE NUMBER}",
+      "c86": "ROW unsigned-before-badchange CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE INTEGER}"
+    },
+    {
+      "c85": "ROW changeover-too-large CODE 1 RESULT {integer value too large to represent as non-long integer} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent as non-long integer}}",
+      "c86": "ROW changeover-too-large CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}"
+    },
+    {
+      "c85": "ROW outer-list-bad CODE 1 RESULT {unmatched open brace in list} ERRORCODE NONE",
+      "c86": "ROW outer-list-bad CODE 1 RESULT {unmatched open brace in list} ERRORCODE {TCL VALUE LIST BRACE}"
+    },
+    {
+      "c85": "ROW offset-bad CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE NUMBER}",
+      "c86": "ROW offset-bad CODE 1 RESULT {expected integer but got \"bad\"} ERRORCODE {TCL VALUE INTEGER}"
+    },
+    {
+      "c85": "ROW offset-too-large CODE 1 RESULT {integer value too large to represent as non-long integer} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent as non-long integer}}",
+      "c86": "ROW offset-too-large CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}"
+    }
+  ],
+  "c9_3row_followup": {
+    "9.0.4": "process0, real clock warmup, 1 success/2 errors",
+    "9.1.0": "process0, real clock warmup, 1 success/2 errors"
+  },
+  "retained_refusals": [
+    "C90 full original input classic trace variable removed: process1 after32 rows",
+    "C91 first C metadata compile failed objClientData renamed objClientData2; source-preserved correction in separate capture02",
+    "Jim unadapted original input missing trace: process1 after32 worker-missing rows"
+  ],
+  "objects": "C86 genuine dict before string getter; name aliases original raw4e00ff, refs3 while held, refs1 after dict/table retirement. Repeated fresh dictionaries share seconds/era original key literals. Wide/int/list conversion observable.",
+  "scope": "Selected C86 implementation proposal only; all other version axis observations and F5 native unanswered status remain independent. No Rust/Cargo/network/Git mutation."
+}

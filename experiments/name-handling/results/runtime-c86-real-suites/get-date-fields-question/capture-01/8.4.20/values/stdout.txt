@@ -1,0 +1,37 @@
+RELEASE 8.4.20 AVAILABLE 0
+ROW arity0 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW arity2 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW arity4 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW epoch CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW negative CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW leap2000 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW iso2016 CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW julian-calendar CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW gregorian-forced CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW changeover-before CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW changeover-at CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW before-first CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW transition-at CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW transition-between CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW seconds-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW changeover-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW both-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW seconds-unsigned CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW unsigned-before-badchange CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW seconds-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW changeover-unsigned CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW changeover-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW outer-list-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW transition-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW offset-bad CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW offset-too-large CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW ignored-dst CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW ignored-extra CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW unvisited-bad-row CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW empty-name CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW empty-tzdata CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW c9-zone-name CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+ROW read-effects CODE 1 RESULT {invalid command name "::tcl::clock::GetDateFields"} ERRORCODE NONE
+READ_EFFECTS {::tick ::zone ::change}
+C_WORKER present 0 null_hook 0 shared_parser_pool 0 shared_getter_pool 0
+C_COMPLETION 0

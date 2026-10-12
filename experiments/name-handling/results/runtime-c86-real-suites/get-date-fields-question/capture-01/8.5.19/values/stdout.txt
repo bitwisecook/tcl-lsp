@@ -1,0 +1,37 @@
+RELEASE 8.5.19 AVAILABLE 1
+ROW arity0 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds tzdata changeover"} ERRORCODE NONE
+ROW arity2 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds tzdata changeover"} ERRORCODE NONE
+ROW arity4 CODE 1 RESULT {wrong # args: should be "::tcl::clock::GetDateFields seconds tzdata changeover"} ERRORCODE NONE
+ROW epoch CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW negative CODE 0 RESULT {localSeconds -1 seconds -1 tzName GMT tzOffset 0 julianDay 2440587 gregorian 1 era CE year 1969 dayOfYear 365 month 12 dayOfMonth 31 iso8601Year 1970 iso8601Week 1 dayOfWeek 3} ERRORCODE {}
+ROW leap2000 CODE 0 RESULT {localSeconds 951782400 seconds 951782400 tzName GMT tzOffset 0 julianDay 2451604 gregorian 1 era CE year 2000 dayOfYear 60 month 2 dayOfMonth 29 iso8601Year 2000 iso8601Week 9 dayOfWeek 2} ERRORCODE {}
+ROW iso2016 CODE 0 RESULT {localSeconds 1451606400 seconds 1451606400 tzName GMT tzOffset 0 julianDay 2457389 gregorian 1 era CE year 2016 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 2015 iso8601Week 53 dayOfWeek 5} ERRORCODE {}
+ROW julian-calendar CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 0 era CE year 1969 dayOfYear 353 month 12 dayOfMonth 19 iso8601Year 1969 iso8601Week 51 dayOfWeek 4} ERRORCODE {}
+ROW gregorian-forced CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW changeover-before CODE 0 RESULT {localSeconds -12219292801 seconds -12219292801 tzName GMT tzOffset 0 julianDay 2299160 gregorian 0 era CE year 1582 dayOfYear 277 month 10 dayOfMonth 4 iso8601Year 1582 iso8601Week 40 dayOfWeek 4} ERRORCODE {}
+ROW changeover-at CODE 0 RESULT {localSeconds -12219292800 seconds -12219292800 tzName GMT tzOffset 0 julianDay 2299161 gregorian 1 era CE year 1582 dayOfYear 288 month 10 dayOfMonth 15 iso8601Year 1582 iso8601Week 40 dayOfWeek 5} ERRORCODE {}
+ROW before-first CODE 0 RESULT {localSeconds 109 seconds 9 tzName A tzOffset 100 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW transition-at CODE 0 RESULT {localSeconds 300 seconds 100 tzName B tzOffset 200 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW transition-between CODE 0 RESULT {localSeconds 199 seconds 99 tzName A tzOffset 100 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW seconds-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW changeover-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW both-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW seconds-unsigned CODE 1 RESULT {integer value too large to represent} ERRORCODE NONE
+ROW unsigned-before-badchange CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW seconds-too-large CODE 1 RESULT {integer value too large to represent} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent}}
+ROW changeover-unsigned CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW changeover-too-large CODE 1 RESULT {integer value too large to represent as non-long integer} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent as non-long integer}}
+ROW outer-list-bad CODE 1 RESULT {unmatched open brace in list} ERRORCODE NONE
+ROW transition-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW offset-bad CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+ROW offset-too-large CODE 1 RESULT {integer value too large to represent as non-long integer} ERRORCODE {ARITH IOVERFLOW {integer value too large to represent as non-long integer}}
+ROW ignored-dst CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW ignored-extra CODE 0 RESULT {localSeconds 0 seconds 0 tzName GMT tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW unvisited-bad-row CODE 0 RESULT {localSeconds -1 seconds -1 tzName GMT tzOffset 0 julianDay 2440587 gregorian 1 era CE year 1969 dayOfYear 365 month 12 dayOfMonth 31 iso8601Year 1970 iso8601Week 1 dayOfWeek 3} ERRORCODE {}
+ROW empty-name CODE 0 RESULT {localSeconds 0 seconds 0 tzName {} tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW empty-tzdata CODE 0 RESULT {localSeconds 0 seconds 0 tzName +0000 tzOffset 0 julianDay 2440588 gregorian 1 era CE year 1970 dayOfYear 1 month 1 dayOfMonth 1 iso8601Year 1970 iso8601Week 1 dayOfWeek 4} ERRORCODE {}
+ROW c9-zone-name CODE 1 RESULT {expected integer but got ":GMT"} ERRORCODE {TCL VALUE NUMBER}
+ROW read-effects CODE 1 RESULT {expected integer but got "bad"} ERRORCODE {TCL VALUE NUMBER}
+READ_EFFECTS {::tick ::zone ::change}
+C_WORKER present 1 null_hook 1 shared_parser_pool 1 shared_getter_pool 1
+C_COMPLETION 0

@@ -1,0 +1,41 @@
+{
+  "provider": "tcl8.6.18",
+  "outcome": "fixed-positive-and-changed-prefix-observed",
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/corpus-snit-alias-original/probe.tcl",
+    "/workspace/tcl-lsp/tmp/name-pattern-corpus/tcltk/tcllib"
+  ],
+  "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+  "started_utc": "2026-10-12T22:40:18.406039+00:00",
+  "elapsed_seconds": 0.022501416002342012,
+  "process_exit_code": 0,
+  "timed_out": false,
+  "fields": {
+    "setup_code": "0",
+    "setup_result": "aliasChild",
+    "interp_package": "0.1.3",
+    "snit_package": "2.3.4",
+    "child_identity": "aliasChild",
+    "install_code": "0",
+    "original_prefix": "::snit::RT.CallInstance ::AliasProbe::Snit_inst1 echo {captured arg}",
+    "stored_prefix": "::snit::RT.CallInstance ::AliasProbe::Snit_inst1 echo {captured arg}",
+    "prefix_equal": "1",
+    "positive_code": "0",
+    "positive_result": "fixed {captured arg} {arg tail}",
+    "change_code": "0",
+    "changed_prefix": "::snit::RT.CallInstance ::AliasProbe::Snit_inst1 {missing method} {captured arg}",
+    "changed_stored_prefix": "::snit::RT.CallInstance ::AliasProbe::Snit_inst1 {missing method} {captured arg}",
+    "changed_prefix_equal": "1",
+    "prefix_changed": "1",
+    "changed_code": "1",
+    "changed_result": "unknown subcommand \"missing method\": must be change, echo, or install",
+    "changed_error_code": "TCL LOOKUP SUBCOMMAND {missing method}",
+    "child_cleanup_code": "0",
+    "child_cleanup_result": "",
+    "object_cleanup_code": "0",
+    "object_cleanup_result": ""
+  },
+  "stdout_sha256": "75e78511eae88c64bddba66d6fb395c9bf19bb2e5ca31ab23225a9bc87d6e2eb",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}
