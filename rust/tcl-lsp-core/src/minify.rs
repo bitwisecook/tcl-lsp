@@ -1217,7 +1217,7 @@ fn slice(source: &str, span: Span) -> &str {
 
 /// Call sites of the proc `name` / `qualified_name`.
 fn find_proc_call_sites(name: &str, qualified_name: &str, analysis: &AnalysisResult) -> Vec<Span> {
-    let qn_no_prefix = qualified_name.strip_prefix("::").unwrap_or(qualified_name);
+    let qn_no_prefix = tcl_syntax::naming::unroot_rooted_key(qualified_name).unwrap_or(qualified_name);
     let mut out = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for inv in &analysis.command_invocations {
@@ -4838,5 +4838,85 @@ mod tests {
             barred(&format!("rename $old peek\n{UPVAR_BODY}")),
             "a dynamic rename must not take `upvar`'s barrier away either"
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_minifier_call_sites_keep_original_indirect_and_naming_guards() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // naming.minifier.original-naming-permission
+        // docs/design/analysis/name-resolution-proofs/minifier-original-naming-permission.md
+        // Descriptive compatibility rows do not authorise public source rewriting.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
+        let source = ":箱::méthode\n箱::méthode\nother\n:箱::méthode\n$cmd\n";
+        let written = |name: &str, start: usize| {
+            SignatureCommandInvocation::written(
+                name.to_owned(),
+                Span::new(
+                    u32::try_from(start).unwrap(),
+                    u32::try_from(start + name.len()).unwrap(),
+                ),
+                Some(0),
+            )
+        };
+        let selected = written(":箱::méthode", 0);
+        let wrong = written("箱::méthode", source.find("\n箱").unwrap() + 1);
+        let mut resolved = written("other", source.find("other").unwrap());
+        resolved.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        let mut foreign = written(":箱::méthode", source.rfind(":箱::méthode").unwrap());
+        foreign.resolved_qualified_name = Some("::箱::méthode".to_owned());
+        let mut indirect = written("$cmd", source.find("$cmd").unwrap());
+        indirect.resolved_qualified_name = Some(":::箱::méthode".to_owned());
+        indirect.indirect = true;
+        let expected = vec![selected.range, resolved.range];
+        let other = vec![wrong.range, foreign.range];
+        let indirect_span = indirect.range;
+        let mut analysis = Analyser::new().analyse("", "tcl");
+        analysis.command_invocations = vec![
+            selected.clone(),
+            selected,
+            wrong,
+            resolved,
+            foreign,
+            indirect,
+        ];
+        assert_eq!(
+            find_proc_call_sites("méthode", ":::箱::méthode", &analysis),
+            expected
+        );
+        assert_eq!(
+            find_proc_call_sites("méthode", "::箱::méthode", &analysis),
+            other
+        );
+        assert!(
+            !find_proc_call_sites("méthode", ":::箱::méthode", &analysis).contains(&indirect_span)
+        );
+
+        let source = "proc publicName {} {return VALUE}\npublicName\n";
+        let original = Analyser::new().analyse(source, "tcl8.6");
+        assert!(!original.allows_lexical_declaration_advice());
+        let result = minify_with_analysis(
+            source,
+            &original,
+            MinifyOptions {
+                tier: MinifyTier::Compact,
+                isolated: true,
+                abbreviations: false,
+            },
+        );
+        assert!(
+            result
+                .refusals
+                .contains(&MinifyRefusal::MissingAlphaRenameContract)
+        );
+        assert_eq!(result.symbol_map, SymbolMap::default());
+        assert!(result.source.contains("proc publicName"));
+        assert!(result.source.contains("publicName"));
     }
 }

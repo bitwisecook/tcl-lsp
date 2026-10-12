@@ -68,13 +68,21 @@ The original Native namespace and command routes precede lexical assistance.
 Completion's partial-word predicates do not supply namespace lookup or edit
 permission; its retained declaration/candidate selection remains independent.
 
+Reference and minifier compatibility labels remove one optional root marker
+through `unroot_rooted_key`, preserving literal-colon components. Positioned
+known references terminate before lexical metadata assistance. Minifier call-site
+selection excludes indirect heads and deduplicates exact spans; these descriptive
+labels do not supply the separate public naming-rewrite contract.
+
 ### Selected command namespace metadata
 
 Hover and event diagnostics ask `ProfileRegistry::namespace_for_command_spec`
 with the command descriptor already selected by the current source context.
-The query checks that row's F5 surface and exact constructed namespace. Explicit
-command profile requirements and matched argument-form requirements take
-precedence. A same-spelled row on a foreign surface supplies no protocol profiles.
+The query checks that row's F5 surface and exact constructed namespace. Hover
+keeps explicit command profile requirements first. Event diagnostics retain
+matched argument-form selection and the existing namespace-hint then
+command-requirement fallback. A same-spelled row on a foreign surface supplies no
+protocol profiles.
 The original whole-source, configuration, Registry and command-role gates remain
 at each consumer.
 

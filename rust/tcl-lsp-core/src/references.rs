@@ -359,7 +359,7 @@ pub(crate) fn invocation_references_named(
                     .is_some_and(|selected| selected.qualified_name == def_qualified)
         });
     }
-    let qname_no_prefix = qname.strip_prefix("::").unwrap_or(qname);
+    let qname_no_prefix = tcl_syntax::naming::unroot_rooted_key(qname).unwrap_or(qname);
     let target_q = tcl_syntax::naming::unroot_rooted_key(def_qualified).unwrap_or(def_qualified);
     let (holder, _) = tcl_syntax::naming::key_holder_and_tail(def_qualified);
     let target_ns = tcl_syntax::naming::unroot_rooted_key(holder).unwrap_or(holder);
@@ -8312,5 +8312,74 @@ mod logical_class_selector_tests {
             )
             .is_empty()
         );
+    }
+}
+
+#[cfg(test)]
+mod constructed_compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn constructed_reference_projection_keeps_colon_components_and_known_refusal() {
+        // naming.analysis.constructed-key-consumer-projections
+        // docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md
+        // Explicit written metadata carries no positioned declaration receipt.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::signature_scan::types::SignatureCommandInvocation;
+        for (qualified, written, tail) in [
+            (":::茶::méthode", ":茶::méthode", "méthode"),
+            ("::茶::méthode", "茶::méthode", "méthode"),
+            ("::茶:::", "茶:::", ":"),
+        ] {
+            let analysis = Analyser::new().analyse(written, "tcl");
+            let span = Span::new(0, u32::try_from(written.len()).unwrap());
+            let invocation = SignatureCommandInvocation::written(written.to_owned(), span, Some(0));
+            assert!(matches!(
+                retained_definition(&invocation, true, qualified),
+                RetainedDefinition::Absent
+            ));
+            assert!(invocation_references_named(
+                &analysis,
+                &invocation,
+                qualified,
+                tail,
+                qualified,
+                written
+            ));
+        }
+        let source = "茶::méthode";
+        let analysis = Analyser::new().analyse(source, "tcl");
+        let invocation = SignatureCommandInvocation::written(
+            source.to_owned(),
+            Span::new(0, u32::try_from(source.len()).unwrap()),
+            Some(0),
+        );
+        assert!(!invocation_references_named(
+            &analysis,
+            &invocation,
+            ":::茶::méthode",
+            "méthode",
+            ":::茶::méthode",
+            source
+        ));
+
+        // The actual positioned alias to a builtin terminates before metadata fallback.
+        let source = "proc :茶 {} {return ORIGINAL}\nrename :茶 kept\ninterp alias {} :茶 {} list\n:茶 VALUE\n";
+        let analysis = Analyser::new().analyse(source, "tcl8.6");
+        let offset = u32::try_from(source.rfind(":茶 VALUE").unwrap()).unwrap();
+        let actual = analysis
+            .command_invocations
+            .iter()
+            .find(|invocation| {
+                invocation.lookup.is_execution_site() && invocation.range.start() == offset
+            })
+            .unwrap();
+        assert!(matches!(
+            retained_definition(actual, true, ":::茶"),
+            RetainedDefinition::Known(None)
+        ));
+        assert!(!invocation_references_named(
+            &analysis, actual, ":::茶", ":茶", ":::茶", source
+        ));
     }
 }
