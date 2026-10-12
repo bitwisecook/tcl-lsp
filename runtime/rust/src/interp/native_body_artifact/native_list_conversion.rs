@@ -4,39 +4,7 @@ use super::*;
 use crate::interp::native_arguments::OriginalArguments;
 use tcl_cmd_core::CmdError;
 
-/// The actually entered variable-frame birth. This weak observation grants
-/// no variable/native role and remains usable after actual header cleanup.
-pub(super) struct BodyListFrame {
-    activation: u64,
-    birth: Weak<()>,
-}
-impl BodyListFrame {
-    pub(super) fn capture(interpreter: &Interp) -> Self {
-        let frames = interpreter.frames.borrow();
-        Self {
-            activation: frames.current_activation(),
-            birth: frames.current_activation_owner(),
-        }
-    }
-    pub(super) fn check(
-        &self,
-        actual: &Interp,
-        arguments: &OriginalArguments,
-    ) -> Result<(), CmdError> {
-        arguments.check_for(actual)?;
-        let same = {
-            let frames = actual.frames.borrow();
-            self.birth.strong_count() != 0
-                && frames.current_activation() == self.activation
-                && Weak::ptr_eq(&frames.current_activation_owner(), &self.birth)
-        };
-        if !same {
-            return Err(arguments
-                .retain_refusal(unavailable("original compiled List frame or temporary").into()));
-        }
-        Ok(())
-    }
-}
+pub(super) use crate::interp::native_arguments::OriginalArgumentFrame as BodyListFrame;
 
 /// An allocation-only original header projection. The frame birth and optional
 /// anonymous local are observations, not new native or variable owning roles.

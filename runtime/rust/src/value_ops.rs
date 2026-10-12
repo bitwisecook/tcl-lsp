@@ -685,6 +685,25 @@ struct RuntimeDictionaryChecks {
     retain: Box<dyn Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError>,
 }
 impl RuntimeDictionaryChecks {
+    fn new(
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> std::rc::Rc<Self> {
+        std::rc::Rc::new(Self {
+            current: Box::new(current),
+            string: Box::new(string),
+            refuse: Box::new(refuse),
+            retain: Box::new(retain),
+            parents: std::cell::RefCell::new(Vec::new()),
+        })
+    }
+
     fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
         (self.current)()?;
         for parent in self.parents.borrow().iter() {
@@ -704,6 +723,27 @@ impl RuntimeDictionaryChecks {
             self.check()?;
             extra()
         })
+    }
+}
+impl RuntimeAppendObjects {
+    /// The actual append caller supplies its original receiver/frame checks;
+    /// this uses the existing shared String/current/error owner without issuing
+    /// a dictionary, variable, operation or Native reference role.
+    pub(crate) fn with_original_checks(
+        self,
+        current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
+        string: impl Fn(
+                *mut TclObj,
+                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+            + 'static,
+        refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
+        retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
+    ) -> OriginalRuntimeAppendObjects {
+        OriginalRuntimeAppendObjects::new(
+            self,
+            RuntimeDictionaryChecks::new(current, string, refuse, retain),
+        )
     }
 }
 impl RuntimeDictionaryObjects {
@@ -737,13 +777,9 @@ impl RuntimeDictionaryObjects {
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> Self {
-        self.original = Some(std::rc::Rc::new(RuntimeDictionaryChecks {
-            current: Box::new(current),
-            string: Box::new(string),
-            refuse: Box::new(refuse),
-            retain: Box::new(retain),
-            parents: std::cell::RefCell::new(Vec::new()),
-        }));
+        self.original = Some(RuntimeDictionaryChecks::new(
+            current, string, refuse, retain,
+        ));
         self
     }
     pub(crate) fn original_check(&self) -> Result<(), tcl_cmd_core::CmdError> {

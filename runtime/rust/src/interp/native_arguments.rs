@@ -21,6 +21,42 @@ pub(crate) struct OriginalArguments {
     scope: NativeOperationScope,
 }
 
+/// The actually entered variable-frame birth. This weak observation grants
+/// no variable/native role and remains usable after actual header cleanup.
+pub(crate) struct OriginalArgumentFrame {
+    activation: u64,
+    birth: std::rc::Weak<()>,
+}
+impl OriginalArgumentFrame {
+    pub(crate) fn capture(interpreter: &Interp) -> Self {
+        let frames = interpreter.frames.borrow();
+        Self {
+            activation: frames.current_activation(),
+            birth: frames.current_activation_owner(),
+        }
+    }
+    pub(crate) fn check(
+        &self,
+        actual: &Interp,
+        arguments: &OriginalArguments,
+    ) -> Result<(), CmdError> {
+        arguments.check_for(actual)?;
+        let same = {
+            let frames = actual.frames.borrow();
+            self.birth.strong_count() != 0
+                && frames.current_activation() == self.activation
+                && std::rc::Weak::ptr_eq(&frames.current_activation_owner(), &self.birth)
+        };
+        if !same {
+            return Err(arguments.retain_refusal(
+                ValueError::CommandProtocolUnavailable("original compiled List frame or temporary")
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 impl OriginalArguments {
     /// Borrow the live original argv for a complete command operation. Leases
     /// leave native sharing/counts unchanged and never revive a retired header.

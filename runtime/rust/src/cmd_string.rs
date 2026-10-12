@@ -62,6 +62,29 @@ pub(crate) fn append(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"append varName ?value ...?");
     }
+    let Some(issued) = interp
+        .native_invocation_dialect()
+        .native_object_append_protocol(Some(
+            tcl_registry::native_object_append::LogicalAppendProvider::Tcl84CoreSimulation,
+        ))
+    else {
+        return interp.refuse_native_access(
+            tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "native object append",
+            ),
+        );
+    };
+    if issued.logical_provider().is_some() {
+        append_logical(interp, argv)
+    } else {
+        interp.append_original_native_operands(argv, issued.recipe())
+    }
+}
+
+fn append_logical(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() < 2 {
+        return interp.wrong_args(b"append varName ?value ...?");
+    }
     let name = match tcl_syntax::value::ValueOps::native_string_bytes(interp, &argv[1]) {
         Ok(name) => name,
         Err(error) => return interp.report_cmd_error(error.into()),

@@ -44,6 +44,120 @@ pub(super) struct OriginalAppendVariable {
     pub(super) refuse: std::rc::Rc<dyn Fn(tcl_syntax::value::ValueError) -> tcl_cmd_core::CmdError>,
 }
 
+
+/// Earliest physical append operation and existing actual frame observation.
+struct OriginalAppendCommand {
+    arguments: super::native_arguments::OriginalArguments,
+    frame: super::native_arguments::OriginalArgumentFrame,
+    actual: Interp,
+    namespace: crate::namespace::NsId,
+}
+impl OriginalAppendCommand {
+    fn capture(
+        actual: &Interp,
+        argv: &[*mut TclObj],
+    ) -> Result<std::rc::Rc<Self>, tcl_cmd_core::CmdError> {
+        let original = std::rc::Rc::new(Self {
+            arguments: super::native_arguments::OriginalArguments::enter(actual, argv)?,
+            frame: super::native_arguments::OriginalArgumentFrame::capture(actual),
+            actual: actual.clone(),
+            namespace: actual.current_ns.get(),
+        });
+        original.check()?;
+        Ok(original)
+    }
+    fn check(&self) -> Result<(), tcl_cmd_core::CmdError> {
+        self.frame.check(&self.actual, &self.arguments)?;
+        if self.actual.current_ns.get() != self.namespace
+            || !self
+                .actual
+                .namespaces
+                .borrow()
+                .namespace_is_live(self.namespace)
+        {
+            return Err(
+                self.refuse(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original append namespace",
+                )),
+            );
+        }
+        Ok(())
+    }
+    fn retain(&self, error: tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError {
+        self.arguments.retain_refusal(error)
+    }
+    fn refuse(&self, error: tcl_syntax::value::ValueError) -> tcl_cmd_core::CmdError {
+        self.retain(error.into())
+    }
+    fn bytes(
+        &self,
+        value: *mut TclObj,
+        extra: &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+    ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError> {
+        self.check()?;
+        extra()?;
+        let header = super::native_arguments::OriginalArguments::enter(&self.actual, &[value])?;
+        self.actual.native_object_string_bytes_using(
+            value,
+            &|| {
+                self.check()?;
+                extra()?;
+                header.check_original_for(&self.actual, 0, value)
+            },
+            &|error| self.refuse(error),
+        )
+    }
+}
+struct OriginalAppendReceiver {
+    receiver: VariableReceiver,
+    expected: std::cell::Cell<Result<Option<*mut TclObj>, crate::frame::VarError>>,
+    _allocation: Option<crate::obj::NativeObjectLifetime>,
+}
+impl OriginalAppendReceiver {
+    fn new(receiver: VariableReceiver) -> std::rc::Rc<Self> {
+        let expected = receiver.read_initial();
+        std::rc::Rc::new(Self {
+            _allocation: expected
+                .ok()
+                .flatten()
+                .map(crate::obj::NativeObjectLifetime::retain),
+            receiver,
+            expected: std::cell::Cell::new(expected),
+        })
+    }
+    fn entered(&self, original: &OriginalAppendCommand) -> Result<(), tcl_cmd_core::CmdError> {
+        original.check()?;
+        self.receiver.check_current().map_err(|_| {
+            original.refuse(tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                "original append receiver",
+            ))
+        })?;
+        if self.receiver.read_initial() == Err(crate::frame::VarError::NameProtocolUnavailable) {
+            return Err(original.refuse(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original append scalar role",
+                ),
+            ));
+        }
+        Ok(())
+    }
+    fn check(&self, original: &OriginalAppendCommand) -> Result<(), tcl_cmd_core::CmdError> {
+        self.entered(original)?;
+        let actual = self.receiver.read_initial();
+        if actual != self.expected.get() {
+            return Err(original.refuse(
+                tcl_syntax::value::ValueError::CommandProtocolUnavailable(
+                    "original append receiver header",
+                ),
+            ));
+        }
+        if let Ok(Some(value)) = actual {
+            crate::obj::check_native_liveness(value).map_err(|error| original.refuse(error))?;
+        }
+        Ok(())
+    }
+}
+
 // The neutral owner keeps its actual owned receiver drop order. An original
 // caller borrows the independently captured receiver without another rmw role.
 enum AppendReceiverReference<'a> {
@@ -430,6 +544,139 @@ impl Interp {
         Ok(())
     }
 
+    /// Physical Native argv handoff; the explicit Logical provider uses the
+    /// neutral worker separately and cannot acquire Native authority here.
+    pub(crate) fn append_original_native_operands(
+        &mut self,
+        argv: &[*mut TclObj],
+        protocol: NativeObjectAppendProtocol,
+    ) -> Code {
+        let original = match OriginalAppendCommand::capture(self, argv) {
+            Ok(original) => original,
+            Err(first) => return self.report_cmd_error(first),
+        };
+        let reached = (|| -> Result<Code, Code> {
+            original
+                .arguments
+                .check_original_for(self, 1, argv[1])
+                .map_err(|first| self.report_cmd_error(first))?;
+            let name = original
+                .bytes(argv[1], &|| Ok(()))
+                .map_err(|first| self.report_cmd_error(first))?;
+            original
+                .check()
+                .map_err(|first| self.report_cmd_error(first))?;
+            let (base, element) = self
+                .variable_name_parts(&name)
+                .map_err(|error| crate::builtins::var_error(self, &name, error))?;
+            original
+                .check()
+                .map_err(|first| self.report_cmd_error(first))?;
+            let sources = &argv[2..];
+            if sources.is_empty() {
+                let traced = self.fire_read_trace(&base, element.as_deref());
+                original
+                    .check()
+                    .map_err(|first| self.report_cmd_error(first))?;
+                if let Some(code) = traced {
+                    return Ok(code);
+                }
+                let value = match &element {
+                    Some(key) => self.var_get_elem(&base, key),
+                    None => self.var_get(&base),
+                };
+                original
+                    .check()
+                    .map_err(|first| self.report_cmd_error(first))?;
+                let code = match value {
+                    Some(value) => {
+                        self.set_result(value);
+                        Code::Ok
+                    }
+                    None => {
+                        let message = self.read_miss_msg(&base, element.as_deref());
+                        self.set_error(&message)
+                    }
+                };
+                original
+                    .check()
+                    .map_err(|first| self.report_cmd_error(first))?;
+                return Ok(code);
+            }
+            let constant = self.const_write_check(&name);
+            original
+                .check()
+                .map_err(|first| self.report_cmd_error(first))?;
+            if let Some(code) = constant {
+                return Ok(code);
+            }
+            let receiver = crate::vars::capture_variable_receiver(
+                &mut self.frames.borrow_mut(),
+                &mut self.namespaces.borrow_mut(),
+                original.namespace,
+                &base,
+                element.as_deref(),
+            );
+            original
+                .check()
+                .map_err(|first| self.report_cmd_error(first))?;
+            let receiver =
+                receiver.map_err(|error| crate::builtins::var_error(self, &name, error))?;
+            let selected = OriginalAppendReceiver::new(receiver);
+            let home = self.trace_identity(&base);
+            let access = self.trace_access(&name, &base, element.as_deref(), &home, false);
+            let current_original = original.clone();
+            let current_selected = selected.clone();
+            let current: std::rc::Rc<dyn Fn() -> Result<(), tcl_cmd_core::CmdError>> =
+                std::rc::Rc::new(move || current_selected.check(&current_original));
+            let dialect = self.native_invocation_dialect();
+            let object_current = current.clone();
+            let string_original = original.clone();
+            let refuse_original = original.clone();
+            let retain_original = original.clone();
+            let objects = RuntimeAppendObjects {
+                dialect,
+                binary_recipe: dialect.byte_array_string_recipe(None),
+            }
+            .with_original_checks(
+                move || object_current(),
+                move |value, extra| string_original.bytes(value, extra),
+                move |error| refuse_original.refuse(error),
+                move |error| retain_original.retain(error),
+            );
+            let entered_original = original.clone();
+            let entered_selected = selected.clone();
+            let select = selected.clone();
+            let refuse_original = original.clone();
+            let owner = OriginalAppendVariable {
+                current: current.clone(),
+                entered: std::rc::Rc::new(move || entered_selected.entered(&entered_original)),
+                select: std::rc::Rc::new(move |value| select.expected.set(value)),
+                refuse: std::rc::Rc::new(move |error| refuse_original.refuse(error)),
+            };
+            let code = self.append_retained_operands_using(
+                &name,
+                AppendReceiverReference::Original(&selected.receiver),
+                std::borrow::Cow::Owned(home),
+                access,
+                protocol,
+                sources,
+                objects,
+                Some(owner),
+            );
+            drop(current);
+            drop(selected);
+            original
+                .check()
+                .map_err(|first| self.report_cmd_error(first))?;
+            Ok(code)
+        })();
+        match original.check() {
+            Ok(()) => reached.unwrap_or_else(|code| code),
+            Err(first) => self.report_cmd_error(first),
+        }
+    }
+
     pub(crate) fn append_native_operands(
         &mut self,
         name: &[u8],
@@ -449,6 +696,13 @@ impl Interp {
                     ),
                 ),
             };
+        if issued.logical_provider().is_none() {
+            return self.refuse_native_access(
+                tcl_syntax::raw_string::NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "explicit logical append provider",
+                ),
+            );
+        }
         let receiver_result = crate::vars::capture_variable_receiver(
             &mut self.frames.borrow_mut(),
             &mut self.namespaces.borrow_mut(),
@@ -1537,3 +1791,7 @@ mod original_c84_pending_scalar_tests {
         assert_eq!(crate::counters::double_free_count(), 0);
     }
 }
+
+#[cfg(test)]
+#[path="native_append/original_command_boundary_tests.rs"]
+mod original_command_boundary_tests;
