@@ -1,0 +1,9 @@
+case	1	leading-index-negative
+script-hex	6c736f7274202d7374726964652032202d696e646578202d31207b322041203120427d
+guest-code	1
+result-hex	696e64657820222d3122206f7574206f662072616e6765
+error-code-present	1
+error-code-hex	4e4f4e45
+error-info-present	0
+error-info-hex	
+callback-count	0

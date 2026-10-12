@@ -1,0 +1,10 @@
+static int ListSortIndexHelper(Jim_Obj **lhsObj, Jim_Obj **rhsObj)
+{
+    Jim_Obj *lObj, *rObj;
+
+    if (Jim_ListIndices(sort_info->interp, *lhsObj, sort_info->indexv, sort_info->indexc, &lObj, JIM_ERRMSG) != JIM_OK ||
+        Jim_ListIndices(sort_info->interp, *rhsObj, sort_info->indexv, sort_info->indexc, &rObj, JIM_ERRMSG) != JIM_OK) {
+        longjmp(sort_info->jmpbuf, JIM_ERR);
+    }
+    return sort_info->subfn(&lObj, &rObj);
+}

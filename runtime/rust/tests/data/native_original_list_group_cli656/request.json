@@ -1,0 +1,99 @@
+{
+  "id": "naming.list.original-cli-group-boundary-results",
+  "question": "For these11 exact initialized CLI source invocations, which Guest code/result/errorCode/errorInfo and genuine callback counts are exposed on each actual provider?",
+  "cases": [
+    [
+      0,
+      "leading-index-outside-group"
+    ],
+    [
+      1,
+      "leading-index-negative"
+    ],
+    [
+      2,
+      "invalid-width-minimum"
+    ],
+    [
+      3,
+      "valid-width-textual"
+    ],
+    [
+      4,
+      "group-size-not-multiple"
+    ],
+    [
+      5,
+      "command-leading-index-outside-group"
+    ],
+    [
+      6,
+      "command-valid-width"
+    ],
+    [
+      7,
+      "command-group-size-not-multiple"
+    ],
+    [
+      8,
+      "command-invalid-width-minimum"
+    ],
+    [
+      9,
+      "original-wide-stride-boundary"
+    ],
+    [
+      10,
+      "command-original-wide-stride-boundary"
+    ]
+  ],
+  "source_sha256": "2bc9ca0e31f0e6e436040fa2de65b24f719549d8481760166b17bec23985f1f0",
+  "source_bytes": 2285,
+  "source_channel": "ASCII Tcl source with LF lines and explicit backslash-LF case List continuation; no counted native constructor, raw NUL, non-ASCII input or custom memory. Native CLI startup is a separate channel from original651 C-created objects.",
+  "providers": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0",
+    "Jim"
+  ],
+  "execution_owner": "Root only",
+  "execution": {
+    "fresh_process": "One decimal case index0..10 per initialized CLI,66 processes total; no grouped-unique or case12 crash input.",
+    "argv": [
+      "selected-pinned-provider-CLI",
+      "/workspace/.proofs/list-original-group-cli656/probe.tcl",
+      "decimal-case-index"
+    ],
+    "cwd": "/workspace/.proofs/list-original-group-cli656",
+    "environment": "LC_ALL=C and LANG=C; preserve exact full effective environment and actual TCL_LIBRARY startup selection.",
+    "timeout": "Root bounded per process; retain timeout and exit independently from Guest."
+  },
+  "observable_extraction": {
+    "labels": [
+      "case",
+      "script-hex",
+      "guest-code",
+      "result-hex",
+      "error-code-present",
+      "error-code-hex",
+      "error-info-present",
+      "error-info-hex",
+      "callback-count"
+    ],
+    "method": "Tcl catch with two arguments works in C84; immediately copy error globals only for nonzero Guest. Hex helper emits exact ASCII field bytes and refuses any zero/non-ASCII character rather than inventing a byte projection. Preserve all raw stdout/stderr independently, including helper refusal/partial output.",
+    "expected_results": "No expected outcome is supplied. Callback count is an observed field only; callback0 grants no getter, private primary, native sort or teardown chronology."
+  },
+  "pins": {
+    "before_after": "All exact CLI, linked static/shared libraries identified by Root, full selected generic/unix C/H/config and library startup Tcl source bytes, probe/request bytes, version driver, compiler/link identity and Root actual collector bytes. Retain unchanged comparisons independently of process/Guest status.",
+    "version": "Independent selected CLI diagnostic plus same-static-library version diagnostic where available; join complete patchlevel/revision, build/configuration/library and environment identities. Reuse651 whole archive members only after exact hash equality; changed bytes need separate retention.",
+    "load_closure": "Document actual loaded startup selection and unresolved toolchain/load closure; a library hash alone grants no loader/build equivalence."
+  },
+  "source_anchors": {
+    "c": "All five pinned Tcl_LsortObjCmd option table, stride getter/minimum, length%groupSize, TclIndexDecode leading group guard, checked command copy/prefix preparation and per-member key/bucket order.",
+    "jim": "Pinned Jim_LsortCoreCommand GetLong/minimum, <=1 route, listlen%stride group guard and actual group creation, plus ListSortIndexHelper/ListSortCommand/ListSortElements. No missing case12 investigation or output inference."
+  },
+  "tests": [],
+  "scope": "Original initialized CLI source/public outputs only. No original native argv/header/cache/refcount, private getter/teardown or foreign libc chronology claim. Existing651 source-only BADINDEX binding remains source bounded until Root actual captures are attached."
+}

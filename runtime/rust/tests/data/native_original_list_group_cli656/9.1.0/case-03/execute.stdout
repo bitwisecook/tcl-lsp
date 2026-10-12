@@ -1,0 +1,9 @@
+case	3	valid-width-textual
+script-hex	6c736f7274202d6173636969202d7374726964652032202d696e6465782031207b322041203120427d
+guest-code	0
+result-hex	32204120312042
+error-code-present	0
+error-code-hex	
+error-info-present	0
+error-info-hex	
+callback-count	0

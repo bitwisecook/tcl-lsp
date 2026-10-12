@@ -1,0 +1,23 @@
+{
+  "argv": [
+    "/workspace/.proofs/root-native-list-group-command651/Jim/probe.elf",
+    "1"
+  ],
+  "cwd": "/workspace/.proofs/root-native-list-group-command651/Jim/case-01",
+  "environment": {
+    "PATH": "/usr/bin:/bin",
+    "LC_ALL": "C",
+    "LANG": "C"
+  },
+  "timeout_seconds": 30,
+  "timed_out": false,
+  "exit": 0,
+  "seconds": 0.0022341080475598574,
+  "stdout": "/workspace/.proofs/root-native-list-group-command651/Jim/case-01/execute.stdout",
+  "stdout_sha256": "9e64a861f29184f1356eaaad4d98772392f50d51e3b8f230063981f8a7e985fe",
+  "stderr": "/workspace/.proofs/root-native-list-group-command651/Jim/case-01/execute.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "case": 1,
+  "executable_sha256_before": "4f051763e92ca728b3e49206b4efc907e5bf4c74e11e8f06ff9f3373ca4717e6",
+  "executable_sha256_after": "4f051763e92ca728b3e49206b4efc907e5bf4c74e11e8f06ff9f3373ca4717e6"
+}

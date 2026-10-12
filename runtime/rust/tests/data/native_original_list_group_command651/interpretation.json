@@ -1,0 +1,55 @@
+{
+  "proof_id": "naming.list.original-grouped-stride-and-command-result-getters",
+  "available_rows": 179,
+  "cases": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "excluded_search_cases": [
+    14,
+    15
+  ],
+  "unavailable": [
+    {
+      "provider": "Jim",
+      "case": 12,
+      "status": "unavailable",
+      "process_exit": -11,
+      "provider_output": "unavailable; no output interpretation or software expected result"
+    }
+  ],
+  "predicates": [
+    "Guest code",
+    "result bytes after reached result getter",
+    "original key and returned-object public primary category/residency before result String getter"
+  ],
+  "limitations": "No private payload, object alias, transient/native reference schedule, foreign libc callback schedule, or missing Jim output result is inferred."
+}

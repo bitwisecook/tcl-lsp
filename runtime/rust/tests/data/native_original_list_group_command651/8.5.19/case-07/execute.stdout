@@ -1,0 +1,37 @@
+provider	C-Tcl
+case	7	stride-integer-three-members
+operation	lsort
+mode	integer
+index	0
+input-roles	key-holds=sole-containing-list	additional-key-observer-holds=0	argv-caller-hold=1	returned-original-explicit-hold=0	flat-length=3
+input-key0	counted-string	32
+input-key1	counted-string	41
+input-key2	counted-string	31
+input-key3	absent
+input-callback-return	absent
+before-key0	none	1	1	1
+before-key1	none	1	1	1
+before-key2	none	1	1	1
+before-key3	absent
+before-container	list	0	1	0
+before-prefix	absent
+before-callback-return	absent
+before-pattern	absent
+code	1
+callback-count	0
+reached-key0	none	1	1	1
+reached-key1	none	1	1	1
+reached-key2	none	1	1	1
+reached-key3	absent
+reached-container	list	1	1	5
+reached-prefix	absent
+reached-callback-return	absent
+reached-pattern	absent
+reached-result	string	1	1	141
+result-alias	container=0	callback-return=0
+result-bytes	626164206f7074696f6e20222d737472696465223a206d757374206265202d61736369692c202d636f6d6d616e642c202d64656372656173696e672c202d64696374696f6e6172792c202d696e6372656173696e672c202d696e6465782c202d696e64696365732c202d696e74656765722c202d6e6f636173652c202d7265616c2c206f72202d756e69717565
+materialised-result	string	1	1	141
+after-result-getter-container	list	1	1	5
+after-result-getter-callback-return	absent
+error-code-bytes	54434c204c4f4f4b555020494e444558206f7074696f6e202d737472696465
+error-info-bytes	626164206f7074696f6e20222d737472696465223a206d757374206265202d61736369692c202d636f6d6d616e642c202d64656372656173696e672c202d64696374696f6e6172792c202d696e6372656173696e672c202d696e6465782c202d696e64696365732c202d696e74656765722c202d6e6f636173652c202d7265616c2c206f72202d756e697175650a202020207768696c6520657865637574696e670a226c736f7274202d696e7465676572202d7374726964652032202d696e6465782030207b32204120317d22

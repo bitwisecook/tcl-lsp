@@ -187,16 +187,19 @@ Shared in `tcl-cmd-core`:
   `lsort`/`lsearch` comparison modes (`-ascii`/`-dictionary`/`-integer`/`-real`,
   `-nocase`), pure `&[u8] → Ordering`. The subtle `DictionaryCompare` port lives
   once; the full `lsort`/`lsearch` commands (below) build on it.
-- `lsort` — the **whole** `lsort` command (the option set, up-front numeric-key
-  validation, mode-aware `-unique`, `-index` path, `-stride`, `-indices`), over
-  `ValueOps` + a `-command` comparator callback. `-command` evaluates a user Tcl
-  proc per comparison (Family-B), so — like `lseq`'s expression edge — it is split
-  into three sequential calls so the interp the comparator evaluates against is
-  not double-borrowed: `prepare` (everything needing `ValueOps`, including the
-  full non-command sort+build), `sort_command` (the reentrant stable merge sort
-  over the adapter's comparator, **no `ValueOps`**), and `build_command`. The VM's
-  comparator goes through `vm.dispatch` (argv-based, so an element containing
-  `$`/`[` is passed literally); the runtime's through `interp.dispatch`.
+- `lsort` — the whole option/key/result owner. `run_original` retains one
+  entered operation across parse, selected job, original callback, result
+  construction and mandatory cleanup. C84 drills lazily during binary bucket
+  comparisons; C85+ prepares each member immediately before its bucket merge,
+  with a checked List copy for command sorting. C uses a duplicated original
+  command prefix with two replaced tail arguments and an original Int result
+  getter. Jim constructs genuine stride groups and temporary parent, uses actual
+  local qsort, duplicates the prefix per comparison and reads the returned
+  original through Wide. Returned getters retain the same pre-sort currency;
+  C callback failures keep their original completion and compare errorInfo
+  context through the existing restoration/snapshot owners. Both adapters use
+  existing checked List workers.
+  Neutral callers retain `prepare`, `sort_command` and `build_command`.
 - `lsearch` — the **whole** `lsearch` command (every option: `-exact`/`-glob`/
   `-regexp`/`-sorted`/`-bisect`, `-all`/`-inline`/`-not`, the four `-ascii`/
   `-dictionary`/`-integer`/`-real` types, `-nocase`, `-increasing`/`-decreasing`,

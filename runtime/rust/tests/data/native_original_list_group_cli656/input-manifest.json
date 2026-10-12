@@ -1,0 +1,16 @@
+{
+  "packet": "OriginalCliGroupBoundaryRequest656",
+  "files": [
+    {
+      "path": "probe.tcl",
+      "sha256": "2bc9ca0e31f0e6e436040fa2de65b24f719549d8481760166b17bec23985f1f0",
+      "bytes": 2285
+    },
+    {
+      "path": "request.json",
+      "sha256": "802a5c55070acbda3d516cd34ca611fc7a61df77c1ba122e482ef83bd7841885",
+      "bytes": 4316
+    }
+  ],
+  "scope": "Private immutable input-only Root execution request; no native execution or expected Guest outcome."
+}

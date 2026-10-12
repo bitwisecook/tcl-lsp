@@ -1,0 +1,17 @@
+{
+  "packet": "OriginalGroupedStrideAndCommandResultProbe650",
+  "files": [
+    {
+      "path": "probe.c",
+      "sha256": "1aa901fff54bff3ceac143cfbf49eda90b6136169061ddb6a0680ddf241fa55d",
+      "bytes": 11514
+    },
+    {
+      "path": "request.json",
+      "sha256": "9015e74e04369bc15a7fe7b667c9f361b39f69da099bdf7cb1084d4328119703",
+      "bytes": 5695
+    }
+  ],
+  "scope": "Private finite source-pinned request only; no execution/outcome claim.",
+  "predecessor_manifest_sha256": "42c9b6019f205b3374cf97fb5e94c08349ac348eab7602ef3642a1b97c8b60be"
+}
