@@ -48,14 +48,18 @@ Current independent checks and outstanding work:
   mathfunc min/max topology/hooks, seven missing support workers, map/registration
   order and native compiled-foreach SIGABRT remain open. Exact questions:
   `experiments/name-handling/clock-bootstrap-epoch/registration-repair/`.
-- Native source namespace advice is being validated. Read its current exact
-  results in `experiments/name-handling/results/c-source-namespace-advice/`:
-  top-level packaged tokens pass; namespaced options improved but nested command
-  roles still failed at the last recorded run. Keep #2287 open until fully green.
-- W210 source-selected lifecycle prototype had6 positive controls pass and3
-  genuine-missing-read controls fail. Recheck after source advice changes.
-  Evidence: `experiments/name-handling/results/static-name-advice/` and
-  `experiments/name-handling/tcltest-shared-frame/`; #2286 remains open.
+- Conditional C source namespace/path/caller-lifecycle advice passes2 direct and2
+  full packaged highlighting regressions. Exact source and limits:
+  `experiments/name-handling/results/c-source-namespace-advice/`. Coordinator
+  must publish the checkpoint and update/close #2287 against its exact reproduction.
+- Final W210 filter has6 passing controls and3 genuine-missing-read failures at
+  C8.4. Evidence: `experiments/name-handling/results/static-name-advice/`,
+  `experiments/name-handling/tcltest-shared-frame/` and latest C-source receipts.
+  #2286 remains open; diagnose the genuine reached metadata/read boundary.
+- Residual fixture constructors forward actual source inputs and compile;
+  seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:
+  `experiments/name-handling/results/fixture-source-input/`. Trace independently;
+  do not fabricate None inputs or claim a pre-existing defect without comparison.
 - Scoped Syntax/LSP proof reviews and renewals are in `evidence-review/`.
   The last full gate had348 implementation-digest errors before36 further
   reviewed renewals. No pending candidates/unlinked tests. Review exact invariants

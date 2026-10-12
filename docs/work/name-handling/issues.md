@@ -1,13 +1,9 @@
 # Related issues and prior work
 
 GitHub metadata refreshed on 2026-10-12 across all 1,050 returned issues.
-Source comparison basis: merged `work` HEAD
-`c49ef6fd5d147edd0cf473070dfaac2834c20dd7`; the published `work` ref was
-`bcaf88c12400c1a0a529a54ba8a73dacb216da41` when checked. The earlier
-`127dba9d9` audit is a prior baseline, not evidence about current residuals.
-An OPEN state supplies an acceptance target; it does not prove its witness
-still fails on the refreshed tree. No fresh current-head Rust execution is
-claimed here.
+Issue metadata is a search snapshot; actual current state and narrow executed
+acceptance are recorded below and in current-state.md. An open issue supplies an
+acceptance target; its state alone does not establish current source behaviour.
 
 The durable authorities are the [name model](../../design/analysis/name-resolution.md),
 [command owner contract](../../design/contracts/command-resolution.md),
@@ -28,22 +24,14 @@ Rust receipts retain separate authority.
 - [The retained native lifecycle question](../../design/analysis/name-resolution-proofs/tcltest-original-alias-caller-frame-lifecycle.md)
   measures all five C packages and Jim's distinct global-test protocol. It does
   not execute the full tclopt constructors or assert Rust diagnostics.
-- Frozen334's retained exact consumer log reports the shared-frame, alias and
-  namespace-import tests passing. Its source hashes differ from current source,
-  so its passing results cannot certify the merged tree. New compiled runs
-  pass the four reported fixtures but fail genuine-undefined-read controls
-  under Tcl 8.4, including the direct alias. Source changed during those
-  builds. The final post-freeze negative-only command confirms both first
-  Tcl 8.4 assertions fail under an unchanged selected source inventory. The
-  [current GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6124201808)
-  keeps #2286 open.
-- #2287 now has a namespaced semantic-token regression alongside the existing
-  top-level import test. Its authored source retains the first two actual
-  `georgtree/tclopt/test/native.test` tests and moves the import into
-  `::nativeTest` as reported. It now executes and fails, as does the existing top-level companion:
-  `-body` is string instead of decorator. The
-  [current GitHub update](https://github.com/bitwisecook/tcl-lsp/issues/2287#issuecomment-6124559399)
-  keeps #2287 open. See [issue-actions.md](issue-actions.md) and the retained raw consumer results.
+- Final frozen Tcltest diagnostic checks pass six controls and fail three
+  genuine missing-read controls at their first C8.4 assertion. #2286 remains
+  open. Real matching init/Tcltest observations and exact compiler receipts are
+  linked from [current-state.md](current-state.md).
+- Both complete packaged highlighting regressions now pass, including the
+  import moved inside `::nativeTest`, option pairs and nested commands.
+  [Exact C-source receipts](../../../experiments/name-handling/results/c-source-namespace-advice/outcomes.json)
+  bind unchanged source owners; #2287 awaits coordinator publication and closure.
 
 ## Open centralisation acceptance targets
 

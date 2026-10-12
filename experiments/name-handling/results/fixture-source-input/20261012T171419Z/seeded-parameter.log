@@ -1,0 +1,44 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+    Finished `test` profile [unoptimized] target(s) in 1.37s
+     Running tests/compiler_analysis_residual.rs (tmp/name-target-issues/debug/deps/compiler_analysis_residual-141d740a6d2759e7)
+
+running 6 tests
+
+thread 'conditional_registry_handler_widens_seeded_parameter' (153121) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths' (153120) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+test conditional_registry_handler_widens_seeded_parameter ... FAILED
+test catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths ... FAILED
+
+thread 'registry_handler_widens_seeded_parameter' (153123) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+test registry_handler_widens_seeded_parameter ... FAILED
+
+thread 'global_script_and_unseen_call_both_widen_seeded_parameter' (153122) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+test global_script_and_unseen_call_both_widen_seeded_parameter ... FAILED
+
+thread 'safe_registry_call_keeps_seeded_parameter_constant' (153125) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+
+thread 'registry_value_clobber_preserves_seeded_parameter_before_handler' (153124) panicked at rust/tcl-compiler/tests/compiler_analysis_residual.rs:2040:33:
+procedure
+test safe_registry_call_keeps_seeded_parameter_constant ... FAILED
+test registry_value_clobber_preserves_seeded_parameter_before_handler ... FAILED
+
+failures:
+
+failures:
+    catch_header_handler_widens_seeded_parameter_on_both_dispatch_paths
+    conditional_registry_handler_widens_seeded_parameter
+    global_script_and_unseen_call_both_widen_seeded_parameter
+    registry_handler_widens_seeded_parameter
+    registry_value_clobber_preserves_seeded_parameter_before_handler
+    safe_registry_call_keeps_seeded_parameter_constant
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 113 filtered out; finished in 0.33s
+
+error: test failed, to rerun pass `-p tcl-compiler --test compiler_analysis_residual`

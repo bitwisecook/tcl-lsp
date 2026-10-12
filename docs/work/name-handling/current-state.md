@@ -1,6 +1,6 @@
 # Current state
 
-Branch: `work`. Latest published checkpoint at this snapshot: `e20c572d6`.
+Branch: `work`. Latest published checkpoint at this snapshot: `1b3a01d66`.
 Inspect git for subsequent commits and uncommitted ownership. This document is
 current coordination material; delete it and its references before merge.
 
@@ -24,8 +24,9 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
 | C8.6 clock registration | Runtime scalar and registry controls each pass1; original map/hooks/epochs retained | Real init refuses; mathfunc topology/hooks, missing support workers and map/worker ordering |
 | Native compiled foreach | Same exact input aborts SIGABRT; stock C8.5–9.1/Jim complete; C8.4 missing namespace stops publication | Original iterator ownership; no runtime conformance claim |
-| Packaged LSP | Top-level imported test passes; namespaced options improve | Nested command roles still failed before final lifecycle-inventory correction; #2287 open |
-| Tcltest diagnostics | Six positive controls pass; three genuine-missing-read controls fail at C8.4 | Repair actual declared-read/selection boundary; #2286 open |
+| Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Publish accepted checkpoint and update #2287; broader consumer census |
+| Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Repair actual declared-read/selection boundary; #2286 open |
+| Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
 | Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
 | Naming proof bindings | 1,179 questions, zero pending candidates/unlinked tests; explicit scoped Syntax/LSP reviews | Last full348 implementation-digest errors precede36 further scoped renewals; no blanket refresh |
 

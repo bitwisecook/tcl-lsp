@@ -1,0 +1,21 @@
+{
+  "head": "e20c572d62108e35bd2c9cc978a2fad60c32277e",
+  "file": "rust/tcl-compiler/tests/compiler_analysis_residual.rs",
+  "sha256": "de69db3a27c2128a5ffae888e59866e0f739ede9bcb00d26fe7f9b43bbbebdaf",
+  "reviewed_inputs": [
+    {
+      "consumer": "rebased_units memo UnitDialect",
+      "source": "req.source_metadata_input"
+    },
+    {
+      "consumer": "memoised_unit UnitDialect",
+      "source": "req.source_metadata_input"
+    },
+    {
+      "consumer": "seeded_parameter_result TraceInputs",
+      "source": "fu.source_metadata_input()"
+    }
+  ],
+  "source_input_fallback_added": false,
+  "source_input_fabricated": false
+}

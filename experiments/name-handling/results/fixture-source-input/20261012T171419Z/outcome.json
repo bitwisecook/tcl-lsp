@@ -1,0 +1,17 @@
+{
+  "command": "cargo test -j2 -p tcl-compiler --test compiler_analysis_residual seeded_parameter -- --nocapture",
+  "timeout_seconds": 180,
+  "exit_status": 101,
+  "timeout_reached": false,
+  "compilation_completed": true,
+  "passed": 0,
+  "failed": 6,
+  "filtered_out": 113,
+  "failure_boundary": "seeded_parameter_result: cu.function(\"::p\").expect(\"procedure\") at compiler_analysis_residual.rs:2040",
+  "sccp_assertions_reached": false,
+  "source_metadata_accessor_reached": false,
+  "pre_existing_status": "unknown; no counterfactual run",
+  "source_inventory_sha256": "1dcf700e033dbf53954f250a2065083106f900e88d9e9ce60159a5e6c16d3b5f",
+  "source_matches_before": true,
+  "source_edits": false
+}

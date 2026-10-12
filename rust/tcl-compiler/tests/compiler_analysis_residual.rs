@@ -998,6 +998,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                     tcl_compiler::compilation_unit::UnitDialect {
                         registry,
                         config: req.lexer_config,
+                        source_metadata_input: req.source_metadata_input,
                     },
                     pc.as_ref(),
                     &known_classes,
@@ -1532,6 +1533,7 @@ fn memoised_unit(
                 tcl_compiler::compilation_unit::UnitDialect {
                     registry: &registry,
                     config: tcl_lexer::LexerConfig::default(),
+                    source_metadata_input: req.source_metadata_input,
                 },
                 pc.as_ref(),
                 &req.known_classes.iter().cloned().collect(),
@@ -2044,6 +2046,7 @@ fn seeded_parameter_result(source: &str) -> tcl_compiler::sccp::SccpResult {
         tcl_compiler::tcl_expr_eval::FoldPolicy::default(),
         tcl_compiler::sccp::TraceInputs {
             registry: &registry,
+            source_metadata_input: fu.source_metadata_input(),
             traced_variables: &BTreeSet::new(),
             has_dynamic_variable_trace: false,
             deferred_writes: &tcl_compiler::ir::NO_DEFERRED_WRITES,

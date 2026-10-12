@@ -1,0 +1,12 @@
+{
+  "head": "1b3a01d66c315088bc3726dbb1ee7be2898af897",
+  "source_file_count": 4395,
+  "source_inventory_sha256": "1dcf700e033dbf53954f250a2065083106f900e88d9e9ce60159a5e6c16d3b5f",
+  "named_input_sha256": {
+    "rust/tcl-compiler/tests/compiler_analysis_residual.rs": "de69db3a27c2128a5ffae888e59866e0f739ede9bcb00d26fe7f9b43bbbebdaf",
+    "rust/tcl-compiler/src/compilation_unit.rs": "812947b77edb4b2f1fcd13b6a7b46f4bf737838abedea5c1f4f1ac1c77324cd7",
+    "rust/tcl-compiler/src/sccp.rs": "bfc773af443da63e37a043d9f5ee6661ca3301635327cf708d64e3c8b6fb05a3"
+  },
+  "changed_paths": [],
+  "matches_before": true
+}
