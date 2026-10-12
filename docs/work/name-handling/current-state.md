@@ -20,10 +20,10 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Shared variable declarations | VM/runtime zero/three/four-operand matrices pass against C5/Jim; shared release-selected grammar | Broader native variable/frame/link conformance |
 | Shared array modes | 200 oracle comparisons pass; ten populated-regexp refusals explicit | Original regex worker; old-release trace/arity order |
 | Real C8.4 suites | Native var/proc/rename pass; six original suites retained | Ten namespace assertion failures; upvar/interp refusals; remaining interp failures |
-| Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; actual all.tcl stops before tests on ParseFormatArgs |
+| Real C8.6 suites | C eight files:1182 pass/85 skip/0 fail; Native proc/rename40/17/0; real init/Tcltest load | Five suite refusals, ooNext2 script error,34 prior assertion failures; fresh all.tcl advances past implemented ParseFormatArgs and stops before suites on missing getenv |
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
-| C8.6 clock/bootstrap | Real original init reaches startup marker after shared 29-name mathfunc constructor roster repair; ten fresh native/C controls pass | Seven missing clock support workers; map/worker ordering; VM startup admission; real naming suites measured separately |
-| VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 outside-owner lib-test compile errors, baseline unmeasured |
+| C8.6 clock/bootstrap | Real original init reaches startup marker after shared 29-name mathfunc constructor roster repair; ten fresh native/C controls pass | ParseFormatArgs now matches eleven C8.6 controls; three focused runtime tests pass. Six other clock support workers; map/worker ordering; VM startup admission; real naming suites measured separately |
+| VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 lib-test compile-diagnostic clusters repaired;29 existing controls queued behind compiler cache lease, baseline unmeasured |
 | Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
 | Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Retained binding repair passes1/1 but full filter remains6/3. Trace proves factory request has full input while proc point retains Standalone metadata; native header/formals unreached. Genuine provider input producer and two owner controls pass; full filter remains6/3: direct/alias2 warnings (absent plus erroneous prepared cleanup) vs1; original program0vs2. Packaged regression passes2/2; #2286 open |
@@ -49,13 +49,23 @@ Exact raw results and limits:
 - [Earlier merged proof checker](../../../experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/README.md).
 - [Reviewed source bindings](evidence-review/); source inspection is not execution.
 
+## Active parallel acceptance
+
+Rust sources are frozen while the compiler cleanup-flow and runtime clock builds
+run in separate caches. VM compilation follows the compiler cache release.
+Seven diagnostic controls have passed; the original-program control still fails
+and one alias control remains unfinished after the bounded build timeout.
+Three exact proof bindings have an independently verified complete inverse;
+these inspections do not replace the full proof checker. Markdown cleanup and
+callback consumer planning continue without changing build inputs.
+
 ## Discovery, appliance answers and cleanup
 
 [Wild patterns](../../../experiments/name-handling/patterns/README.md) retain pinned
 corpus/Wiki source, exact C/Jim observations and question-led inputs. Eleven
 reached original Jim corpus answers are registered canonically; four setup
 failures remain unanswered. Adapted Wiki inputs and separate controls do not
-answer unchanged original questions. Composed held-out callback acceptance,
+answer unchanged original questions. Composed held-out C/Jim callback observations are retained; actual consumer acceptance,
 Snit/Clay/framework provenance and broader heuristics remain required.
 
 The pushed [F5 bundle](../../../experiments/name-handling/patterns/f5/README.md)
