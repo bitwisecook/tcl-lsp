@@ -53,6 +53,11 @@ The final check reconciles all matches and all workspace members with the ledger
    and reported false positives. Inspect package/stub/import resolution before
    adding command-specific treatment. Run the existing vectors and retain the
    full oracle matrix; record absent references as absent, not green.
+   Reuse C Tcl upstream `tcltest` cases with each matching real interpreter,
+   and Jim's equivalent suite with its identified build. Preserve exact test
+   definitions, suite revision, dependencies, constraints and harness results;
+   skipped cases provide no measured answer. Add bespoke probes where the
+   upstream suites do not cover the identity/context question.
 2. **Settle API/identity boundaries.** Use existing owner crates and dependency
    direction. Specify source-name parsing, structured namespace/command slots,
    live command identity, variable places, span-bearing components and
@@ -111,6 +116,7 @@ alone does not enforce their matrix today. Jim needs its own validated
 discovery contract.
 
 Use existing suites first: syntax command/variable/namespace conformance;
+matching upstream C Tcl `tcltest` suites and Jim's equivalent oracle suite;
 compiler command conformance, namespace, dispatch-proof and binding suites;
 VM resolution/colon-run/variable/lifecycle suites; WASM namespace/import tests;
 LSP core/server references, rename safety, cross-file/import/OO tests; editor

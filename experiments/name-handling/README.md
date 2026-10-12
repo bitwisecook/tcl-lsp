@@ -43,6 +43,34 @@ validated references until those runners use complete-matrix discovery.
 A locally installed unvalidated interpreter may provide a clearly labelled exploratory measurement,
 not a completed reference gate.
 
+## Upstream test suites
+
+C Tcl's upstream tests run through `tcltest` on the matching real C interpreter
+are valid oracle evidence. Jim's equivalent upstream suite, run on the
+identified Jim build, serves the same role. Reuse relevant upstream name,
+namespace, variable, frame, alias and lifecycle cases before writing a bespoke
+probe. Use each C release's matching test tree and harness; do not assume a
+newer suite runs unchanged on an older interpreter.
+
+Record the suite revision, test file and case ID, exact test definition,
+support files/packages, constraints, invocation and raw harness transcript.
+Keep pass/fail/skip counts and reasons: a constrained or unexecuted case does
+not establish its expected behaviour. Preserve actual results and errors when
+reducing an upstream test to a shared conformance vector.
+
+For C cases, `tcl-test-support::upstream_test_definition` extracts a definition
+from a pinned source file using adjacent test markers;
+`tclsh_from_source_tree` and `run_script_from_source_tree` keep interpreter and
+source/library selection together. Keep required setup/cleanup and harness
+dependencies with the extracted case. For Jim, retain equivalent provenance
+and use its own harness and expectations where the suites differ.
+
+The harness organises assertions; the real reference interpreter supplies the
+oracle result. Running `tcltest` on our VM/runtime is consumer validation
+against that evidence. Retain custom probes for missing cases and cross-surface
+identity questions. Suite and probe evidence follow the same capture and
+promotion rules below.
+
 ## Capture protocol
 
 1. Name the question and stable case ID. Record the exact script bytes or

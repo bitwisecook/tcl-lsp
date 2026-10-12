@@ -108,6 +108,11 @@ Shared command, variable and namespace-operation vectors live in
 the release manifest in `tcl-dialect`. Consumer tests must derive expectations
 from retained real-oracle observations for the supported release/context.
 C Tcl, Jim and F5 can differ; expectations carry that axis explicitly.
+Upstream C Tcl `tcltest` cases and Jim's equivalent suite are valid evidence
+when executed on the identified real reference interpreter. Retain suite/case
+provenance, dependencies, constraints and actual execution results; skipped
+cases supply no oracle answer. Harness execution on our runtimes validates
+consumers against reference evidence.
 The experiment protocol and executable observations are retained under
 [experiments/name-handling](../../../experiments/name-handling/README.md).
 

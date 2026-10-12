@@ -110,6 +110,17 @@ capability status. Different releases/dialects/contexts can differ; record
 observed expectations explicitly. Never bless our own implementation by using
 its output as the oracle.
 
+Use C Tcl's upstream `tcltest` cases on each matching real C release, or Jim's
+equivalent upstream suite on the identified Jim build, as oracle evidence
+where useful. Reuse relevant cases before inventing bespoke probes. Retain
+suite revision, file/case IDs, exact definitions, setup/cleanup, dependencies,
+constraints and raw pass/fail/skip transcripts. Skipped cases are not measured
+answers. Use `tcl-test-support::upstream_test_definition` and validated
+source-tree execution for C cases where applicable; preserve Jim's own harness
+and expectations. Running the harness on our implementation validates a
+consumer and does not create an independent oracle. Reduce measured suite
+cases into shared vectors without changing their semantic question.
+
 Keep all experiments and measurements. Use the existing vector renderers and
 BIG-IP probe infrastructure where suitable. Promote deterministic regression
 expectations only from identified real-oracle records; cover owner and each

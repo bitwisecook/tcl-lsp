@@ -12,6 +12,7 @@ A result document records:
 | Oracle | C Tcl/Jim/F5 and exact version/revision/build |
 | Context | Global interpreter, proc/namespace frame, TMM event, CLI script, iApp, or other exact context |
 | Input | Stable case IDs, script paths, SHA-256 and invocation |
+| Upstream suite, when used | Suite revision, file/test IDs, exact definitions and support files, harness version/dependencies, constraints and pass/fail/skip counts with reasons |
 | Raw channels | Relative stdout/stderr/log paths, process status |
 | Per case | Setup/acceptance status, completion code, byte-valued result and available error options |
 | Interpretation | Question answered and release/context scope; disagreement/unsupported/unavailable stated explicitly |
