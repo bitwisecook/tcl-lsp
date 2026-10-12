@@ -1,0 +1,124 @@
+--- a/rust/tcl-vm/src/cmd_oo.rs
++++ b/rust/tcl-vm/src/cmd_oo.rs
+@@ -416,6 +416,38 @@
+ 
+ fn resolve_class_value(vm: &mut Vm, name: &Value) -> Result<Option<OoId>, Completion<Value>> {
+     Ok(resolve_object_value(vm, name)?.filter(|id| vm.oo.classes.contains_key(id)))
++}
++
++#[cfg(test)]
++fn reporting_name_probe(
++    vm: &Vm,
++    origin: Option<crate::interp::InterpId>,
++    target: OoId,
++    stage: &str,
++) {
++    if std::env::var_os("TCL_LSP_VM_OO_REPORT_DIAGNOSTIC").is_none() {
++        return;
++    }
++    let original = origin.and_then(|id| vm.st_of(id));
++    eprintln!(
++        "OO_REPORT stage={stage} origin={origin:?} selected={:?} target={target:?} original_state={:?} original_object={:?} original_live={:?} original_name={:?} current_object={} current_live={} current_name={} first={:?}",
++        vm.cur_interp(),
++        origin.map(|id| vm.st_of(id).is_some()),
++        original.map(|state| state.oo.objects.contains_key(&target)),
++        original.map(|state| state
++            .oo
++            .objects
++            .get(&target)
++            .is_some_and(|object| !object.destroyed)),
++        original.map(|state| state.oo.names.contains_key(&target)),
++        vm.oo.objects.contains_key(&target),
++        vm.oo
++            .objects
++            .get(&target)
++            .is_some_and(|object| !object.destroyed),
++        vm.oo.names.contains_key(&target),
++        vm.execution_refusal,
++    );
+ }
+ 
+ fn display_oo_bytes(vm: &Vm, id: OoId) -> Vec<u8> {
+@@ -3061,6 +3093,8 @@
+         ];
+         invocation.extend_from_slice(args);
+         let usage = (args.len() > 2).then(|| invocation[..3].to_vec());
++        #[cfg(test)]
++        let reporting_origin = vm.cur_interp();
+         let mut definition =
+             match native_context::enter_definition(vm, is_class, target, invocation) {
+                 Ok(definition) => definition,
+@@ -3081,11 +3115,27 @@
+                 match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
+                     Ok(c) if c.code == Code::Return => ok(c.result),
+                     Ok(c) if c.code == Code::Error => {
++                        #[cfg(test)]
++                        reporting_name_probe(
++                            vm,
++                            Some(reporting_origin),
++                            target,
++                            "script_error.before_append",
++                        );
+                         append_define_frame(vm, is_class, target, &c.result.string_bytes());
+                         c
+                     }
+                     Ok(c) => c,
+-                    Err(e) => definition_error(vm, is_class, target, e),
++                    Err(e) => {
++                        #[cfg(test)]
++                        reporting_name_probe(
++                            vm,
++                            Some(reporting_origin),
++                            target,
++                            "script_error.before_definition_error",
++                        );
++                        definition_error(vm, is_class, target, e)
++                    }
+                 }
+             } else {
+                 // Single-command form: dispatch `sub args…` as one definition directive
+@@ -3120,6 +3170,8 @@
+ /// *script* body — the context frame C's `TclOODefineObjCmd` adds. `line` is the
+ /// body-relative source line of the failing directive (C's `iPtr->errorLine`).
+ fn append_define_frame(vm: &mut Vm, is_class: bool, target: OoId, msg: &[u8]) {
++    #[cfg(test)]
++    reporting_name_probe(vm, None, target, "append.entry");
+     let kind = if is_class { "class" } else { "object" };
+     let line = vm.error_line();
+     let mut frame = format!("\n    (in definition script for {kind} ").into_bytes();
+--- a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs
+@@ -77,7 +77,20 @@
+             0 => ok(Value::string("DEFINITION_BODY")),
+             1 => vm.refuse_host_command("FIRST_DEFINITION_BODY".into()),
+             2 => {
++                let reporting_origin = vm.cur_interp();
++                crate::cmd_oo::reporting_name_probe(
++                    vm,
++                    Some(reporting_origin),
++                    self.target,
++                    "mode2.before_switch",
++                );
+                 switch(vm, self.child);
++                crate::cmd_oo::reporting_name_probe(
++                    vm,
++                    Some(reporting_origin),
++                    self.target,
++                    "mode2.after_switch",
++                );
+                 let namespace = vm.definition_namespace_token("definition_child_activation");
+                 vm.push_ns_eval_token_frame(namespace, Vec::new());
+                 // Explicit private child input; it supplies no original-definition purpose.
+@@ -277,6 +290,12 @@
+         );
+         assert_eq!(worker.code, Code::Ok);
+         assert!(same_row(&row, &vm.oo.def_stack[0]));
++        crate::cmd_oo::reporting_name_probe(
++            &vm,
++            Some(original),
++            target,
++            &format!("mode{mode}.before_self"),
++        );
+         let reached = super::super::definition_self_at(
+             &mut vm,
+             &[Value::string("::definition_exit_observer")],

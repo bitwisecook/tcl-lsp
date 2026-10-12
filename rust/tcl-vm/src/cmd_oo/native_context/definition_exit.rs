@@ -20,6 +20,7 @@
 
 use super::{Completion, DefTarget, NsId, OoId, Value, Vm};
 use crate::interp::oo_cleanup::{OriginalOoActivation, retain_error};
+use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::Namespaces;
@@ -98,6 +99,44 @@ impl OriginalDefinitionExit {
         if !current {
             return Err(refuse(vm, &self.active, "original OO definition row/usage"));
         }
+        Ok(())
+    }
+    pub(in crate::cmd_oo) fn append_error_frame(
+        &self,
+        vm: &mut Vm,
+        result: &Value,
+    ) -> Result<(), CmdError> {
+        if let Err(error) = self.check(vm) {
+            retain_error(vm, &error);
+            return Err(error);
+        }
+        let bytes = {
+            let vm = RefCell::new(&mut *vm);
+            let reached = result.string_bytes_checked_for_value_retaining::<CmdError>(
+                &mut |_| {
+                    let reached = self.check(&mut vm.borrow_mut());
+                    if let Err(error) = &reached {
+                        retain_error(&mut vm.borrow_mut(), error);
+                    }
+                    reached
+                },
+                &|error| retain_error(&mut vm.borrow_mut(), &CmdError::from(error.clone())),
+            );
+            if let Err(error) = &reached {
+                retain_error(&mut vm.borrow_mut(), error);
+            }
+            reached?
+        };
+        if let Err(error) = self.check(vm) {
+            retain_error(vm, &error);
+            return Err(error);
+        }
+        let (_, row) = self.row.as_ref().expect("checked original definition row");
+        let (is_class, target) = match row.0 {
+            DefTarget::Class(target) => (true, target),
+            DefTarget::Object(target) => (false, target),
+        };
+        super::super::append_define_frame(vm, is_class, target, &bytes);
         Ok(())
     }
     pub(in crate::cmd_oo) fn replace_usage(

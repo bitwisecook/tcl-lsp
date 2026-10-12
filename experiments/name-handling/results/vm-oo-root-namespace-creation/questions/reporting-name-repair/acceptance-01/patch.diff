@@ -1,0 +1,53 @@
+--- a/rust/tcl-vm/src/cmd_oo.rs
++++ b/rust/tcl-vm/src/cmd_oo.rs
+@@ -3081,11 +3081,22 @@
+                 match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
+                     Ok(c) if c.code == Code::Return => ok(c.result),
+                     Ok(c) if c.code == Code::Error => {
+-                        append_define_frame(vm, is_class, target, &c.result.string_bytes());
++                        if let Err(error) = definition.append_error_frame(vm, &c.result) {
++                            return crate::command::completion_from_cmd_error(vm, error);
++                        }
+                         c
+                     }
+                     Ok(c) => c,
+-                    Err(e) => definition_error(vm, is_class, target, e),
++                    Err(e) => {
++                        if let Some(completion) = e.guest_completion()
++                            && completion.code == Code::Error
++                            && let Err(error) =
++                                definition.append_error_frame(vm, &completion.result)
++                        {
++                            return crate::command::completion_from_cmd_error(vm, error);
++                        }
++                        crate::command::completion_from_tcl_error(vm, e)
++                    }
+                 }
+             } else {
+                 // Single-command form: dispatch `sub args…` as one definition directive
+--- a/rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs
++++ b/rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs
+@@ -98,6 +98,23 @@
+         if !current {
+             return Err(refuse(vm, &self.active, "original OO definition row/usage"));
+         }
++        Ok(())
++    }
++    pub(in crate::cmd_oo) fn append_error_frame(
++        &self,
++        vm: &mut Vm,
++        result: &Value,
++    ) -> Result<(), CmdError> {
++        if let Err(error) = self.check(vm) {
++            retain_error(vm, &error);
++            return Err(error);
++        }
++        let (_, row) = self.row.as_ref().expect("checked original definition row");
++        let (is_class, target) = match row.0 {
++            DefTarget::Class(target) => (true, target),
++            DefTarget::Object(target) => (false, target),
++        };
++        super::super::append_define_frame(vm, is_class, target, &result.string_bytes());
+         Ok(())
+     }
+     pub(in crate::cmd_oo) fn replace_usage(

@@ -1,0 +1,464 @@
+{
+  "scope": "Cargo-emitted actual workspace artifacts/targets/freshness; not a precise cfg-selected source-file closure",
+  "artifacts": [
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-dialect/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-core-types#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-core-types/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_core_types",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-core-types/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-dialect#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-dialect/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_dialect",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-dialect/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-lexer#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-lexer/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_lexer",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-lexer/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-platform#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-platform/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_platform",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-platform/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-syntax#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-syntax/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_syntax",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-syntax/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-runtime-api#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_runtime_api",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-runtime-api/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml",
+      "target": {
+        "kind": [
+          "custom-build"
+        ],
+        "crate_types": [
+          "bin"
+        ],
+        "name": "build-script-build",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/build.rs",
+        "edition": "2024",
+        "doc": false,
+        "doctest": false,
+        "test": false
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-cmd-core#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_cmd_core",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-cmd-core/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-c-abi#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_host_c_abi",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-c-abi/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-regex#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-regex/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_regex",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-regex/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-registry#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-registry/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_registry",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-registry/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-bytecode#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-bytecode/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_bytecode",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-bytecode/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-compiler#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-compiler/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_compiler",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-compiler/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-test-support#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-test-support/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_test_support",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-test-support/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-host-native#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-host-native/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_host_native",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-host-native/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": false
+      },
+      "fresh": true,
+      "executable": null
+    },
+    {
+      "package_id": "path+file:///workspace/tcl-lsp/rust/tcl-vm#0.1.0",
+      "manifest_path": "/workspace/tcl-lsp/rust/tcl-vm/Cargo.toml",
+      "target": {
+        "kind": [
+          "lib"
+        ],
+        "crate_types": [
+          "lib"
+        ],
+        "name": "tcl_vm",
+        "src_path": "/workspace/tcl-lsp/rust/tcl-vm/src/lib.rs",
+        "edition": "2024",
+        "doc": true,
+        "doctest": true,
+        "test": true
+      },
+      "profile": {
+        "opt_level": "0",
+        "debuginfo": 0,
+        "debug_assertions": true,
+        "overflow_checks": true,
+        "test": true
+      },
+      "fresh": false,
+      "executable": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df"
+    }
+  ]
+}

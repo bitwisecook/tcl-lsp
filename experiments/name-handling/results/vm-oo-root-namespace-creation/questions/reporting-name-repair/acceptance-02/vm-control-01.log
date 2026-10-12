@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1197 filtered out; finished in 2.07s
+

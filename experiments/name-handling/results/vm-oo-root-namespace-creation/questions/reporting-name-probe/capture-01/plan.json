@@ -1,0 +1,31 @@
+{
+  "cache": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "caller_fixture_hashes": {
+    "rust/tcl-vm/src/native_fixture.rs": "ef795bb293a9d5eceebbdf3678a1a30935c09cab6596e554778d207ca6c7bccc"
+  },
+  "control": "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+  "environment_recipe": "/tmp/name-env.sh",
+  "inspected_source_hashes": {
+    "rust/tcl-vm/src/cmd_oo.rs": "663fdd0b359e09e947944cc734736f678e31e5f4b17364e77d3b63301e475caf",
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb"
+  },
+  "owners": [
+    {
+      "before_sha256": "663fdd0b359e09e947944cc734736f678e31e5f4b17364e77d3b63301e475caf",
+      "instrumented_path": "/tmp/vm-oo-report-probe/cmd_oo.rs",
+      "instrumented_sha256": "93205aa0763a15c3b81497aaaf7a59dc5bb7b8414dbee99cf4908576681b18dd",
+      "path": "rust/tcl-vm/src/cmd_oo.rs"
+    },
+    {
+      "before_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+      "instrumented_path": "/tmp/vm-oo-report-probe/tests.rs",
+      "instrumented_sha256": "0b0f7dd594f360170e64b8ee15df8b26f38daaf105c58fc569c8d9f18f63e9a8",
+      "path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs"
+    }
+  ],
+  "patch_sha256": "c6c11ff774a953e3d0fd079b26b89b71d69897f96bc6cd4300c1021f6444a8bd",
+  "prior_observed_control_list": "/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/repair-02/vm-control-04-list.log",
+  "prior_observed_control_list_sha256": "295eca88c038457c5ba2872b13a245d47906560141607f55556b765306e4b335",
+  "result_dir": "/workspace/tcl-lsp/experiments/name-handling/results/vm-oo-root-namespace-creation/questions/reporting-name-probe/capture-01",
+  "root": "/workspace/tcl-lsp"
+}

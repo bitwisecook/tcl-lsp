@@ -1,0 +1,6 @@
+
+running 1 test
+test cmd_oo::original_bootstrap_namespace_tests::original_c91_bootstrap_objects_publish_their_actual_private_namespaces ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1197 filtered out; finished in 0.18s
+

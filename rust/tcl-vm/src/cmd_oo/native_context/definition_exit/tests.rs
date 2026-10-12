@@ -455,3 +455,46 @@ fn original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cle
         assert!(vm.oo.definition_usage.words().is_none());
     }
 }
+
+#[test]
+fn original_definition_error_frame_retains_retired_result_storage_refusal_through_cleanup() {
+    // Software storage/currentness control using actual constructor and release APIs.
+    let mut vm = provided();
+    let target = class(&mut vm, "DefinitionResultStorageC");
+    let level = vm.current_level();
+    let exit = enter_class(&mut vm, target);
+    let result = Value::native_list_constructor(
+        vec![Value::new_native_string_bytes(
+            b"ORIGINAL_RESULT".as_slice(),
+        )],
+        tcl_syntax::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V9_1),
+    );
+    let observed = result.native_lifetime_lease();
+    assert!(observed.value().native_object_is_live());
+    drop(result);
+    assert!(!observed.value().native_object_is_live());
+
+    let error = exit
+        .append_error_frame(&mut vm, observed.value())
+        .expect_err("retired original result header must refuse checked String access");
+    let expected: CmdError =
+        ValueError::CommandProtocolUnavailable("retired native object header").into();
+    assert_eq!(
+        error.native_execution_refusal(),
+        expected.native_execution_refusal()
+    );
+    assert_eq!(
+        vm.execution_refusal.as_ref(),
+        expected.native_execution_refusal()
+    );
+    let retained = first(&vm);
+    let completion = crate::command::completion_from_cmd_error(&mut vm, error);
+    let finished = exit.finish(&mut vm, completion);
+    assert_eq!(finished.code, Code::Error);
+    assert_eq!(vm.execution_refusal, Some(retained));
+    assert_eq!(vm.current_level(), level);
+    assert!(vm.oo.def_stack.is_empty());
+    assert!(vm.oo.definition_usage.words().is_none());
+    assert!(vm.oo.objects.contains_key(&target));
+    assert!(!observed.value().native_object_is_live());
+}

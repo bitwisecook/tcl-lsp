@@ -1,0 +1,12 @@
+[
+  {
+    "path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs",
+    "before_sha256": "dffa0f1eee84b077d83a8868d314cfb429471258816a06ae01b9907cc08100bd",
+    "after_sha256": "2bd96778da4a50142af56b5cd968d7d058c45f2d69c051114a8b8d6dcf2ab56e"
+  },
+  {
+    "path": "rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs",
+    "before_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb",
+    "after_sha256": "2b2f3fe4b984e9f023a0c8655a39e804630e9ae2bd491e39af36baf7a944cf4a"
+  }
+]

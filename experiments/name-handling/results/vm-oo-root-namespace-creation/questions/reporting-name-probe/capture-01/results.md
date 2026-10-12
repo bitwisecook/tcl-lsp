@@ -1,0 +1,19 @@
+# Actual reporting-owner mismatch
+
+One truthful offline VM lib-test build passed, then the exact unchanged repair-02 control04 executed one test and failed (101). The candidate causal route is now measured by the original fixture/arguments/assertions and panic stack; no new currentness check or flow change was inserted.
+
+| Existing stage | Actual origin / selected interpreter | Original target state | Selected target state | Existing first cause |
+| --- | --- | --- | --- | --- |
+| mode0/mode1/mode2 before self; mode2 before switch | 0 / 0 | Object/token11 present, not destroyed, reporting name present | Same actual state, all present | None |
+| mode1 error report | 0 / 0 | All present | All present | Full original `HostCommandRefusal` for `FIRST_DEFINITION_BODY` retained in raw log |
+| mode2 after actual callback switch | 0 / 1 | Original object present, not destroyed, name present | Object/name absent | None at this callback observation |
+| mode2 script Error immediately before append | 0 / 1 | Original object present, not destroyed, name present | Object/name absent | `ValueAccessRefusal(CommandProtocolUnavailable("entered VM original execution context"))` |
+| actual append entry | Origin not passed to existing function / selected1 | Unobserved here; preceding event measured its actual origin0 state | Object/name absent | Same complete first cause |
+
+The exact first missing reporting predicate is the selected child's `oo.names.get(original_target)` at `display_oo_bytes`. The original target remains live/named in its real original state; numeric token equality supplies no child ownership. The panic stack proves `definition_self_at -> with_target -> definition_self -> run_define -> OriginalOoNameScope::in_current_frame -> append_define_frame -> display_oo_bytes`. Reporting occurs before the existing definition-owner post-work/finish currentness check while the original Native first cause is already stored. `live` above means actual Object membership and `destroyed=false`, not an invented full Native currency predicate.
+
+[Raw control log](control.log) preserves all full first-cause Debug carriers and the original panic stack. [Observed name](control-list.log), [Cargo JSONL](build.jsonl), [build stderr](build.stderr.txt), [plan](plan.json), [patch](instrumentation.patch), [runner](run.py), [execution plan](execution-plan.md) and [execution record](execution-record.json) retain inputs/commands/outcomes. No argument, genuine C9.1 fixture, loop mode or assertion changed.
+
+Only two temporary owners were applied and both restored byte-exact in `finally`. [Before](source-before.json), [instrumented](source-instrumented.json), [restored](source-restored.json) cover the actual current 4,943 broad Rust source/manifests/toolchain files, including the newly completed trim/format/comment changes and unlinked runtime files; this is not a compiled closure or published-HEAD identity claim. All recorded hashes match after restoration; original owner bytes are retained separately. Binary SHA256 `12b56a4a7c0329d8ed5512cbe03162829fa397bc829eb82e4210b8c34c80846c` was stable during execution and is explicitly non-current for restored source. Cache/source lease released immediately after restoration. No rerun/fix/Cargo repeat or Git mutation occurred.
+
+This accepts the causal diagnosis, not reporting semantics. The now-authorised scoped repair is an actual OriginalDefinitionExit reporting operation: run its existing private call/namespace/row/usage check before any current name/error-line/errorInfo read, preserve the already stored first cause on mismatch, and use the actual retained row for current reporting. Keep ordinary C error reporting and existing finish/lifetimes; no parked-name borrowing, default name, predicate bypass, public-check widening or manufactured Native entry. Broader rename/deleted-object saved-name and lifecycle parity remain outside this case.

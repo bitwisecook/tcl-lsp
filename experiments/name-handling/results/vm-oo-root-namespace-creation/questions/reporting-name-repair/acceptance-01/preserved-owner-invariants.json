@@ -1,0 +1,9 @@
+{
+  "existing_definition_error_helper_unchanged": true,
+  "existing_private_check_unchanged": true,
+  "existing_finish_and_following_lifecycle_unchanged": true,
+  "helper_sha256": "428bf777112048df9bf2f31fa79ac7d9dadc59433a8009c9877d0fdf9fcfc59b",
+  "private_check_sha256": "e3d268f98fa5e26ec948e6cfc6ada535c95001872f1df70c2eb65c59cac3b83d",
+  "finish_and_following_sha256": "a8209b89beb7521fc51585e8f4e4ab1cbf7dd43343379e5a9b8ce00fff3e6e94",
+  "unchanged_test_owner_sha256": "541b9ce99ff4c243126f7cd4459cf9a5b9674b5e4fc0406435cee32e8dc42bfb"
+}

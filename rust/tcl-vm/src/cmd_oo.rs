@@ -3081,11 +3081,22 @@ fn run_define(vm: &mut Vm, args: &[Value], is_class: bool) -> Completion<Value> 
                 match vm.eval_source_image_at_internal(&source, args[1].source_location()) {
                     Ok(c) if c.code == Code::Return => ok(c.result),
                     Ok(c) if c.code == Code::Error => {
-                        append_define_frame(vm, is_class, target, &c.result.string_bytes());
+                        if let Err(error) = definition.append_error_frame(vm, &c.result) {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
                         c
                     }
                     Ok(c) => c,
-                    Err(e) => definition_error(vm, is_class, target, e),
+                    Err(e) => {
+                        if let Some(completion) = e.guest_completion()
+                            && completion.code == Code::Error
+                            && let Err(error) =
+                                definition.append_error_frame(vm, &completion.result)
+                        {
+                            return crate::command::completion_from_cmd_error(vm, error);
+                        }
+                        crate::command::completion_from_tcl_error(vm, e)
+                    }
                 }
             } else {
                 // Single-command form: dispatch `sub args…` as one definition directive

@@ -1,0 +1,93 @@
+{
+  "binary": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+  "binary_sha256_after": "646427b21e7695ccb1d9c0d03a62a70548a8f4f2ae7ec0005dd9fd635e56f2aa",
+  "binary_sha256_before": "646427b21e7695ccb1d9c0d03a62a70548a8f4f2ae7ec0005dd9fd635e56f2aa",
+  "build_command": [
+    "cargo",
+    "test",
+    "--offline",
+    "-p",
+    "tcl-vm",
+    "--lib",
+    "--no-run",
+    "-j",
+    "2",
+    "--message-format=json-render-diagnostics"
+  ],
+  "build_exit": 0,
+  "cache": "/workspace/tcl-lsp/tmp/name-target-issues",
+  "changed_sources_after": [],
+  "controls": [
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+        "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exactly_one_test_executed": true,
+      "exit_code": 0,
+      "log": "vm-control-01.log",
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_worker_and_self_rewrite_restore_the_same_selected_row",
+      "ordinal": 1,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 2.00s"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+        "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exactly_one_test_executed": true,
+      "exit_code": 0,
+      "log": "vm-control-02.log",
+      "name": "cmd_oo::native_context::definition_exit::tests::original_definition_exit_restores_real_row_usage_and_frame_after_public_callback",
+      "ordinal": 2,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 0.36s"
+      ]
+    },
+    {
+      "command": [
+        "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df",
+        "cmd_oo::original_bootstrap_namespace_tests::original_c91_bootstrap_objects_publish_their_actual_private_namespaces",
+        "--exact",
+        "--nocapture",
+        "--test-threads=1"
+      ],
+      "exactly_one_test_executed": true,
+      "exit_code": 0,
+      "log": "vm-control-03.log",
+      "name": "cmd_oo::original_bootstrap_namespace_tests::original_c91_bootstrap_objects_publish_their_actual_private_namespaces",
+      "ordinal": 3,
+      "summary": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1196 filtered out; finished in 0.22s"
+      ]
+    }
+  ],
+  "current_working_tree_changed_hashes": {
+    "rust/tcl-vm/src/cmd_oo.rs": "a93fa3aa3f9d0b583bdef67a5b1edb61ab5de29e6d88c013d5ce118982a9cd83",
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs": "dffa0f1eee84b077d83a8868d314cfb429471258816a06ae01b9907cc08100bd"
+  },
+  "current_working_tree_changed_rust_paths": [
+    "rust/tcl-vm/src/cmd_oo.rs",
+    "rust/tcl-vm/src/cmd_oo/native_context/definition_exit.rs"
+  ],
+  "elapsed_seconds": 31.489,
+  "environment_recipe": "/tmp/name-env.sh",
+  "finished_utc": "2026-10-12T23:36:54.024115+00:00",
+  "oracle_nonnull_compile_and_process_zero": true,
+  "oracle_receipt_sha256": "df16f965156387800eea96f1182522b9a59b4f841ffc338b47e3e2b696e68c06",
+  "original_control_passed": true,
+  "outcome": "measured_three_exact_reporting_acceptance_controls",
+  "remaining_oo_subset_executed": false,
+  "scope": "broad Rust source/manifests/toolchain guard including unlinked runtime files; not compiled closure or published HEAD claim",
+  "source_scope_count": 4943,
+  "started_utc": "2026-10-12T23:36:22.534863+00:00",
+  "temporary_owners": []
+}
