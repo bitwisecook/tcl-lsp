@@ -27,7 +27,7 @@ Use [name-handling](../../design/contracts/name-handling.md), [command resolutio
 
 - `clock_parse_worker`: prepares the seven-file source-producer/split implementation; runtime cache reserved. Preserve shared WordPart ownership, original byte branches and unchanged existing tests; acceptance pending.
 - `callback_heldout_oracles`: implements bounded source-only method producer inventory in announced owners. Its earlier three diagnostic files are restored; no build lease until shared dependencies freeze.
-- `w210_cleanup_flow`: factory-prefix probe is restored and cache released; the remaining-guard question is ready, with no repair supplied.
+- `w210_cleanup_flow`: factory-prefix probe restored; remaining-guard question ready. Two-file owner contract/proof-gate correction is reviewed; focused tests and full gate await stable dependencies. Last measured count remains 164.
 - `vm_test_api_repairs`: target/facet question is ready; queues its two-owner probe after shared/compiler sources freeze, before using the issues cache.
 - `broad_docs_currentness`: two performance-harness comment files announced; executable logic remains unchanged.
 - `proof_bindings_review`: independently reviews the actual source-producer/shared word boundary; no canonical renewal or execution implied.

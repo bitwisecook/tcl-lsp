@@ -282,6 +282,15 @@ fn validate_manifest(root: &Path, contract: &str, makefile: &str, xtask_main: &s
         }
 
         if let Some(gate) = row.drift_gate {
+            if gate == "check-name-resolution-proofs" {
+                if !naming_proof_gate_is_current(root, makefile) {
+                    problems.push(format!(
+                        "owner `{}` names missing or altered naming-proof Makefile drift gate `{gate}`",
+                        row.surface
+                    ));
+                }
+                continue;
+            }
             let Some(dispatch_name) = make_gate_command(makefile, &gate) else {
                 problems.push(format!(
                     "owner `{}` names missing or non-xtask Makefile drift gate `{gate}`",
@@ -2210,6 +2219,42 @@ fn owner_crate(path: &str) -> Option<&str> {
     path.split('/').next()
 }
 
+fn naming_proof_gate_is_current(root: &Path, makefile: &str) -> bool {
+    let lines: Vec<_> = makefile.lines().collect();
+    let mut rules = lines.iter().enumerate().filter_map(|(index, line)| {
+        if line.trim_start().starts_with('#') {
+            return None;
+        }
+        let (targets, prerequisites) = line.split_once(':')?;
+        targets
+            .split_whitespace()
+            .any(|target| target == "check-name-resolution-proofs")
+            .then_some((index, targets.trim(), prerequisites))
+    });
+    let Some((index, target, prerequisites)) = rules.next() else {
+        return false;
+    };
+    let prerequisites = prerequisites.split('#').next().unwrap_or_default();
+    if rules.next().is_some()
+        || target != "check-name-resolution-proofs"
+        || !prerequisites.trim().is_empty()
+    {
+        return false;
+    }
+    // Only the complete retained-proof checker is this non-xtask gate.
+    lines[index + 1..]
+        .iter()
+        .take_while(|line| {
+            line.starts_with('\t') || line.starts_with('#') || line.trim().is_empty()
+        })
+        .filter(|line| !line.trim().is_empty())
+        .copied()
+        .eq(["\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py"])
+        && root
+            .join("scripts/dev/check-name-resolution-proofs.py")
+            .is_file()
+}
+
 fn make_gate_command(makefile: &str, target: &str) -> Option<String> {
     direct_gate_command(makefile, target).or_else(|| {
         // A gate may be an alias: a `.PHONY` target whose whole body is one
@@ -2734,6 +2779,82 @@ mod tests {
         let problems = validate_manifest(&root, &contract, &makefile, &main);
         assert!(
             problems
+                .iter()
+                .any(|problem| problem.contains("missing or non-xtask Makefile drift gate"))
+        );
+    }
+
+    #[test]
+    fn naming_proof_gate_resolves_the_complete_python_checker() {
+        let root = crate::util::repo_root();
+        let makefile = read(&root, MAKEFILE_PATH).expect("Makefile");
+        let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
+        assert!(naming_proof_gate_is_current(&root, &makefile));
+        for target in [
+            "check-name-resolution-proofs :",
+            "  check-name-resolution-proofs:",
+        ] {
+            let spaced = format!(
+                "{target}\n\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n"
+            );
+            assert!(naming_proof_gate_is_current(&root, &spaced));
+        }
+        let contract = synthetic_manifest(
+            "`rust/tcl-syntax/src/list.rs`",
+            "`split_list`",
+            "`check-name-resolution-proofs`",
+        );
+        assert!(validate_manifest(&root, &contract, &makefile, &main).is_empty());
+        assert!(!naming_proof_gate_is_current(
+            &root.join(MAKEFILE_PATH),
+            &makefile
+        ));
+    }
+
+    #[test]
+    fn naming_proof_gate_rejects_incomplete_or_altered_routes() {
+        let root = crate::util::repo_root();
+        let rule = "check-name-resolution-proofs:\n";
+        let recipe = "\tcd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n";
+        for makefile in [
+            String::new(),
+            format!("# {rule}{recipe}"),
+            format!(
+                "{rule}\t# cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py\n"
+            ),
+            format!(
+                "{rule}\t@echo 'cd $(ROOT) && python3 scripts/dev/check-name-resolution-proofs.py'\n"
+            ),
+            format!("{rule}{} --structure-only\n", recipe.trim_end()),
+            format!("{rule}{} --write-inventory\n", recipe.trim_end()),
+            format!("{rule}{} --root elsewhere\n", recipe.trim_end()),
+            format!("{rule}\tcd $(ROOT) && python3 scripts/dev/other.py\n"),
+            format!("{rule}\tcd $(ROOT) && cargo xtask owner-resolution\n"),
+            format!("{rule}{recipe}\ttrue\n"),
+            format!("{rule}{recipe}# recipe continuation\n\ttrue\n"),
+            format!("{rule}{recipe}{rule}{recipe}"),
+            format!("{rule}{recipe}check-name-resolution-proofs :\n{recipe}"),
+            format!("{rule}{recipe}  check-name-resolution-proofs:\n{recipe}"),
+            format!("{rule}{recipe}  check-name-resolution-proofs :\n\ttrue\n"),
+            format!("{rule}{recipe}other check-name-resolution-proofs:\n\ttrue\n"),
+            format!("other check-name-resolution-proofs:\n{recipe}"),
+            format!("check-name-resolution-proofs: other-gate\n{recipe}"),
+            format!("check-name-resolution-proofs::\n{recipe}"),
+        ] {
+            assert!(
+                !naming_proof_gate_is_current(&root, &makefile),
+                "{makefile}"
+            );
+        }
+        let main = read(&root, XTASK_MAIN_PATH).expect("xtask main");
+        let contract = synthetic_manifest(
+            "`rust/tcl-syntax/src/list.rs`",
+            "`split_list`",
+            "`other-python-gate`",
+        );
+        let makefile = format!("other-python-gate:\n{recipe}");
+        assert!(
+            validate_manifest(&root, &contract, &makefile, &main)
                 .iter()
                 .any(|problem| problem.contains("missing or non-xtask Makefile drift gate"))
         );
