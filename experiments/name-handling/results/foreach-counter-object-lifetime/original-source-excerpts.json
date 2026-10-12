@@ -1,0 +1,50 @@
+[
+  {
+    "source": "tmp/tcl8.6.18/generic/tclExecute.c",
+    "source_sha256": "2a29cf5e54d1b2ac4ddf56a6f38556bbfb9c8e8913800377c84a6f0bb8caa491",
+    "first_line": 6999,
+    "last_line": 7180,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclExecute.c.L6999-7180.txt",
+    "excerpt_sha256": "feecafb03336ebdb66e9e94dba971bdd11f20aa767e6c719e7a0c8b247d4fb02"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclCompCmds.c",
+    "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+    "first_line": 2648,
+    "last_line": 2679,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclCompCmds.c.L2648-2679.txt",
+    "excerpt_sha256": "2a32a8be82f5e04c6368ab0a393b824869cfd7f1754709cedb345136b0b74b83"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclCompCmds.c",
+    "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+    "first_line": 2700,
+    "last_line": 2710,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclCompCmds.c.L2700-2710.txt",
+    "excerpt_sha256": "b05a159b5b05a79fefc0b1e3a6a4a405deac0389b4243391ca943317d24782aa"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclCompCmds.c",
+    "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+    "first_line": 2830,
+    "last_line": 2895,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclCompCmds.c.L2830-2895.txt",
+    "excerpt_sha256": "c9836cbf5a29c44624e513bba6c3746d7fb5ade130ae2b2dba85330f9fba922c"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclCompCmds.c",
+    "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+    "first_line": 45,
+    "last_line": 60,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclCompCmds.c.L45-60.txt",
+    "excerpt_sha256": "7a0c483186b602aa6214bf64266e5701965c63faea4f8d998bdb94fd352b1c1c"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclCompCmds.c",
+    "source_sha256": "c42255a9d4ebb83dfb6f7d956ca411e746a434297b703194e2832eefe705a13e",
+    "first_line": 2748,
+    "last_line": 2802,
+    "excerpt": "original-source-excerpts/tmp--tcl8.6.18--generic--tclCompCmds.c.L2748-2802.txt",
+    "excerpt_sha256": "4af412d3173de84f79212240a085fdae3478b491d4ff55798906f5cd87ee5293"
+  }
+]

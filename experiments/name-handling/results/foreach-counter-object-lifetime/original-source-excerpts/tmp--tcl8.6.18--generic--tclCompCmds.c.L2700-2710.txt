@@ -1,0 +1,11 @@
+     * structures describing this command. Then create a AuxData record
+     * pointing to the ForeachInfo structure.
+     */
+
+    numLists = (numWords - 2)/2;
+    infoPtr = (ForeachInfo *)ckalloc(TclOffset(ForeachInfo, varLists)
+	    + numLists * sizeof(ForeachVarList *));
+    infoPtr->numLists = 0;	/* Count this up as we go */
+
+    /*
+     * Parse each var list into sequence of var names.  Don't

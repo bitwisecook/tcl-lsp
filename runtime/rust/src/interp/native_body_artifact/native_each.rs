@@ -128,28 +128,34 @@ impl Drop for StackGroups {
     }
 }
 
-struct StackIteration {
+// C's two private stack headers carry counters and a borrowed auxiliary
+// pointer. Keep those payloads separate from our plain-string capacity slot.
+struct StackIteration<'a> {
     _auxiliary: obj::Owned,
-    counts: obj::Owned,
+    _recipe: &'a NativeEachInstruction,
+    _counts: obj::Owned,
+    position: Cell<usize>,
     maximum: usize,
 }
-impl StackIteration {
-    fn new(recipe: &NativeEachInstruction, maximum: usize) -> Self {
+impl<'a> StackIteration<'a> {
+    fn new(recipe: &'a NativeEachInstruction, maximum: usize) -> Self {
         let counts = obj::Owned::fresh(obj::new_string_bytes(b""));
         let auxiliary = obj::Owned::fresh(obj::new_string_bytes(b""));
-        obj::change_type(
-            auxiliary.as_ptr(),
-            core::ptr::null(),
-            core::ptr::from_ref(recipe) as usize as u64,
-        );
         Self {
             _auxiliary: auxiliary,
-            counts,
+            _recipe: recipe,
+            _counts: counts,
+            position: Cell::new(0),
             maximum,
         }
     }
-    fn advance(&self, iteration: usize) {
-        obj::change_type(self.counts.as_ptr(), core::ptr::null(), iteration as u64);
+    fn next(&self) -> Option<usize> {
+        let iteration = self.position.get();
+        if iteration >= self.maximum {
+            return None;
+        }
+        self.position.set(iteration + 1);
+        Some(iteration)
     }
 }
 
@@ -387,10 +393,10 @@ impl Interp {
                     break;
                 }
             } else if let Some(cursor) = &stack_iteration {
-                if iteration >= cursor.maximum {
+                let Some(next) = cursor.next() else {
                     break;
-                }
-                cursor.advance(iteration + 1);
+                };
+                iteration = next;
             }
             for (index, group) in operation.recipe.groups.iter().enumerate() {
                 frame
@@ -573,6 +579,61 @@ mod tests {
             .chunks_exact(2)
             .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
             .collect()
+    }
+
+    #[test]
+    fn native_stack_iterator_keeps_object_storage_through_three_advances_and_retirement() {
+        crate::counters::reset();
+        {
+            let mut interp = Interp::with_native_core(
+                crate::interp::default_host(),
+                crate::environment::profile_for_dialect("tcl8.6"),
+                tcl_registry::special_vars::NativeBootstrapInputs::default(),
+            )
+            .unwrap();
+            let body = obj::Owned::fresh(obj::new_string_bytes(
+                b"foreach cmd {add format scan} {proc ::tcl::clock::$cmd args {return deferred}}; set marker after",
+            ));
+            interp.define_proc(b"boot", Vec::new(), body.as_ptr());
+            assert_eq!(interp.eval_str(b"boot"), Code::Ok);
+            assert!(!interp.host_refusal_pending());
+            assert_eq!(interp.result_bytes(), b"after");
+            let artifact = cache(body.as_ptr()).expect("actual compiled iterator artifact");
+            let recipe = artifact
+                .scripts
+                .values()
+                .flat_map(|script| &script.commands)
+                .find_map(|command| match &command.operation {
+                    Operation::Each(each) => Some(&each.recipe),
+                    _ => None,
+                })
+                .expect("actual inline iterator instruction");
+            assert_eq!(
+                native_compiled_each_storage(recipe.version),
+                Storage::StackLists
+            );
+            let cursor = StackIteration::new(recipe, 3);
+            let counts = obj::NativeObjectLifetime::retain(cursor._counts.as_ptr());
+            let auxiliary = obj::NativeObjectLifetime::retain(cursor._auxiliary.as_ptr());
+            for expected in 0..3 {
+                assert_eq!(cursor.next(), Some(expected));
+                for original in [counts.as_ptr(), auxiliary.as_ptr()] {
+                    assert!(obj::allocation_is_live(original));
+                    assert!(obj::obj_type_ptr(original).is_null());
+                    assert_eq!(obj::internal_rep(original), 0);
+                    assert!(obj::has_canonical_empty_string(original));
+                }
+            }
+            assert_eq!(cursor.next(), None);
+            drop(cursor);
+            assert!(!obj::allocation_is_live(counts.as_ptr()));
+            assert!(!obj::allocation_is_live(auxiliary.as_ptr()));
+            drop(counts);
+            drop(auxiliary);
+        }
+        assert_eq!(crate::counters::finalize(), 0);
+        assert_eq!(crate::counters::double_free_count(), 0);
+        assert!(!crate::counters::oom());
     }
 
     #[test]

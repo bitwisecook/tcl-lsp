@@ -1,0 +1,73 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 13s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+W210_SCOPED selection captured-lifecycle=true
+W210_SCOPED factory guard=entry-owns-source passed=true
+W210_SCOPED factory guard=frame-equality passed=true
+W210_SCOPED factory guard=entered-observer-absent passed=true
+W210_SCOPED factory guard=invocation-for-layout passed=true
+W210_SCOPED retained guard=opaque-domain-absent passed=true
+W210_SCOPED retained guard=step-observer-absent passed=true
+W210_SCOPED retained guard=execution-observer-absent passed=true
+W210_SCOPED retained guard=loaded-provider passed=true
+W210_SCOPED retained guard=provider-implementation passed=true
+W210_SCOPED retained guard=provider-surface-live passed=true
+W210_SCOPED retained guard=argument-offset passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=accepted passed=true
+W210_SCOPED selection scoped-lifecycle-present=true
+W210_SCOPED selection final-present=true
+W210_SCOPED command outer-selection-present=true
+W210_SCOPED selection captured-lifecycle=true
+W210_SCOPED factory guard=entry-owns-source passed=true
+W210_SCOPED factory guard=frame-equality passed=true
+W210_SCOPED factory guard=entered-observer-absent passed=true
+W210_SCOPED factory guard=invocation-for-layout passed=true
+W210_SCOPED retained guard=opaque-domain-absent passed=true
+W210_SCOPED retained guard=step-observer-absent passed=true
+W210_SCOPED retained guard=execution-observer-absent passed=true
+W210_SCOPED retained guard=loaded-provider passed=true
+W210_SCOPED retained guard=provider-implementation passed=true
+W210_SCOPED retained guard=provider-surface-live passed=true
+W210_SCOPED retained guard=argument-offset passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=accepted passed=true
+W210_SCOPED selection scoped-lifecycle-present=true
+W210_SCOPED selection final-present=true
+W210_SCOPED command outer-selection-present=true
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (185029) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

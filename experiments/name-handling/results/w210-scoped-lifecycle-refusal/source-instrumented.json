@@ -1,0 +1,6 @@
+{
+  "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "6ac9f4019aa3bee354f4c5df37fee3f395a838e616057e7eedf1151c138a3d54",
+  "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "6bd30dc288ee786a1c7293db6b9c711132e9faef7f81445d29cbe59779a45879",
+  "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d",
+  "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "0f7379249f43b07cecc56996f30f1bd49df719cf0df9c927c3ee550d70f38956"
+}

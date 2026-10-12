@@ -1,0 +1,80 @@
+{
+  "question": "Which guard first refuses the direct original C8.4 genuine-missing-read control?",
+  "answer": "Not yet pinpointed. Metadata/carrier absence is observed, but metadata succeeds and declaration_invocation_flow returns Some. Lifecycle/final-selection/graph status was not recorded.",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "executions": 1,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "first_profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 1
+  },
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T18:12:06.003408+00:00",
+    "elapsed_seconds": 191.601,
+    "exit_code": 101
+  },
+  "trace_observations": {
+    "selection_passes": 2,
+    "incoming_binding": false,
+    "incoming_lookup_state": false,
+    "matching_dispatch_points": 0,
+    "retained_binding": false,
+    "retained_lookup_state": false,
+    "entry_config_words_equal": true,
+    "layout_advice_present": true,
+    "dialect_equal": true,
+    "metadata_guards_passed": [
+      "purpose",
+      "words",
+      "origin",
+      "registry",
+      "dialect",
+      "original-lexical-command"
+    ],
+    "metadata_owner_tags": [
+      "Standalone",
+      "SuppliedSource"
+    ],
+    "declaration_invocation_flow_some": true
+  },
+  "compile_attempt": {
+    "directory": "compile-attempt",
+    "exit_code": 101,
+    "tests_executed": 0,
+    "reason": "Temporary trace attempted Debug printing of non-Debug InvocationMetadataContext; corrected to Result<(), Decline> before the only test execution."
+  },
+  "production_restoration": {
+    "owners": [
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+      "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+    ],
+    "instrumented_after_equals_instrumented_before": true,
+    "restored_bytes_equal_original": true,
+    "all_five_scoped_hashes_equal_before": true
+  },
+  "scope": "One compiler negative-control execution only. No oracle/runtime/Normal handler/edit permission/full-suite claim. Independent runtime source is outside scoped inventory.",
+  "next_boundary": "Record CapturedLifecycle selection, scoped_declaration_lifecycle_advice success and final selection result before diagnosing phase graph admission.",
+  "artifact_sha256": {
+    "declaration_flow-original.rs.gz": "3cb1c62eaaf54cd3d8e9a11c1f5f0f9953e0a927cca30f8193168f0e2207e569",
+    "declaration_layout-original.rs.gz": "5000feddd25d202a2110fb7c8af0b12d6fb7941357eaa625fb8f11c98faa1357",
+    "test-source.rs": "a79d62711fac8db2a06125c428075f38d02e5d7ec055aeb8935d824fdb0cd5e2",
+    "input.tcl": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+    "question.md": "d4868542b8ed5d540a289671ce713fef2d0d68d46ae47568247f16792688577f",
+    "declaration_flow-instrumented.rs.gz": "2c39da50af3169c59183fc99ed1394dca96e52f7a539dc916a343ecd3c2c41ba",
+    "test-status.json": "222a68ec200c75e7a4abddae26774dd858da11b38df0624829de13ea94fa1d28",
+    "source-after.json": "095f3068cb9796d2068968300b4d214a761877a529272f30037a20e5c10889b0",
+    "declaration_layout-instrumented.rs.gz": "80bd46bf7fc69c32813d9359cbd6e139efcf09eaef5033a441e9ffc7a7832985",
+    "checkpoint.json": "106e7fdfa1d263619a570d35bc7dc8643b4b82bb0746f68104eaa233fe126822",
+    "stderr.log": "453a0f7e73928bfb0eab04882e30b41f2aa2d67d666d3e1c81eb06ddd204afcc",
+    "command.sh": "b11e696c956195d4da0ff722748825338dc0d4703bf254694caa95466b5bcf85",
+    "source-before.json": "095f3068cb9796d2068968300b4d214a761877a529272f30037a20e5c10889b0",
+    "stdout.log": "df69c3ac8dd71acc8ca44925fd2ef0b9d554d507c08442691dda8d28598bc6a0",
+    "source-instrumented-after.json": "d22221e3296cf5ab5e6a2ac7beb368dacd5c483e8555382343ce63aec790261a",
+    "source-instrumented.json": "d22221e3296cf5ab5e6a2ac7beb368dacd5c483e8555382343ce63aec790261a"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "selected_changed": [],
+  "runtime_dependency_changed": [],
+  "whole_rust_changed": [
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+    "rust/tcl-compiler/src/command_binding/declaration_layout.rs"
+  ]
+}

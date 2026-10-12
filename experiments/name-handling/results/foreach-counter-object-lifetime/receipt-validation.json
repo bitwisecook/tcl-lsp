@@ -1,0 +1,19 @@
+{
+  "changed_selected_owner": [
+    "runtime/rust/src/interp/native_body_artifact/native_each.rs"
+  ],
+  "selected_frozen_equals_after": true,
+  "meaningful_test_count": 1,
+  "current_C86_exact_input_exit": 0,
+  "original_failed_input_exit": -6,
+  "old_and_new_inputs_sha256": "adbf44511437984ac055a50a009bf85591101864b471fe7a52068612829b5083",
+  "unchanged_original_failed_binary": true,
+  "edited_owner_sha256": "b3e07b611410c5b7b6328044bf827ee33c075b122be70a1bf12f92eefe3a55e7",
+  "new_runner_sha256": "9144948706e729d4b19ab314a188fccc956f33cd731380f11f6f0e1cb19240d3",
+  "checks_not_run": [
+    "clippy",
+    "workspace rust-check",
+    "prep-pr",
+    "broader suites"
+  ]
+}

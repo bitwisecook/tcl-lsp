@@ -1,0 +1,73 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+    Finished `test` profile [unoptimized] target(s) in 3m 09s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=Standalone
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=SuppliedSource
+W210_FIRST selection-start offset=80 binding=false point=false
+W210_FIRST observation entry=true config=true words=true
+W210_FIRST layout-advice present=true
+W210_FIRST dialect matches=true
+W210_FIRST dispatch-query count=0
+W210_FIRST retained binding=false point=false
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=Standalone
+W210_FIRST invocation-flow present=true
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=Standalone
+W210_FIRST selection-start offset=80 binding=false point=false
+W210_FIRST observation entry=true config=true words=true
+W210_FIRST layout-advice present=true
+W210_FIRST dialect matches=true
+W210_FIRST dispatch-query count=0
+W210_FIRST retained binding=false point=false
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=SuppliedSource
+W210_FIRST invocation-flow present=true
+W210_FIRST metadata guard=purpose passed=true
+W210_FIRST metadata guard=words passed=true
+W210_FIRST metadata guard=origin passed=true
+W210_FIRST metadata guard=registry passed=true
+W210_FIRST metadata guard=dialect passed=true
+W210_FIRST metadata guard=original-lexical-command passed=true
+W210_FIRST metadata owner=SuppliedSource
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (184502) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-compiler --lib`

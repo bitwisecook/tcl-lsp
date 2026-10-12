@@ -23,7 +23,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Real C8.4 suites | Native var/proc/rename pass; six original suites retained | Ten namespace assertion failures; upvar/interp refusals; remaining interp failures |
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
 | C8.6 clock registration | Runtime scalar and registry controls each pass1; original map/hooks/epochs retained | Real init refuses; mathfunc topology/hooks, missing support workers and map/worker ordering |
-| Native compiled foreach | Same exact input aborts SIGABRT; stock C8.5–9.1/Jim complete; C8.4 missing namespace stops publication | Original iterator ownership; no runtime conformance claim |
+| Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; real init still refuses; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
 | Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Repair actual declared-read/selection boundary; #2286 open |
 | Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
@@ -33,6 +33,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 Exact raw results and limits:
 
 - [Original suite census](../../../experiments/name-handling/results/RESULTS.md).
+- [Foreach private-counter repair](../../../experiments/name-handling/results/foreach-counter-object-lifetime/README.md).
 - [Clock, mathfunc and compiled-foreach questions](../../../experiments/name-handling/clock-bootstrap-epoch/registration-repair/README.md).
 - [Source namespace consumer](../../../experiments/name-handling/results/c-source-namespace-advice/README.md), including failed attempts and current validation status.
 - [Static advice/lifecycle failures](../../../experiments/name-handling/results/static-name-advice/README.md).

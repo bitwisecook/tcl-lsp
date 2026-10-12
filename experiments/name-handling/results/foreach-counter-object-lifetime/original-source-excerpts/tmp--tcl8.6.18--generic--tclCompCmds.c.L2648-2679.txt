@@ -1,0 +1,32 @@
+
+static int
+CompileEachloopCmd(
+    Tcl_Interp *interp,		/* Used for error reporting. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to definition of command being
+				 * compiled. */
+    CompileEnv *envPtr,		/* Holds resulting instructions. */
+    int collect)		/* Select collecting or accumulating mode
+				 * (TCL_EACH_*) */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Proc *procPtr = envPtr->procPtr;
+    ForeachInfo *infoPtr=NULL;	/* Points to the structure describing this
+				 * foreach command. Stored in a AuxData
+				 * record in the ByteCode. */
+
+    Tcl_Token *tokenPtr, *bodyTokenPtr;
+    int jumpBackOffset, infoIndex, range;
+    int numWords, numLists, i, j, code = TCL_OK;
+    Tcl_Obj *varListObj = NULL;
+
+    /*
+     * If the foreach command isn't in a procedure, don't compile it inline:
+     * the payoff is too small.
+     */
+
+    if (procPtr == NULL) {
+	return TCL_ERROR;
+    }
+

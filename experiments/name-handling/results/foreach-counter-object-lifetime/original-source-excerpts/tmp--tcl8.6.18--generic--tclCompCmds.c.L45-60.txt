@@ -1,0 +1,16 @@
+static const AuxDataType foreachInfoType = {
+    "ForeachInfo",		/* name */
+    DupForeachInfo,		/* dupProc */
+    FreeForeachInfo,		/* freeProc */
+    PrintForeachInfo,		/* printProc */
+    DisassembleForeachInfo	/* disassembleProc */
+};
+
+static const AuxDataType newForeachInfoType = {
+    "NewForeachInfo",		/* name */
+    DupForeachInfo,		/* dupProc */
+    FreeForeachInfo,		/* freeProc */
+    PrintNewForeachInfo,	/* printProc */
+    DisassembleNewForeachInfo	/* disassembleProc */
+};
+

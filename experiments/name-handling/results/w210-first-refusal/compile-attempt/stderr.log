@@ -1,0 +1,34 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+error[E0277]: `metadata_context::InvocationMetadataContext<'_>` doesn't implement `Debug`
+    --> rust/tcl-compiler/src/command_binding/declaration_layout.rs:2047:67
+     |
+2047 |                     eprintln!("W210_FIRST metadata reached-result={reached:?}");
+     |                                                                   ^^^^^^^^^^^ `metadata_context::InvocationMetadataContext<'_>` cannot be formatted using `{:?}` because it doesn't implement `Debug`
+     |
+     = help: the trait `Debug` is not implemented for `metadata_context::InvocationMetadataContext<'_>`
+help: the trait `Debug` is conditionally implemented for `std::result::Result<T, E>`
+    --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:553:15
+    ::: /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:558:16
+     |
+     = note: unsatisfied requirement introduced here: `std::option::Option<metadata_context::InvocationMetadataContext<'_>>: Debug`
+     = note: required for `std::option::Option<metadata_context::InvocationMetadataContext<'_>>` to implement `Debug`
+     = note: 1 redundant requirement hidden
+     = note: required for `Result<Option<InvocationMetadataContext<'_>>, _>` to implement `Debug`
+     = note: the full name for the type has been written to '/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f.long-type-18078940298555281936.txt'
+     = note: consider using `--verbose` to print the full type name to the console
+help: consider annotating `metadata_context::InvocationMetadataContext<'_>` with `#[derive(Debug)]`
+    -->  rust/tcl-compiler/src/registry_invocation/metadata_context.rs:162:1
+     |
+ 162 + #[derive(Debug)]
+ 163 | pub struct InvocationMetadataContext<'a> {
+     |
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `tcl-compiler` (lib test) due to 1 previous error

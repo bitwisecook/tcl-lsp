@@ -1,0 +1,68 @@
+{
+  "cwd": "/workspace/tcl-lsp",
+  "environment_file": "/tmp/name-env.sh",
+  "CARGO_TARGET_DIR": "/workspace/tcl-lsp/tmp/name-target-runtime",
+  "owner": "runtime/rust/src/interp/native_body_artifact/native_each.rs",
+  "source_before": "source-before.json",
+  "source_frozen": "source-frozen.json",
+  "source_after": "source-after-build.json",
+  "runtime_dependency_selection": "runtime-dependency-selection.json",
+  "source_comparison": "build-source-comparison.json",
+  "attempts": [
+    {
+      "case": "initial-filter",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "native_stack_iterator_keeps_object_storage_through_three_advances_and_retirement",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "test-filter-no-match.log",
+      "log_sha256": "acad23b15aadcdb832c48b3e18b0a0ae62664c7f87d751cfffca704fb5e6e61a",
+      "outcome": "0 tests matched short --exact filter; no semantic test pass"
+    },
+    {
+      "case": "meaningful-regression",
+      "argv": [
+        "cargo",
+        "test",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "interp::native_body_artifact::native_each::tests::native_stack_iterator_keeps_object_storage_through_three_advances_and_retirement",
+        "--",
+        "--exact",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log": "test-exact.log",
+      "log_sha256": "107aade026e91036d692b58e9125168aa47d8edd339c990ef9f21c44a9d03378",
+      "outcome": "1 test passed; compiled StackLists3-item publication, three direct advances, canonical headers/zero capacities, lease-aware retirement, zero residual/double-free/oom",
+      "test_binary": "/workspace/tcl-lsp/tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9",
+      "test_binary_sha256": "2040874c05a10d639c1e637b06866d842d5a6e5cccb70c4d31e7250cb66c9d64"
+    },
+    {
+      "case": "fresh-runner-build",
+      "argv": [
+        "cargo",
+        "build",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--example",
+        "run_script"
+      ],
+      "exit_code": 0,
+      "log": "runner-build.log",
+      "log_sha256": "7880c883af59252d8e01a7655f6faf12eb8ced002ca414fe48b0bf1260f6cad2",
+      "outcome": "one native example build; copied to separately frozen runner",
+      "binary_path": "/tmp/name-foreach-counter-lifetime-runner",
+      "binary_sha256": "9144948706e729d4b19ab314a188fccc956f33cd731380f11f6f0e1cb19240d3"
+    }
+  ]
+}

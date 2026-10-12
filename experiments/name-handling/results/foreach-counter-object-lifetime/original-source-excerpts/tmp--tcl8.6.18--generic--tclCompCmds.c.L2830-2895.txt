@@ -1,0 +1,66 @@
+     */
+
+    if (collect != TCL_EACH_COLLECT) {
+	PushStringLiteral(envPtr, "");
+    }
+
+    done:
+    if (code == TCL_ERROR) {
+	FreeForeachInfo(infoPtr);
+    }
+    Tcl_DecrRefCount(varListObj);
+    return code;
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
+ * DupForeachInfo --
+ *
+ *	This procedure duplicates a ForeachInfo structure created as auxiliary
+ *	data during the compilation of a foreach command.
+ *
+ * Results:
+ *	A pointer to a newly allocated copy of the existing ForeachInfo
+ *	structure is returned.
+ *
+ * Side effects:
+ *	Storage for the copied ForeachInfo record is allocated. If the
+ *	original ForeachInfo structure pointed to any ForeachVarList records,
+ *	these structures are also copied and pointers to them are stored in
+ *	the new ForeachInfo record.
+ *
+ *----------------------------------------------------------------------
+ */
+
+static ClientData
+DupForeachInfo(
+    ClientData clientData)	/* The foreach command's compilation auxiliary
+				 * data to duplicate. */
+{
+    ForeachInfo *srcPtr = (ForeachInfo *)clientData;
+    ForeachInfo *dupPtr;
+    ForeachVarList *srcListPtr, *dupListPtr;
+    int numVars, i, j, numLists = srcPtr->numLists;
+
+    dupPtr = (ForeachInfo *)ckalloc(TclOffset(ForeachInfo, varLists)
+	    + numLists * sizeof(ForeachVarList *));
+    dupPtr->numLists = numLists;
+    dupPtr->firstValueTemp = srcPtr->firstValueTemp;
+    dupPtr->loopCtTemp = srcPtr->loopCtTemp;
+
+    for (i = 0;  i < numLists;  i++) {
+	srcListPtr = srcPtr->varLists[i];
+	numVars = srcListPtr->numVars;
+	dupListPtr = (ForeachVarList *)ckalloc(TclOffset(ForeachVarList, varIndexes)
+		+ numVars * sizeof(int));
+	dupListPtr->numVars = numVars;
+	for (j = 0;  j < numVars;  j++) {
+	    dupListPtr->varIndexes[j] =	srcListPtr->varIndexes[j];
+	}
+	dupPtr->varLists[i] = dupListPtr;
+    }
+    return dupPtr;
+}
+
+/*

@@ -1,0 +1,55 @@
+	    int numBytes, varIndex;
+
+	    Tcl_ListObjIndex(NULL, varListObj, j, &varNameObj);
+	    bytes = Tcl_GetStringFromObj(varNameObj, &numBytes);
+	    varIndex = LocalScalar(bytes, numBytes, envPtr);
+	    if (varIndex < 0) {
+		code = TCL_ERROR;
+		goto done;
+	    }
+	    varListPtr->varIndexes[j] = varIndex;
+	}
+	Tcl_SetObjLength(varListObj, 0);
+    }
+
+    /*
+     * We will compile the foreach command.
+     */
+
+    infoIndex = TclCreateAuxData(infoPtr, &newForeachInfoType, envPtr);
+
+    /*
+     * Create the collecting object, unshared.
+     */
+
+    if (collect == TCL_EACH_COLLECT) {
+	TclEmitInstInt4(INST_LIST, 0, envPtr);
+    }
+
+    /*
+     * Evaluate each value list and leave it on stack.
+     */
+
+    for (i = 0, tokenPtr = parsePtr->tokenPtr;
+	    i < numWords-1;
+	    i++, tokenPtr = TokenAfter(tokenPtr)) {
+	if ((i%2 == 0) && (i > 0)) {
+	    CompileWord(envPtr, tokenPtr, interp, i);
+	}
+    }
+
+    TclEmitInstInt4(INST_FOREACH_START, infoIndex, envPtr);
+
+    /*
+     * Inline compile the loop body.
+     */
+
+    range = TclCreateExceptRange(LOOP_EXCEPTION_RANGE, envPtr);
+
+    ExceptionRangeStarts(envPtr, range);
+    BODY(bodyTokenPtr, numWords - 1);
+    ExceptionRangeEnds(envPtr, range);
+
+    if (collect == TCL_EACH_COLLECT) {
+	TclEmitOpcode(INST_LMAP_COLLECT, envPtr);
+    } else {

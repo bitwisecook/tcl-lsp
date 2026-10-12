@@ -4,7 +4,7 @@ Temporary coordination snapshot; remove this file and its links before merge.
 Published checkpoint: `d37be17db` on `work`; clock fixes are in `e20c572d6`.
 The coordinator owns integration, publication, issue receipts and source freezes.
 Confirm live ownership before shared edits; source inspection is not execution.
-Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. Clock agent owns the runtime-cache lease; W210 agent owns the issues-cache lease. Never reuse interrupted/ENOSPC artefacts.
+Use `source /tmp/name-env.sh`; coordinate isolated Cargo cache leases. Runtime-cache lease is released; W210 agent owns the issues-cache lease. Never reuse interrupted/ENOSPC artefacts.
 
 ## Independent authority and acceptance
 
@@ -44,9 +44,9 @@ acceptance. Existing contracts/proofs are evidence to inspect, not completion.
 | Obligation | Owner | Current status / next acceptance |
 | --- | --- | --- |
 | Source namespace advice / #2287 | LSP agent; coordinator receipt/publication | Final direct controls pass 2/2 across C5; post-offset packaged imported_tcltest passes 2/2; Logical controls5/5 and retained-import1/1 pass. Published `c7b94e8fb`; #2287 closed with exact receipt. Broader consumers remain open. |
-| Tcltest W210 / #2286 | w210_next_boundary | Final frozen 9-control run: 6 pass and 3 genuine-missing-read failures at C8.4. Nonzero lifecycle operand-offset correction/regression passes1/1. Temporary first-refusal trace pending; restore instrumented compiler bytes before checkpoint. No warning repair claim. #2286 remains open. |
+| Tcltest W210 / #2286 | w210_next_boundary | Final frozen 9-control run: 6 pass and 3 genuine-missing-read failures at C8.4. Nonzero lifecycle operand-offset correction/regression passes1/1. Two traces exclude metadata/lifecycle selection as the failure: both pass. Child-layout/warning trace pending; restore instrumented compiler bytes before checkpoint. No warning repair claim. #2286 remains open. |
 | Gate fixture repairs | Gate agent | Actual source inputs forwarded; build completes. Six tests fail at shared cu.function("::p") before SCCP/source-input assertions; pre-existing status unknown. Gate agent owns a read-only procedure lookup diagnosis; exact receipt: fixture-source-input/. |
-| Clock/bootstrap/foreach | Runtime/clock agents | Scalar epoch and registry controls pass; real init, mathfunc min/max topology/hooks, seven missing workers, map/registration/worker order pending. Native compiled foreach SIGABRT persists; source review found NULL-type counter/capacity collision. Clock agent owns bounded typed-counter repair and exact foreach/real-init checks. |
+| Clock/bootstrap/foreach | Runtime/clock agents | Scalar epoch and registry controls pass; real init, mathfunc min/max topology/hooks, seven missing workers, map/registration/worker order pending. Private-counter repair passes1 lifetime test; exact C8.6 crash input now completes. C8.5/9.x and real C8.6 init still refuse. Broader ownership/source bootstrap remains open. |
 | Native variables/namespace/startup | Runtime/VM/bootstrap agents | Arity matrices pass C5/Jim; array modes pass 200 comparisons, 10 populated-regexp refusals explicit. C8.4 var/proc/rename pass; namespace has 10 assertion failures, upvar/interp refusals and remaining interp failures. Frozen C8.5 var: 69 pass/17 skip/0 fail; namespace/cached-child and unreached cases remain. C8.6 command-entry epochs and C9.x simple-cell startup need actual compiler recipes. |
 | Static typing/class/dispatch advice | Static agent | Review broader failures against actual source-entry prerequisites; recover bounded candidates through shared facts without weakening negative controls or inventing Native/Normal evidence. |
 | Corpus/Wiki/callback acceptance | Corpus/Wiki agents; coordinator | Pinned source/C/Jim observations retained; 11 reached original Jim corpus answers registered, four setup failures unanswered. Review adapted Wiki questions separately; canonical registration/consumer coverage, composed held-out positive/negative controls, Snit/Clay host/frame provenance and broader recogniser precision remain required. |

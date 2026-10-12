@@ -1,0 +1,7 @@
+{
+  "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "12c5ef2b37fcde5d4f8dafe2c25270f3c7fd1c4abb288a57a3056df006d68b18",
+  "rust/tcl-compiler/src/command_binding/declaration_layout.rs": "48eb3861f1e65556423f2e19b7079cbdf2f96924041b9fb7511703d3a0647224",
+  "rust/tcl-compiler/src/command_binding/materialized_footprint.rs": "418e3aeae18b7541e28cc4a6f2138b5e67cbe0e10a70d26b08121d1b4b5a739d",
+  "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d",
+  "rust/tcl-compiler/src/analyser/diagnostics/tests.rs": "0f7379249f43b07cecc56996f30f1bd49df719cf0df9c927c3ee550d70f38956"
+}

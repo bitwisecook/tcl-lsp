@@ -1,0 +1,7 @@
+{
+  "head_at_start": "d37be17db5523eb1f9b44a97fdd842cdfd5149ab",
+  "input_sha256": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "expected_first_profile": "tcl8.4",
+  "expected_w210": 1
+}

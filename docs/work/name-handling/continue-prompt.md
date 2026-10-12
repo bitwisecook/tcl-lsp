@@ -47,8 +47,10 @@ Current independent checks and outstanding work:
   default was preserved. Results: `experiments/name-handling/results/gate-validation/`.
 - C8.6 clock scalar epoch and registry controls pass. Real init remains refused;
   mathfunc min/max topology/hooks, seven missing support workers, map/registration
-  order and native compiled-foreach SIGABRT remain open. Exact questions:
-  `experiments/name-handling/clock-bootstrap-epoch/registration-repair/`.
+  order remain open. Native C8.6 crash input completes after private-counter
+  repair; other profiles and real init still refuse. Exact questions:
+  `experiments/name-handling/clock-bootstrap-epoch/registration-repair/` and
+  `experiments/name-handling/results/foreach-counter-object-lifetime/`.
 - Conditional C source namespace/path/caller-lifecycle advice passes2 direct and2
   full packaged highlighting regressions after operand-offset correction; five
   Logical namespace controls and one retained-original import control pass. Exact source and limits:
@@ -57,7 +59,8 @@ Current independent checks and outstanding work:
 - Final W210 filter has6 passing controls and3 genuine-missing-read failures at
   C8.4. Evidence: `experiments/name-handling/results/static-name-advice/`,
   `experiments/name-handling/tcltest-shared-frame/` and latest C-source receipts.
-  #2286 remains open; diagnose the genuine reached metadata/read boundary.
+  #2286 remains open. Two traces found metadata/lifecycle selection accepted;
+  current bounded experiment targets child layouts and warning consumption.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;

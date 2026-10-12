@@ -1,5 +1,9 @@
 # Compiled foreach allocator ownership diagnosis
 
+The later [bounded private-state repair](../../../../experiments/name-handling/results/foreach-counter-object-lifetime/README.md)
+now completes the exact C8.6 input and its object/lifetime regression. This page
+retains the original source diagnosis; other profiles and real init remain refused.
+
 Scope: the exact [retained input](../../../../experiments/name-handling/clock-bootstrap-epoch/registration-repair/compiled-foreach-input.tcl)
 and [abort receipt](../../../../experiments/name-handling/clock-bootstrap-epoch/registration-repair/runtime-compiled-foreach-record.json).
 The frozen C8.6 core-only runner exits on SIGABRT (`-6`) with
@@ -8,8 +12,8 @@ The frozen C8.6 core-only runner exits on SIGABRT (`-6`) with
 There is no retained native backtrace or observed failing object address.
 
 Inspection was limited to `native_each.rs` and three direct owners: `obj.rs`,
-`list.rs`, and `native_list_conversion.rs`. All four current source hashes
-match the retained final build-source inventory. That establishes source
+`list.rs`, and `native_list_conversion.rs`. All four inspected source hashes
+matched the retained clock-repair build-source inventory. That established source
 currency for this inspection, not independent authentication of binary bytes.
 
 The concrete candidate is iterator-counter representation ownership, rather

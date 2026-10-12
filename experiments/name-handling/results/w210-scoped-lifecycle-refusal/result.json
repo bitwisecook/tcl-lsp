@@ -1,0 +1,84 @@
+{
+  "question": "Which scoped lifecycle or final outer-selection guard first refuses the direct original C8.4 genuine-missing-read control?",
+  "answer": "None of the traced guards refuses. Scoped lifecycle is accepted and final outer command selection returns Some. Failure lies after this join.",
+  "test": "analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque",
+  "successful_compilations": 1,
+  "compile_only_failures": 0,
+  "test_executions": 1,
+  "counts": {
+    "passed": 0,
+    "failed": 1
+  },
+  "first_profile": "tcl8.4",
+  "w210": {
+    "actual": 0,
+    "expected": 1
+  },
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T18:19:22.622042+00:00",
+    "elapsed_seconds": 196.321,
+    "exit_code": 101
+  },
+  "trace": {
+    "selected_captured_lifecycle": true,
+    "factory_guards_passed": [
+      "entry-owns-source",
+      "frame-equality",
+      "entered-observer-absent",
+      "invocation-for-layout"
+    ],
+    "retained_guards_passed": [
+      "opaque-domain-absent",
+      "step-observer-absent",
+      "execution-observer-absent",
+      "loaded-provider",
+      "provider-implementation",
+      "provider-surface-live",
+      "argument-offset",
+      "literal-option",
+      "supported-option",
+      "list-valued-option"
+    ],
+    "retained_accepted": true,
+    "scoped_lifecycle_present": true,
+    "final_selection_present": true,
+    "command_outer_selection_present": true,
+    "command_outer_selection_count": 2,
+    "raw_trace_line_count": 56,
+    "limits": "Required hooks contain no individual named hook trace at this release; retained acceptance establishes the aggregate guard passed. Child phase body/command admission and warning paths were not instrumented."
+  },
+  "production_restoration": {
+    "owners": [
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs",
+      "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs"
+    ],
+    "instrumented_after_equals_instrumented_before": true,
+    "restored_bytes_equal_original": true,
+    "all_four_scoped_hashes_equal_before": true,
+    "restored_owner_sha256": {
+      "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+      "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea"
+    }
+  },
+  "scope": "One compiler negative test only; no oracle/runtime/full-suite/Normal-handler/edit-permission claim. Independent runtime work excluded from scoped inventory.",
+  "manufacturer_proposal": "No change justified to metadata or lifecycle manufacturers: both admit the exact original declaration. First trace declaration_flow::body_source/body and nested script child command selection, then authored_reads/warning_paths/warning_reads. If original child layouts are absent, issue only conditional original-layout observations under the same diagnostic frame/source/config/provider, without donating entered Native points or bypassing invalid reached owners. This remains conditional on further evidence.",
+  "artifact_sha256": {
+    "declaration_flow-original.rs.gz": "3cb1c62eaaf54cd3d8e9a11c1f5f0f9953e0a927cca30f8193168f0e2207e569",
+    "lifecycle_advice-original.rs.gz": "86e2fc250f4dad4cad6507a005e264f61da45713a149133c6950758ec5169ea8",
+    "test-source.rs": "a79d62711fac8db2a06125c428075f38d02e5d7ec055aeb8935d824fdb0cd5e2",
+    "input.tcl": "6e6003645fbfa73941dd80e0d49f2f598eaa168cfcf5684fa9648ca00f565db7",
+    "question.md": "85f6b7724a45d8c7b1255014a38b199dd60d1dd880aae86c43353c9d065cc36f",
+    "declaration_flow-instrumented.rs.gz": "bfccd7edc6e1c4da2b1d8779d349191001a6748cb412c8b1ca97f79d387dcae9",
+    "test-status.json": "ec1299aa3c39f54febfaa92b24d971d6846f072c937c21fdadb817e412ef4ece",
+    "source-after.json": "f34b59d0111e37cee96b521fb4230ef7ad054cb82c0b0cbda4ff662f6b6e2052",
+    "raw-trace.log": "2cdcea3f20c8a58d3ad7d351d60cccf00cb1d4c4dc39250aabe3aa62fffd158b",
+    "stderr.log": "3768c92d87ead656055b4497fcbcfe21b9c0a2306cb1e980e1927b384ff811fb",
+    "command.sh": "ba9810da05bfde60fae659355bfc2f1f1bf114a65575990ed87d9aa225015fce",
+    "source-before.json": "f34b59d0111e37cee96b521fb4230ef7ad054cb82c0b0cbda4ff662f6b6e2052",
+    "stdout.log": "cb5fa75ce64357b907d4c23d8a437ca480ad731a450c9568d335e6cb38601592",
+    "lifecycle_advice-instrumented.rs.gz": "aee3109f278b234ebf336d427d93154f636886833521e3816c69756095e8b3c1",
+    "source-instrumented-after.json": "92cffc97b8b0cf89b060144ddd325c18f6bdcb89d0f23c1967ffdd49135eec73",
+    "source-instrumented.json": "92cffc97b8b0cf89b060144ddd325c18f6bdcb89d0f23c1967ffdd49135eec73"
+  }
+}

@@ -1,0 +1,56 @@
+W210_SCOPED selection captured-lifecycle=true
+W210_SCOPED factory guard=entry-owns-source passed=true
+W210_SCOPED factory guard=frame-equality passed=true
+W210_SCOPED factory guard=entered-observer-absent passed=true
+W210_SCOPED factory guard=invocation-for-layout passed=true
+W210_SCOPED retained guard=opaque-domain-absent passed=true
+W210_SCOPED retained guard=step-observer-absent passed=true
+W210_SCOPED retained guard=execution-observer-absent passed=true
+W210_SCOPED retained guard=loaded-provider passed=true
+W210_SCOPED retained guard=provider-implementation passed=true
+W210_SCOPED retained guard=provider-surface-live passed=true
+W210_SCOPED retained guard=argument-offset passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=accepted passed=true
+W210_SCOPED selection scoped-lifecycle-present=true
+W210_SCOPED selection final-present=true
+W210_SCOPED command outer-selection-present=true
+W210_SCOPED selection captured-lifecycle=true
+W210_SCOPED factory guard=entry-owns-source passed=true
+W210_SCOPED factory guard=frame-equality passed=true
+W210_SCOPED factory guard=entered-observer-absent passed=true
+W210_SCOPED factory guard=invocation-for-layout passed=true
+W210_SCOPED retained guard=opaque-domain-absent passed=true
+W210_SCOPED retained guard=step-observer-absent passed=true
+W210_SCOPED retained guard=execution-observer-absent passed=true
+W210_SCOPED retained guard=loaded-provider passed=true
+W210_SCOPED retained guard=provider-implementation passed=true
+W210_SCOPED retained guard=provider-surface-live passed=true
+W210_SCOPED retained guard=argument-offset passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=literal-option passed=true
+W210_SCOPED retained guard=supported-option passed=true
+W210_SCOPED retained guard=list-valued-option passed=true
+W210_SCOPED retained guard=accepted passed=true
+W210_SCOPED selection scoped-lifecycle-present=true
+W210_SCOPED selection final-present=true
+W210_SCOPED command outer-selection-present=true
