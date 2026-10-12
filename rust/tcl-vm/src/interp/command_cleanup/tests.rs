@@ -712,3 +712,124 @@ fn original_coroutine_retirement_leaves_a_genuine_same_key_recreated_state() {
     assert!(vm.name_world.borrow().command_deletion_active.is_empty());
     assert!(vm.execution_refusal.is_none());
 }
+
+struct RepeatedEpochTrace {
+    original: CommandTokenIdentity,
+    events: Rc<RefCell<Vec<u64>>>,
+}
+impl NativeCommand for RepeatedEpochTrace {
+    fn invoke(&self, vm: &mut Vm, _: &[Value]) -> Completion<Value> {
+        let epoch = |vm: &Vm| {
+            vm.name_world
+                .borrow()
+                .command_name_epochs
+                .get(&self.original.generation)
+                .copied()
+                .unwrap_or(0)
+        };
+        self.events.borrow_mut().push(epoch(vm));
+        // The outer real deletion issued the active generation. Reuse its
+        // retained token after unlink; a report lookup could not recover it.
+        let cleanup = OriginalCommandCleanup::enter(vm);
+        assert!(cleanup.unlink_recursive_c_delete(vm, &self.original));
+        assert!(
+            vm.command_token_at_generation(self.original.generation)
+                .is_none()
+        );
+        self.events.borrow_mut().push(epoch(vm));
+        assert!(cleanup.unlink_recursive_c_delete(vm, &self.original));
+        assert!(
+            vm.command_token_at_generation(self.original.generation)
+                .is_none()
+        );
+        self.events.borrow_mut().push(epoch(vm));
+        cleanup.check(vm).unwrap();
+        crate::interp::ok(Value::empty())
+    }
+}
+
+#[test]
+fn original_repeated_recursive_unlinked_command_advances_only_selected_epoch_stages() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    // Actual software trace and retained original token; pinned source stages
+    // do not constitute executed Native cache/callback observations.
+    for (environment, entry, each_recursive) in [
+        ("tcl8.4", 1, 0),
+        ("tcl8.5", 1, 1),
+        ("tcl8.6", 1, 1),
+        ("tcl9.0", 0, 1),
+        ("tcl9.1", 0, 1),
+    ] {
+        let mut vm = native(environment);
+        let generation = Rc::new(Cell::new(0));
+        let events = Rc::new(RefCell::new(Vec::new()));
+        let key = vm
+            .register_written_command(
+                "repeated_epoch_victim",
+                Command::Native(Rc::new(EpochRetire {
+                    generation: Rc::clone(&generation),
+                    events: Rc::clone(&events),
+                })),
+            )
+            .unwrap();
+        let original = vm
+            .command_token_identity(&CommandSidecarKey::visible(&key))
+            .unwrap();
+        generation.set(original.generation);
+        let before = vm
+            .name_world
+            .borrow()
+            .command_name_epochs
+            .get(&original.generation)
+            .copied()
+            .unwrap_or(0);
+        vm.register_written_command(
+            "repeated_epoch_trace",
+            Command::Native(Rc::new(RepeatedEpochTrace {
+                original: original.clone(),
+                events: Rc::clone(&events),
+            })),
+        )
+        .unwrap();
+        assert_eq!(
+            vm.add_cmd_trace(
+                false,
+                "repeated_epoch_victim",
+                vec!["delete".into()],
+                "repeated_epoch_trace".into()
+            )
+            .code,
+            Code::Ok
+        );
+        let scope = NativeOperationScope::enter(&mut vm).unwrap();
+        vm.remove_registered_command(&key);
+        let final_epoch = before + entry + 2 * each_recursive;
+        assert_eq!(
+            *events.borrow(),
+            vec![
+                before + entry,
+                before + entry + each_recursive,
+                final_epoch,
+                final_epoch,
+            ],
+            "{environment}"
+        );
+        assert_eq!(
+            vm.name_world
+                .borrow()
+                .command_name_epochs
+                .get(&original.generation)
+                .copied(),
+            Some(final_epoch)
+        );
+        assert!(
+            vm.command_token_at_generation(original.generation)
+                .is_none()
+        );
+        assert!(vm.visible_command_at_key(&key).is_none());
+        assert!(vm.name_world.borrow().command_deletion_active.is_empty());
+        assert!(vm.execution_refusal.is_none());
+        scope.check(&mut vm).unwrap();
+    }
+}

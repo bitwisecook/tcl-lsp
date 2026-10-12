@@ -204,6 +204,18 @@ impl OriginalCommandCleanup {
     }
     fn unlink(&self, vm: &mut Vm, source: &CommandTokenIdentity, recursive: bool) {
         let Some(live) = self.token(vm, source.generation) else {
+            // Modern C's recursive CMD_DYING branch advances cmdEpoch even
+            // after a prior recursive request removed hPtr. The retained
+            // original generation still owns this mandatory stage.
+            if recursive
+                && self
+                    .c_names
+                    .is_some_and(|protocol| protocol.deletion_epoch_after_unlink(true))
+            {
+                let _ = self.in_original(vm, |vm| {
+                    vm.note_native_command_name_node_changed(source.generation)
+                });
+            }
             return;
         };
         let _ = self.in_original(vm, |vm| {
