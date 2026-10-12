@@ -821,6 +821,67 @@ impl OriginalClassInstanceMethodRoster {
 }
 
 impl OriginalCompletedCommandWorld {
+    fn class_relation_allocations(
+        &self,
+        class: &SourceCommandDefinition,
+    ) -> Option<(super::CommandAllocation, Vec<super::CommandAllocation>)> {
+        let mut actual = self.state.bindings.values().filter_map(|targets| {
+            if targets.len() != 1 {
+                return None;
+            }
+            let super::MayBinding::Target(target) = targets.first()? else {
+                return None;
+            };
+            let definition = self.state.source_definition_for_implementation(target)?;
+            (&definition == class).then_some(target)
+        });
+        let target = actual.next()?;
+        if actual.any(|other| other != target)
+            || target.kind != super::BindingKind::Class
+            || !target.terminal
+            || !target.prepended.is_empty()
+            || self.state.tainted_object_dispatch.contains("*")
+            || self.state.tainted_object_dispatch.contains(&target.command)
+        {
+            return None;
+        }
+        let definition = self.state.class_definitions.get(target.token.as_ref()?)?;
+        if definition.dispatcher.is_some()
+            || definition.implementation_generation != target.implementation_generation
+            || !self.state.class_definition_dependencies_hold(definition)
+        {
+            return None;
+        }
+        let candidates = definition
+            .inherited_classes
+            .iter()
+            .map(|base| {
+                let mut classes = self.state.bindings.values().filter_map(|targets| {
+                    if targets.len() != 1 {
+                        return None;
+                    }
+                    let super::MayBinding::Target(raw) = targets.first()? else {
+                        return None;
+                    };
+                    if raw.token.as_ref() != base.identity.as_ref()
+                        || raw.implementation_generation != base.implementation_generation
+                        || raw.implementation_allocation != base.implementation_allocation
+                    {
+                        return None;
+                    }
+                    self.state.source_definition_for_implementation(raw)
+                });
+                let class = classes.next()?;
+                if classes.any(|other| other != class) {
+                    return None;
+                }
+                (class.kind() == super::SourceCommandDefinitionKind::Class)
+                    .then(|| class.allocation().clone())
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some((class.allocation().clone(), candidates))
+    }
+
     /// Exact whole original source instance for this completed Normal world.
     #[must_use]
     pub fn source_image(&self) -> &tcl_lexer::SourceImage {
@@ -1090,6 +1151,135 @@ impl OriginalCompletedCommandWorld {
 }
 
 impl SourceCommandBindings {
+    /// Retained MAY ancestry under the original selected definer and member.
+    /// This source projection supplies no method dispatch or entered receiver.
+    pub(crate) fn original_class_relation_candidates(
+        &self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+        relation: &crate::ir::ClassRelation,
+    ) -> Option<(super::CommandAllocation, Vec<super::CommandAllocation>)> {
+        let retained = module.retained_source_bindings.as_deref()?;
+        let positioned = retained.positioned_for_module(module, registry)?;
+        if !std::ptr::eq(self, positioned) {
+            return None;
+        }
+        let publishes = self.original_class_relation_source(module, registry, relation)?;
+        let definer = relation.definer.as_ref();
+        let binding = definer.source_binding.as_ref()?;
+        let body = definer.words().get(relation.body_word)?;
+        let world = self.original_completed_command_world()?;
+        let class = if publishes {
+            let site = binding.invocation_site()?;
+            let mut definitions = world.declarations().filter_map(|publication| {
+                let definition = publication.definition()?;
+                (definition.kind() == super::SourceCommandDefinitionKind::Class
+                    && definition.allocation().site == *site)
+                    .then_some(definition)
+            });
+            let first = definitions.next()?.clone();
+            if definitions.any(|other| *other != first) {
+                return None;
+            }
+            first
+        } else {
+            let selected = self.original_class_configuration_target_at_span(
+                *definer.argv.get(relation.target_word)?,
+                body.config(),
+                registry,
+            )?;
+            if selected.site() != binding.invocation_site()?
+                || selected.written_ordinal().checked_add(1)? != relation.target_word
+            {
+                return None;
+            }
+            selected.local_definition()?.clone()
+        };
+        world.class_relation_allocations(&class)
+    }
+
+    fn original_class_relation_source(
+        &self,
+        module: &crate::ir::Module,
+        registry: &tcl_registry::CommandRegistry,
+        relation: &crate::ir::ClassRelation,
+    ) -> Option<bool> {
+        let retained = module.retained_source_bindings.as_deref()?;
+        let definer = relation.definer.as_ref();
+        let member = relation.member.as_ref();
+        let metadata =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, module)
+                .or_else(|| {
+                    if module.source_metadata_input.is_some()
+                        || !module.source_entry.metadata_context.is_standalone()
+                        || module.source_entry.native_entry.is_some()
+                        || module.source_entry.unknown_entry
+                    {
+                        return None;
+                    }
+                    registry
+                        .profile()
+                        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+                        .map(crate::registry_invocation::InvocationMetadataContext::from)
+                })?;
+        let binding = definer.source_binding.as_ref()?;
+        binding.original_source_advice_purpose(definer, metadata, registry)?;
+        if !retained.owns_original_tokens(definer)
+            || definer.synthetic.is_some()
+            || member.synthetic.is_some()
+            || !member.original_words_match_argv_text()
+        {
+            return None;
+        }
+        let body = definer.words().get(relation.body_word)?;
+        if member.words().is_empty()
+            || member.words().iter().any(|word| {
+                word.image() != body.image()
+                    || word.config() != body.config()
+                    || word.span().start() < body.span().start()
+                    || word.span().end() > body.span().end()
+            })
+        {
+            return None;
+        }
+        let invocation =
+            crate::registry_invocation::logical_structured_invocation_with_metadata_context(
+                registry,
+                metadata,
+                definer,
+                Some(self),
+            )?;
+        let realm = binding.invocation_realm()?;
+        invocation.with_metadata_schema(registry, metadata, realm, |selected| {
+            let grammar = selected.authored_source_definition_body_grammar()?;
+            let head = member.argv_texts.first()?;
+            let row = grammar
+                .source_member_in(head.as_bytes(), Some(metadata.context().authoring_query()))?;
+            if row.all_args_ref != Some(tcl_registry::definer::MemberRefKind::Class)
+                || !selected
+                    .authored_source_script_arguments()?
+                    .contains(&relation.body_word.checked_sub(1)?)
+            {
+                return None;
+            }
+            if let Some(publication) = selected.authored_source_command_publication() {
+                return (publication.argument.checked_add(1)? == relation.target_word)
+                    .then_some(true);
+            }
+            selected
+                .state_transitions()
+                .facts()
+                .iter()
+                .find_map(|fact| match &fact.transition {
+                    tcl_registry::StateTransition::ObjectDispatch(
+                        tcl_registry::ObjectDispatchTransition::Configure { target, .. },
+                    ) => (target.argument_index()?.checked_add(1)? == relation.target_word)
+                        .then_some(false),
+                    _ => None,
+                })
+        })?
+    }
+
     /// Completed original root publication ledger. Partial fallback states,
     /// unknown mutations and observed execution do not supply final liveness.
     #[must_use]

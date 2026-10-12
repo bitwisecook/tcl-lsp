@@ -2714,6 +2714,17 @@ pub static NO_DEFERRED_WRITES: DeferredWrites = DeferredWrites {
     any: false,
 };
 
+/// One selected class-relation member and its original enclosing definer.
+/// Source vectors retain their producers; class labels supply reporting only.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassRelation {
+    pub(crate) declaring_class: String,
+    pub(crate) definer: std::sync::Arc<CommandTokens>,
+    pub(crate) member: std::sync::Arc<CommandTokens>,
+    pub(crate) target_word: usize,
+    pub(crate) body_word: usize,
+}
+
 /// A top-level module: procedures + top-level script.
 ///
 /// This is the only mutable IR type — it accumulates procedures and
@@ -2855,16 +2866,10 @@ pub struct Module {
     /// Whole-module OO-definition evidence flags — see
     /// [`OoDefinitionEvidence`].
     pub oo_evidence: OoDefinitionEvidence,
-    /// Class-hierarchy relation declarations captured from `oo::class` /
-    /// `oo::define` bodies: `(declaring class qname, written related-class
-    /// word)` for each argument of a member whose registry grammar marks
-    /// every argument as a class reference
-    /// ([`tcl_registry::definer::MemberRefKind::Class`] — `superclass`,
-    /// `mixin`). The written word is kept as written; consumers resolve it
-    /// against the module's class set conservatively — the method-dispatch
-    /// propagation barrier scopes itself to hierarchy-connected classes
-    /// instead of the whole module.
-    pub class_relations: Vec<(String, String)>,
+    /// Original selected class-relation members, retaining both full source
+    /// vectors. The method barrier joins current class allocations and their
+    /// retained inheritance candidates; missing targets widen its MAY graph.
+    pub class_relations: Vec<ClassRelation>,
     /// `namespace import` directives captured at lowering time —
     /// `(context_namespace, absolute_pattern)` pairs. Future codegen
     /// passes pattern-match each against the final

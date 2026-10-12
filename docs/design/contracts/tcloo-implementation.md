@@ -612,3 +612,22 @@ table. Withdrawn receivers cannot become missing-method reports or successful
 relation results. An initially absent `isa` receiver remains a false
 precondition and leaves the later relation operand unread. Materialized reports
 remain independent of subsequent ordinary metadata changes.
+
+
+### Original class relation candidates
+
+`ClassRelation` retains the enclosing definer and member source vectors with
+selected target/body ordinals. The method barrier rejoins the original Module,
+Registry and source purpose before reading ancestry. Source factory publication
+or the canonical class configuration operand supplies the declaring allocation;
+the shared completed class receipt and existing dependency-currentness owner
+supply the inherited allocation candidates. Source and member geometry remain
+independent of entered receiver and method dispatch facts.
+
+The local graph unions those allocation candidates as MAY edges. A missing
+source, unavailable target or dependency, conflicting class projection or
+unmapped external ancestor widens the whole barrier before an empty local effect
+set can enable propagation. Reporting tails cannot recover an edge. Braced
+operand punctuation stays original source data; the source owner forms its value
+and selects any class target. This projection supplies no Native class lifetime,
+lookup absence, method entry or physical variable-cell licence.

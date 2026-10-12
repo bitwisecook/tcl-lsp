@@ -54,11 +54,11 @@ mod execution_regions;
 pub(crate) mod hooks;
 mod installed_bodies;
 #[cfg(test)]
-mod original_body_word_geometry_tests;
-#[cfg(test)]
 mod native_body_context_tests;
 #[cfg(test)]
 mod native_control_carrier_tests;
+#[cfg(test)]
+mod original_body_word_geometry_tests;
 #[cfg(test)]
 mod passive_metadata_tests;
 pub use execution_regions::stock_body_provider_loader;
@@ -1768,7 +1768,9 @@ impl<'r> Lowerer<'r> {
         // Keep the authentic pre-selection owner. A namespace projection memo
         // can filter observations but cannot issue written source geometry.
         let word_source = self.source_bindings.as_ref().and_then(|owner| {
-            let input = self.invocation_metadata_context()?.source_analysis_input()?;
+            let input = self
+                .invocation_metadata_context()?
+                .source_analysis_input()?;
             match self.structured_source_parent.as_deref() {
                 Some(parent) => owner.original_body_written_word_owner_at_parent(
                     &source,
@@ -5293,7 +5295,7 @@ impl<'r> Lowerer<'r> {
                     if let Some(call) = self.classify_definer_call(ct) {
                         self.extract_definer_members(
                             call,
-                            &ct.argv_texts,
+                            ct,
                             ct.argv[call.body_idx].start() + 1,
                             namespace,
                         );
@@ -5340,7 +5342,7 @@ impl<'r> Lowerer<'r> {
             if let Some(call) = self.classify_definer_call(&tokens) {
                 let body = seg.argv[call.body_idx];
                 let off = body.span.start() + u32::from(body.content_offset);
-                self.extract_definer_members(call, &seg.texts, off, namespace);
+                self.extract_definer_members(call, &tokens, off, namespace);
             } else if self.definer_invocation_may_supply_body(&tokens) {
                 self.module.oo_evidence.unretained_executable_roots = true;
             } else if self.is_namespace_eval_shape(&tokens) {
@@ -5359,40 +5361,30 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Recognise one class-body member whose registry grammar marks every
-    /// argument as a class reference (`superclass A B`, `mixin M` —
-    /// [`tcl_registry::definer::MemberRefKind::Class`]) and record each
-    /// literal argument as a hierarchy relation of `class_qname`; a dynamic
-    /// argument widens
-    /// [`crate::ir::OoDefinitionEvidence::dynamic_class_relations`]
-    /// instead. Returns `true` when the member was consumed here.
+    /// Retain each selected class-relation member with its authentic outer
+    /// definer. Value formation and target selection belong to the source owner;
+    /// punctuation in the written operand never determines ancestry here.
     fn record_class_relation_member(
         &mut self,
-        definer_grammar: Option<&tcl_registry::definer::DefinitionBodyGrammar>,
+        call: &DefinerCall,
+        definer: &CommandTokens,
         seg: &SegmentedCommand,
         class_qname: &str,
     ) -> bool {
         let head = seg.texts[0].as_str();
-        let Some(member) =
-            definer_grammar.and_then(|grammar| self.source_definition_member(grammar, head))
-        else {
+        let Some(member) = self.source_definition_member(call.grammar, head) else {
             return false;
         };
         if member.all_args_ref != Some(tcl_registry::definer::MemberRefKind::Class) {
             return false;
         }
-        for word in &seg.texts[1..] {
-            if word.contains('$') || word.contains('[') {
-                // Dynamic related-class word: this class's ancestry is
-                // unknown — hierarchy-scoped consumers must widen to
-                // whole-module.
-                self.module.oo_evidence.dynamic_class_relations = true;
-            } else {
-                self.module
-                    .class_relations
-                    .push((class_qname.to_owned(), word.clone()));
-            }
-        }
+        self.module.class_relations.push(crate::ir::ClassRelation {
+            declaring_class: class_qname.to_owned(),
+            definer: std::sync::Arc::new(definer.clone()),
+            member: std::sync::Arc::new(self.cmd_tokens(seg)),
+            target_word: call.name_idx,
+            body_word: call.body_idx,
+        });
         true
     }
 
@@ -5411,10 +5403,11 @@ impl<'r> Lowerer<'r> {
     fn extract_definer_members(
         &mut self,
         call: DefinerCall,
-        texts: &[String],
+        definer: &CommandTokens,
         body_content_offset: u32,
         namespace: &str,
     ) {
+        let texts = &definer.argv_texts;
         let target = texts[call.name_idx].as_str();
         let body_text = texts[call.body_idx].as_str();
         let class_qname = if call.per_object {
@@ -5471,7 +5464,14 @@ impl<'r> Lowerer<'r> {
                 .extend(class_ivars.iter().cloned());
         }
 
-        self.extract_members_from_segments(&call, &segments, &class_qname, &class_ivars, namespace);
+        self.extract_members_from_segments(
+            &call,
+            definer,
+            &segments,
+            &class_qname,
+            &class_ivars,
+            namespace,
+        );
     }
 
     /// The per-segment member walk behind [`Self::extract_definer_members`],
@@ -5481,6 +5481,7 @@ impl<'r> Lowerer<'r> {
     fn extract_members_from_segments(
         &mut self,
         call: &DefinerCall,
+        definer: &CommandTokens,
         segments: &[SegmentedCommand],
         class_qname: &str,
         class_ivars: &HashSet<String>,
@@ -5496,7 +5497,7 @@ impl<'r> Lowerer<'r> {
                 self.module.oo_evidence.unretained_executable_roots |= member_supplies_body;
                 continue;
             }
-            if self.record_class_relation_member(Some(call.grammar), seg, class_qname) {
+            if self.record_class_relation_member(call, definer, seg, class_qname) {
                 continue;
             }
             let Some(member) = self.source_definition_member(call.grammar, head) else {

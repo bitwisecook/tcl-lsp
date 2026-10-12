@@ -110,20 +110,25 @@ pub(crate) fn compute(ir: &IrModule, registry: &CommandRegistry) -> MethodDispat
             bad_classes.insert(m.class_name.as_str());
         }
     }
-    if bad_classes.is_empty() {
-        return MethodDispatchBarrier::allow_all();
-    }
-
     // Class universe and hierarchy components.
     let classes: Vec<&str> = {
         let mut set: HashSet<&str> = ir.methods.values().map(|m| m.class_name.as_str()).collect();
-        set.extend(ir.class_relations.iter().map(|(c, _)| c.as_str()));
+        set.extend(
+            ir.class_relations
+                .iter()
+                .map(|relation| relation.declaring_class.as_str()),
+        );
         set.extend(ir.oo_unanalysed_classes.iter().map(String::as_str));
         let mut v: Vec<&str> = set.into_iter().collect();
         v.sort_unstable();
         v
     };
-    let comp_of = hierarchy_components(&classes, &ir.class_relations);
+    let Some(comp_of) = hierarchy_components(&classes, ir, registry) else {
+        return MethodDispatchBarrier::bar_all();
+    };
+    if bad_classes.is_empty() {
+        return MethodDispatchBarrier::allow_all();
+    }
 
     let tainted: HashSet<usize> = bad_classes
         .iter()
@@ -231,35 +236,31 @@ fn component_dispatch_closure(
     comp_out
 }
 
-/// Union the classes into connected components under the captured
-/// `superclass` / `mixin` relations. A written relation word connects the
-/// declaring class to every module class it could resolve to — exact
-/// qualified spelling, the `::`-rooted spelling, or (conservatively) any
-/// class sharing its tail; Tcl's own resolution can only ever pick a
-/// command whose tail matches the written word's tail, so tail matching
-/// over-approximates it (extra edges only ever bar more, never less).
-/// A word matching no module class names an external class, which is
-/// outside this closed-world analysis exactly as external methods are.
+/// Union only retained class allocation candidates. Unknown source/target
+/// obligations, external ancestry and unavailable reporting projections widen
+/// the whole barrier; a written tail never supplies a missing edge.
 fn hierarchy_components(
     classes: &[&str],
-    relations: &[(String, String)],
-) -> HashMap<String, usize> {
+    module: &IrModule,
+    registry: &CommandRegistry,
+) -> Option<HashMap<String, usize>> {
     let mut parent: Vec<usize> = (0..classes.len()).collect();
     let index: HashMap<&str, usize> = classes.iter().enumerate().map(|(i, c)| (*c, i)).collect();
-    for (class, written) in relations {
-        let Some(&ci) = index.get(class.as_str()) else {
-            continue;
-        };
-        let written_tail = written.rsplit("::").next().unwrap_or(written);
-        for (other, &oi) in &index {
-            let matches = *other == written.as_str()
-                || other.strip_prefix("::") == Some(written.as_str())
-                || other.rsplit("::").next() == Some(written_tail);
-            if matches {
-                let (a, b) = (uf_find(&mut parent, ci), uf_find(&mut parent, oi));
-                if a != b {
-                    parent[a] = b;
-                }
+    for relation in &module.class_relations {
+        let (declaring, candidates) = module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?
+            .original_class_relation_candidates(module, registry, relation)?;
+        if declaring.command != relation.declaring_class {
+            return None;
+        }
+        let ci = *index.get(declaring.command.as_str())?;
+        for other in candidates {
+            let oi = *index.get(other.command.as_str())?;
+            let (a, b) = (uf_find(&mut parent, ci), uf_find(&mut parent, oi));
+            if a != b {
+                parent[a] = b;
             }
         }
     }
@@ -271,7 +272,7 @@ fn hierarchy_components(
         let id = *roots.entry(root).or_insert(next_id);
         out.insert((*class).to_owned(), id);
     }
-    out
+    Some(out)
 }
 
 /// Path-compressing union-find lookup over the flat `parent` table
@@ -903,5 +904,189 @@ mod tests {
             !super::proc_dispatch_facts(&logical.ir_module, registry, &components)["::helper"]
                 .anywhere
         );
+    }
+}
+
+#[cfg(test)]
+mod original_relation_tests {
+    use super::*;
+
+    fn original_module(
+        source: &str,
+    ) -> (
+        IrModule,
+        std::sync::Arc<tcl_registry::model::ContextRegistry>,
+    ) {
+        let current =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").default_context_registry();
+        let profile = tcl_dialect::DialectProfile::plain_tcl();
+        let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
+        let input = crate::analyser::ResolvedAnalysisInput::new(
+            profile,
+            profile,
+            std::sync::Arc::clone(&current),
+            config,
+        );
+        let unit = crate::compilation_unit::CompilationUnit::build_with_analysis_input(
+            source,
+            crate::compilation_unit::UnitBuildOptions {
+                registry: current.commands(),
+                defer_top_level: false,
+                config,
+                dialect: Some(profile),
+                external_call_sites: None,
+                declared_commands: None,
+            },
+            None,
+            &input,
+        );
+        (unit.ir_module, current)
+    }
+
+    fn allocations(
+        module: &IrModule,
+        registry: &CommandRegistry,
+    ) -> Option<(
+        crate::command_binding::CommandAllocation,
+        Vec<crate::command_binding::CommandAllocation>,
+    )> {
+        let relation = module.class_relations.first()?;
+        module
+            .retained_source_bindings
+            .as_deref()?
+            .positioned_for_module(module, registry)?
+            .original_class_relation_candidates(module, registry, relation)
+    }
+
+    #[test]
+    fn original_class_relation_uses_retained_allocations_without_same_tail_edges() {
+        // naming.tcloo.original-class-relation-candidates
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-class-relation-candidates.md
+        let source = "namespace eval left {oo::class create Same {method safe {} {return LEFT}}}
+namespace eval right {oo::class create Same {method safe {} {return RIGHT}}}
+oo::class create Derived {superclass ::left::Same; method safe {} {return DERIVED}}";
+        let (module, context) = original_module(source);
+        assert_eq!(module.class_relations.len(), 1);
+        let (declaring, related) =
+            allocations(&module, context.commands()).expect("closed original single inheritance");
+        assert_eq!(declaring.command, "::Derived");
+        assert_eq!(related.len(), 1);
+        assert_eq!(related[0].command, "::left::Same");
+        let components = hierarchy_components(
+            &["::left::Same", "::right::Same", "::Derived"],
+            &module,
+            context.commands(),
+        )
+        .unwrap();
+        assert_eq!(components["::Derived"], components["::left::Same"]);
+        assert_ne!(components["::Derived"], components["::right::Same"]);
+    }
+
+    #[test]
+    fn original_class_relation_unavailable_source_widens_before_empty_bad_class_shortcut() {
+        // naming.tcloo.original-class-relation-candidates
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-class-relation-candidates.md
+        let source = "oo::class create Base {method safe {} {return BASE}}
+oo::class create Derived {superclass Base; method safe {} {return DERIVED}}";
+        let (original, context) = original_module(source);
+        assert_eq!(original.class_relations.len(), 1);
+        assert!(allocations(&original, context.commands()).is_some());
+        for change in 0..5 {
+            let mut module = original.clone();
+            match change {
+                0 => module.retained_source_bindings = None,
+                1 => module.source_metadata_input = None,
+                2 => {
+                    module.source = tcl_lexer::SourceImage::from_string(format!(
+                        "{source}
+# changed"
+                    ))
+                }
+                3 => {
+                    std::sync::Arc::make_mut(&mut module.class_relations[0].definer).argv_texts[0] =
+                        "missing".into()
+                }
+                _ => {
+                    std::sync::Arc::make_mut(&mut module.class_relations[0].member).argv_texts[1] =
+                        "Other".into()
+                }
+            }
+            assert!(allocations(&module, context.commands()).is_none());
+            assert!(compute(&module, context.commands()).bar_all);
+        }
+    }
+
+    #[test]
+    fn original_class_relation_alias_and_external_obligations_do_not_become_empty_edges() {
+        // naming.tcloo.original-class-relation-candidates
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-class-relation-candidates.md
+        for source in [
+            "oo::class create Base {method safe {} {return BASE}}
+interp alias {} OtherTail {} Base
+oo::class create Derived {superclass OtherTail; method safe {} {return DERIVED}}",
+            "oo::class create Derived {superclass ::missing::External; method safe {} {return DERIVED}}",
+        ] {
+            let (module, context) = original_module(source);
+            assert_eq!(module.class_relations.len(), 1);
+            assert!(allocations(&module, context.commands()).is_none());
+            assert!(compute(&module, context.commands()).bar_all);
+        }
+    }
+
+    #[test]
+    fn original_class_relation_keeps_protected_literal_punctuation_as_source_data() {
+        // naming.tcloo.original-class-relation-candidates
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-class-relation-candidates.md
+        let (module, context) = original_module(
+            "oo::class create Derived {superclass {$literal}; method safe {} {return DERIVED}}",
+        );
+        assert_eq!(module.class_relations.len(), 1);
+        assert!(!module.oo_evidence.dynamic_class_relations);
+        assert!(module.class_relations[0].member.arg_is_braced_literal(0));
+        assert_eq!(module.class_relations[0].member.argv_texts[1], "$literal");
+        assert!(allocations(&module, context.commands()).is_none());
+        assert!(compute(&module, context.commands()).bar_all);
+    }
+
+    #[test]
+    fn original_configure_relation_joins_existing_class_allocation_separate_from_configuration_site()
+     {
+        // naming.tcloo.original-class-relation-candidates
+        // docs/design/analysis/name-resolution-proofs/tcloo-original-class-relation-candidates.md
+        let source = "oo::class create Base {method safe {} {return BASE}}
+oo::class create Derived {method safe {} {return DERIVED}}
+oo::define Derived {superclass Base}";
+        let (module, context) = original_module(source);
+        assert_eq!(module.class_relations.len(), 1);
+        let relation = &module.class_relations[0];
+        let positioned = module
+            .retained_source_bindings
+            .as_deref()
+            .unwrap()
+            .positioned_for_module(&module, context.commands())
+            .unwrap();
+        let configuration = positioned
+            .original_class_configuration_target_at_span(
+                relation.definer.argv[relation.target_word],
+                module.native_lexer_config(),
+                context.commands(),
+            )
+            .expect("original configured class operand");
+        let declaring = configuration
+            .local_definition()
+            .expect("existing original class")
+            .allocation();
+        assert_eq!(declaring.command, "::Derived");
+        assert!(allocations(&module, context.commands()).is_none());
+        assert!(compute(&module, context.commands()).bar_all);
+        let configure = relation
+            .definer
+            .source_binding
+            .as_ref()
+            .unwrap()
+            .invocation_site()
+            .unwrap();
+        assert_eq!(configure.source, declaring.site.source);
+        assert_ne!(configure.offset, declaring.site.offset);
     }
 }
