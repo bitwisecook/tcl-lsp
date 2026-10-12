@@ -64,7 +64,7 @@ This is an editor source-schema/candidate implementation contract. No native pro
 
 ## Exact evidence
 
-No evidence artifact is attached.
+- `receiver-whole-source609-82b2015aa5fe` (implementation): [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs). SHA-256 `bc4c7af337dda67784672b2e2e358eecb5e0decd183b36eb44afbf5b6c5a021d`. Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome.
 
 ## Source inspection
 
@@ -78,8 +78,12 @@ No implementation source excerpt is attached. Native outputs do not supply an im
 - [rust/tcl-lsp-core/src/original_oo/instance_completion.rs](../../../../rust/tcl-lsp-core/src/original_oo/instance_completion.rs), `instance_method_completion_record`: Select authentic method position from the complete original conditional source receiver or independently positioned current receiver, preserving canonical class ownership and effective argv.
 - [rust/tcl-lsp-core/src/original_oo.rs](../../../../rust/tcl-lsp-core/src/original_oo.rs), `own_object_completion_methods`: retains the current authentic own-table route independently of the source class candidate roster.
 - [rust/tcl-lsp-core/src/original_oo/instance_completion.rs](../../../../rust/tcl-lsp-core/src/original_oo/instance_completion.rs), `instance_completion_source`: Retain the complete original source-instance receipt or independent current receiver and canonical class join without reporting-map reconstruction.
+- [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `strip_instance_var`: Project complete configured scalar source references without consuming a braced prefix as the whole head; independent and combined array indexes retain their own purpose.
+- [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `dispatch_receiver_of`: Keep complete scalar-source geometry separate from bare constructed receiver candidate text; actual Logic/Native source domain, class and current Context owners retain their own admission.
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_receiver_domain_tests::native_fuzzy_methods_keep_original_class_and_object_records_without_reports` (linked): Source class/object candidates survive cleared nominal class/instance reports in C8.6/C9.0/C9.1 inputs; changed source/full configuration/availability context cannot retain those candidates.
 - [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports` (linked): A missing authentic Native widget receiver cannot obtain button method candidates from injected String reports, including stale source; the nominal Registry renderer refuses the Native advice domain.
+- [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source` (linked): Actual prefix and fuzzy Logical method completion retain whole braced Unicode scalar receiver heads and complete current source. Changed source, mixed literal/substitution suffixes, escaped heads, bare Unicode and array heads cannot borrow unrelated class candidates. Source syntax supplies no method identity, callable installation or rename permission.
+- [rust/tcl-lsp-core/src/completion.rs](../../../../rust/tcl-lsp-core/src/completion.rs), `completion::configured_receiver_completion_tests::configured_scalar_completion_projection_keeps_array_and_brace_boundaries` (linked): The scalar completion projection retains the actual whole-word configuration, FirstClose/nesting distinction and separate array purposes. Dynamic indexes, compound or malformed heads and escaped/bare Unicode source do not become scalar receiver candidates; no Native cell or value is issued.
 
 A named test is a coverage binding, not a claim that it executed.
 

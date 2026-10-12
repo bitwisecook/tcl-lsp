@@ -49740,7 +49740,15 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "receiver-whole-source609-82b2015aa5fe",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "sha256": "bc4c7af337dda67784672b2e2e358eecb5e0decd183b36eb44afbf5b6c5a021d",
+          "description": "Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -49754,6 +49762,18 @@
           "selector": "completion::original_receiver_domain_tests::native_fuzzy_unknown_receiver_cannot_borrow_nominal_widget_reports",
           "status": "linked",
           "assertion": "A missing authentic Native widget receiver cannot obtain button method candidates from injected String reports, including stale source; the nominal Registry renderer refuses the Native advice domain."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "selector": "completion::configured_receiver_completion_tests::logical_method_completion_keeps_whole_scalar_heads_and_current_source",
+          "status": "linked",
+          "assertion": "Actual prefix and fuzzy Logical method completion retain whole braced Unicode scalar receiver heads and complete current source. Changed source, mixed literal/substitution suffixes, escaped heads, bare Unicode and array heads cannot borrow unrelated class candidates. Source syntax supplies no method identity, callable installation or rename permission."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "selector": "completion::configured_receiver_completion_tests::configured_scalar_completion_projection_keeps_array_and_brace_boundaries",
+          "status": "linked",
+          "assertion": "The scalar completion projection retains the actual whole-word configuration, FirstClose/nesting distinction and separate array purposes. Dynamic indexes, compound or malformed heads and escaped/bare Unicode source do not become scalar receiver candidates; no Native cell or value is issued."
         }
       ],
       "owners": [
@@ -49786,6 +49806,16 @@
           "path": "rust/tcl-lsp-core/src/original_oo/instance_completion.rs",
           "symbol": "instance_completion_source",
           "purpose": "Retain the complete original source-instance receipt or independent current receiver and canonical class join without reporting-map reconstruction."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "strip_instance_var",
+          "purpose": "Project complete configured scalar source references without consuming a braced prefix as the whole head; independent and combined array indexes retain their own purpose."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/completion.rs",
+          "symbol": "dispatch_receiver_of",
+          "purpose": "Keep complete scalar-source geometry separate from bare constructed receiver candidate text; actual Logic/Native source domain, class and current Context owners retain their own admission."
         }
       ],
       "replay": {
@@ -57536,7 +57566,15 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "receiver-whole-source609-f0146add77c7",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "sha256": "7ab1d20cf596c9a57d642c7adbb1b2e095fedef6394521f8981e66eb152ba87d",
+          "description": "Current shared whole-variable source geometry adapter and actual source navigation or scalar completion consumers. Syntax supplies no Native identity, lookup, class installation, rewrite permission or assertion outcome."
+        }
+      ],
       "source_anchors": [],
       "owners": [
         {
@@ -57578,6 +57616,11 @@
           "path": "rust/tcl-lsp-core/src/rename_safety.rs",
           "symbol": "dispatch_hazard",
           "purpose": "Narrow Native hazard only with independent actual receiver; detached reporting classes cannot erase it."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "instance_method_at_cursor",
+          "purpose": "Project only a complete configured sole-variable head before descriptive name use; FirstClose literal braces retain canonical line-head geometry. Actual current source, method, visibility and receiver owners stay separate."
         }
       ],
       "tests": [
@@ -57646,6 +57689,18 @@
           "selector": "rename_safety::original_receiver_hazard_tests::original_receiver_hazards_cannot_be_narrowed_by_detached_source_class_reports",
           "assertion": "A contradictory donated reporting class cannot remove a hazard for an unproved actual Native receiver.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "selector": "definition::configured_receiver_head_tests::configured_method_heads_require_the_whole_variable_operand",
+          "status": "linked",
+          "assertion": "The configured method-head consumer keeps complete Unicode and array-reference geometry, refuses literal or substituted suffixes and malformed/bare Unicode heads, and distinguishes FirstClose literal braces from nesting and escaped-brace geometry. This syntax supplies no receiver identity or Native name/dispatch grant."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "selector": "definition::configured_receiver_head_tests::actual_method_navigation_does_not_promote_compound_variable_syntax",
+          "status": "linked",
+          "assertion": "The actual source navigation consumer under selected C8.6 and C9.1 analysis retains its independent original method owner: a complete braced Unicode receiver can select its source method, while appended literal or substituted source cannot borrow that receiver. These are software source definitions, not external native execution or callback chronology."
         }
       ],
       "replay": {
