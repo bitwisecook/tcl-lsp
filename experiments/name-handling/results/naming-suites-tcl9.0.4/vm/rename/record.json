@@ -1,0 +1,20 @@
+{
+  "engine": "vm",
+  "stem": "rename",
+  "exit_code": 1,
+  "seconds": 9.627,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/rename.test"
+  ],
+  "input_sha256": "cc51145da3f820628f3cc896e5246985aa8a18a900d1f48ba9dec32bdf52e39a",
+  "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [],
+  "last_started_id": "rename-6.1",
+  "status": "process-error"
+}

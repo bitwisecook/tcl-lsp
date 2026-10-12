@@ -1,0 +1,88 @@
+---- uplevel-1.1 start
+---- uplevel-1.2 start
+---- uplevel-2.1 start
+---- uplevel-2.2 start
+---- uplevel-2.3 start
+---- uplevel-2.4 start
+---- uplevel-2.5 start
+---- uplevel-2.6 start
+---- uplevel-3.1 start
+---- uplevel-3.2 start
+---- uplevel-3.3 start
+---- uplevel-3.4 start
+---- uplevel-4.0.1 start
+---- uplevel-4.0.2 start
+---- uplevel-4.1 start
+---- uplevel-4.2 start
+---- uplevel-4.3 start
+
+
+==== uplevel-4.3 error: not enough args FAILED
+==== Contents of test case:
+
+    uplevel
+
+---- Result was:
+bad level "1"
+---- Result should have been (exact matching):
+wrong # args: should be "uplevel ?level? command ?arg ...?"
+==== uplevel-4.3 FAILED
+
+---- uplevel-4.4 start
+---- uplevel-4.5 start
+---- uplevel-4.6 start
+---- uplevel-4.7 start
+---- uplevel-4.8 start
+---- uplevel-4.9 start
+---- uplevel-4.10 start
+---- uplevel-4.11 start
+---- uplevel-4.12 start
+---- uplevel-4.13 start
+---- uplevel-4.14 start
+---- uplevel-4.15 start
+---- uplevel-4.16 start
+---- uplevel-4.17 start
+---- uplevel-4.18 start
+---- uplevel-4.19 start
+---- uplevel-4.20 start
+---- uplevel-4.21 start
+---- uplevel-4.22 start
+---- uplevel-4.23 start
+---- uplevel-4.24 start
+---- uplevel-4.25 start
+---- uplevel-4.26 start
+---- uplevel-4.27 start
+---- uplevel-4.28 start
+---- uplevel-4.29 start
+---- uplevel-4.30 start
+---- uplevel-4.31 start
+---- uplevel-4.32 start
+---- uplevel-4.33 start
+---- uplevel-4.34 start
+---- uplevel-4.35 start
+---- uplevel-4.36 start
+---- uplevel-5.1 start
+---- uplevel-5.2 start
+---- uplevel-6.1 start
+---- uplevel-7.1 start
+---- uplevel-7.2 start
+---- uplevel-7.3 start
+---- uplevel-8.0 start
+
+
+==== uplevel-8.0 string representation isn't generated when there is only one argument FAILED
+==== Contents of test case:
+
+    set res {}
+    set script [list lindex 5]
+    lappend res [apply {script {
+	uplevel $script
+    }} $script]
+    lappend res [string match {value is a list *no string representation*} [
+	::tcl::unsupported::representation $script]]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== uplevel-8.0 FAILED
+
+uplevel.test:	Total	57	Passed	55	Skipped	0	Failed	2

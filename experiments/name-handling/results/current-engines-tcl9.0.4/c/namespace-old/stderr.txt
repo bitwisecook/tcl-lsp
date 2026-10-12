@@ -1,0 +1,6 @@
+wrong upstream library
+    while executing
+"error {wrong upstream library}"
+    invoked from within
+"if {[file normalize [info library]] ne [file normalize {/workspace/tcl-lsp/tmp/tcl9.0.4/library}]} {error {wrong upstream library}}"
+    (file "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/c/namespace-old/input.tcl" line 4)

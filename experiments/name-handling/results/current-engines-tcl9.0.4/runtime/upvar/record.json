@@ -1,0 +1,34 @@
+{
+  "engine": "runtime",
+  "stem": "upvar",
+  "exit_code": 0,
+  "seconds": 1.683,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0",
+    "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/runtime/upvar/input.tcl"
+  ],
+  "input_sha256": "2df2f7ebe9c8c6096fceced1c5d136bd44a5892b34cba152b5204de9f2b26a8f",
+  "test_sha256": "7bdb5d9bece9ae3b3b8a1e837c725fdfe001c33932b722d443706eeeb48d647c",
+  "bootstrap_seen": true,
+  "failed_ids": [
+    "upvar-6.4",
+    "upvar-8.4",
+    "upvar-8.5",
+    "upvar-8.6",
+    "upvar-8.7",
+    "upvar-8.8"
+  ],
+  "last_started_id": "upvar-NS-3.3",
+  "total": 70,
+  "passed": 56,
+  "skipped": 8,
+  "failed": 6,
+  "status": "fail"
+}

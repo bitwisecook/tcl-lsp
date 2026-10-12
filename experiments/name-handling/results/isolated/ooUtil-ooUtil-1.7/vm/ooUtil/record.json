@@ -1,0 +1,28 @@
+{
+  "engine": "vm",
+  "stem": "ooUtil",
+  "exit_code": 0,
+  "seconds": 9.054,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/ooUtil.test",
+    "--match",
+    "ooUtil-1.7"
+  ],
+  "input_sha256": "1d6186a113f8fb552be7659c33710bbf42a4b2b287532c98b5406ad6b511f764",
+  "test_sha256": "c89006972b8b9376133976b5cc6c4db7ad7ac532da457cef47077c9a18f74996",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [
+    "ooUtil-1.7"
+  ],
+  "last_started_id": "ooUtil-1.7",
+  "total": 33,
+  "passed": 0,
+  "skipped": 32,
+  "failed": 1,
+  "status": "fail"
+}

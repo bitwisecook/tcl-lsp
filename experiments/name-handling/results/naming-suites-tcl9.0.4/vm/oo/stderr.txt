@@ -1,0 +1,2 @@
+VM error: expected boolean value but got ""
+options: -code 1 -level 0 -errorcode {TCL VALUE NUMBER}

@@ -1,0 +1,50 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.5.19/library tcl 8.5.19 tcltest 2.3.8 loader {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}
+---- rename-1.1 start
+---- rename-1.2 start
+---- rename-1.3 start
+---- rename-2.1 start
+---- rename-3.1 start
+
+
+==== rename-3.1 error conditions FAILED
+==== Contents of test case:
+
+    list [catch {rename r1} msg] $msg $errorCode
+
+---- Result was:
+1 {wrong # args: should be "rename oldName newName"} {TCL WRONGARGS}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "rename oldName newName"} NONE
+==== rename-3.1 FAILED
+
+---- rename-3.2 start
+
+
+==== rename-3.2 error conditions FAILED
+==== Contents of test case:
+
+    list [catch {rename r1 r2 r3} msg] $msg $errorCode
+
+---- Result was:
+1 {wrong # args: should be "rename oldName newName"} {TCL WRONGARGS}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "rename oldName newName"} NONE
+==== rename-3.2 FAILED
+
+---- rename-3.3 start
+---- rename-3.4 start
+---- rename-3.5 start
+++++ rename-4.1 SKIPPED: testdel
+++++ rename-4.2 SKIPPED: testdel
+++++ rename-4.3 SKIPPED: testdel
+++++ rename-4.4 SKIPPED: testdel
+++++ rename-4.5 SKIPPED: testdel
+++++ rename-4.6 SKIPPED: testdel
+++++ rename-4.7 SKIPPED: testdel
+++++ rename-4.8 SKIPPED: testdel
+---- rename-5.1 start
+---- rename-6.1 start
+rename.test:	Total	19	Passed	9	Skipped	8	Failed	2
+Number of tests skipped for each constraint:
+	8	testdel

@@ -1,0 +1,101 @@
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.11s
+     Running tests/array_trace_oracle.rs (tmp/name-target-runtime/debug/deps/array_trace_oracle-f0f3850ddc297c89)
+
+running 9 tests
+test alias_wrappers_begin_a_fresh_completion_option_scope ... ok
+test array_get_reads_candidates_through_the_shared_trace_contract ... ok
+test control_commands_apply_the_tcl9_completion_option_scope_matrix ... ok
+test interleaved_coroutines_keep_array_operation_targets_with_their_flow ... ok
+test retained_read_options_follow_completion_scopes_and_execution_trace_saves ... ok
+test upstream_trace_1_11_through_1_14_pass_through_real_tcltest_startup ... :	Total	4	Passed	4	Skipped	0	Failed	0
+ok
+test upstream_trace_5_1_passes_through_real_tcltest_startup ... :	Total	1	Passed	1	Skipped	0	Failed	0
+ok
+test validation_errors_preserve_tcl_9_structured_codes ... ok
+test validation_precedes_array_traces_at_the_same_boundaries_as_tcl ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s
+
+     Running tests/rename_interp_semantics.rs (tmp/name-target-runtime/debug/deps/rename_interp_semantics-de1db560b248735f)
+
+running 20 tests
+test a_delete_trace_recreating_an_identical_alias_keeps_the_new_binding ... ok
+test child_abbreviations_resolve_while_arity_errors_name_the_written_word ... ok
+test child_and_interp_arity_errors_use_the_right_noun ... ok
+test child_arity_errors_name_the_word_the_call_used ... ok
+test child_command_bad_option_matches_the_tclsh_shape ... ok
+test child_hide_and_expose_accept_the_two_word_form ... ok
+test child_hide_and_expose_arity_errors_name_the_child ... ok
+test child_hide_and_expose_enforce_the_structural_checks ... ok
+test child_invokehidden_honours_global_and_namespace_and_rejects_bad_options ... ok
+test expose_check_order_matches_c ... ok
+test hide_and_expose_misses_and_collisions_raise ... ok
+test hide_check_order_matches_c ... ok
+test interp_bad_option_list_advertises_only_dispatched_subcommands ... ok
+test interp_target_of_a_same_interp_alias_is_the_empty_path ... ok
+test invokehidden_rejects_unknown_options_and_namespace_is_global_anchored ... ok
+test rename_across_namespaces_rehomes_a_proc ... ok
+test rename_delete_form_says_cant_delete ... ok
+test rename_miss_carries_the_lookup_errorcode ... ok
+test rename_onto_its_own_name_also_refuses ... ok
+test rename_onto_occupied_destination_refuses_and_leaves_both_intact ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/tcltest_channel_output.rs (tmp/name-target-runtime/debug/deps/tcltest_channel_output-7ba57ce02010cd9e)
+
+running 1 test
+test upstream_channel_output_cases_use_real_tcltest ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/trace_semantics.rs (tmp/name-target-runtime/debug/deps/trace_semantics-519d03af0ab436c2)
+
+running 43 tests
+test a_command_or_execution_trace_removed_during_firing_does_not_fire ... ok
+test a_command_trace_callback_does_not_untrace_what_it_dispatches ... ok
+test a_delete_callback_recreating_the_command_does_not_cancel_the_walk ... ok
+test a_delete_trace_that_recreates_the_command_leaves_it_alive ... ok
+test a_leave_trace_fires_while_its_commands_enter_callback_runs ... ok
+test a_nested_rename_keeps_the_vacating_name_on_the_command ... ok
+test a_read_trace_error_names_the_element_in_its_frame ... ok
+test a_rename_callback_deleting_the_vacating_name_destroys_the_one_command ... ok
+test a_rename_callback_edits_one_trace_list_through_either_name ... ok
+test a_rename_callback_renaming_the_vacating_name_moves_the_one_command ... ok
+test a_rename_callback_sees_the_command_under_both_names ... ok
+test a_step_scope_steps_a_delete_callbacks_own_commands ... ok
+test a_step_traced_command_called_from_a_callback_is_not_stepped ... ok
+test a_trace_added_through_an_element_alias_lands_on_the_element ... ok
+test a_trace_added_through_the_vacating_name_follows_the_command ... ok
+test a_trace_registered_through_an_upvar_alias_fires_for_the_target ... ok
+test a_trace_removed_during_firing_does_not_fire_in_that_pass ... ok
+test a_twice_nested_rename_keeps_retargeting_the_enclosing_window ... ok
+test a_whole_array_unset_fires_each_elements_own_traces_too ... ok
+test a_write_through_an_upvar_alias_fires_the_targets_trace ... ok
+test a_write_trace_error_keeps_its_chain_and_adds_the_trace_frame ... ok
+test a_write_trace_that_mutates_or_unsets_changes_what_set_and_incr_return ... ok
+test an_array_trace_error_fails_the_subcommand_with_cs_verb ... ok
+test an_erroring_read_trace_leaves_incr_counting_from_zero ... ok
+test an_execution_callback_does_not_untrace_what_it_dispatches ... ok
+test an_execution_callback_redefining_the_command_stops_that_walk ... ok
+test an_execution_callbacks_own_commands_are_not_step_observed ... ok
+test an_execution_trace_does_not_re_fire_inside_its_own_callback ... ok
+test at_8_6_an_element_alias_fires_only_the_elements_own_trace ... ok
+test at_9_0_an_element_alias_fires_the_array_traces_and_unset_keeps_the_spelling ... ok
+test every_array_subcommand_fires_the_array_trace_once ... ok
+test incr_lappend_and_append_fire_the_reads_c_fires ... ok
+test proc_frame_teardown_covers_array_elements_and_alias_registrations ... ok
+test proc_frame_teardown_fires_its_locals_unset_traces ... ok
+test re_entrancy_is_suppressed_per_cell_not_per_array ... ok
+test suppression_during_a_callback_is_per_trace_not_per_command ... ok
+test the_access_spelling_rule_holds_at_8_6 ... ok
+test the_arrays_own_cell_gates_the_whole_array_traces ... ok
+test the_callback_is_handed_the_access_spelling ... ok
+test the_rename_window_covers_objects_ensembles_and_imports ... ok
+test the_vacating_name_reports_the_destinations_namespace ... ok
+test the_vacating_name_still_fires_the_commands_execution_traces ... ok
+test trace_info_answers_for_the_cell_not_the_spelling ... ok
+
+test result: ok. 43 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+

@@ -1,0 +1,34 @@
+{
+  "engine": "runtime",
+  "stem": "apply",
+  "exit_code": 0,
+  "seconds": 1.269,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0",
+    "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/runtime/apply/input.tcl"
+  ],
+  "input_sha256": "cf0f9c2d65745d7042d1c734c8e33a8e2f635e47c0db5bdf27786b3d0b5de01f",
+  "test_sha256": "b8f7ecc3954b12ad924dd0c74768d7eedd91eb7027761171e7c96f9db2d87f87",
+  "bootstrap_seen": true,
+  "failed_ids": [
+    "apply-4.3",
+    "apply-4.4",
+    "apply-8.10",
+    "apply-8.2",
+    "apply-8.3",
+    "apply-8.9"
+  ],
+  "last_started_id": "apply-8.10",
+  "total": 42,
+  "passed": 32,
+  "skipped": 4,
+  "failed": 6,
+  "status": "fail"
+}

@@ -1,0 +1,272 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- uplevel-1.1 start
+---- uplevel-1.2 start
+---- uplevel-2.1 start
+---- uplevel-2.2 start
+---- uplevel-2.3 start
+---- uplevel-2.4 start
+---- uplevel-2.5 start
+---- uplevel-2.6 start
+---- uplevel-3.1 start
+---- uplevel-3.2 start
+---- uplevel-3.3 start
+---- uplevel-3.4 start
+---- uplevel-4.0.1 start
+---- uplevel-4.0.2 start
+---- uplevel-4.1 start
+---- uplevel-4.2 start
+---- uplevel-4.3 start
+---- uplevel-4.4 start
+---- uplevel-4.5 start
+---- uplevel-4.6 start
+---- uplevel-4.7 start
+---- uplevel-4.8 start
+---- uplevel-4.9 start
+
+
+==== uplevel-4.9 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel -0 {}}}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "-0"
+    while executing
+"-0 "
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel -0 {}"
+    (lambda term "{} {uplevel -0 {}}" line 1)
+    invoked from within
+"apply {{} {uplevel -0 {}}}"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL LOOKUP COMMAND -0
+==== uplevel-4.9 FAILED
+
+---- uplevel-4.10 start
+---- uplevel-4.11 start
+---- uplevel-4.12 start
+---- uplevel-4.13 start
+---- uplevel-4.14 start
+---- uplevel-4.15 start
+---- uplevel-4.16 start
+---- uplevel-4.17 start
+
+
+==== uplevel-4.17 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel -0xffffffff {}}}
+
+---- Result was:
+invalid command name "-0xffffffff"
+---- Result should have been (exact matching):
+bad level "-0xffffffff"
+==== uplevel-4.17 FAILED
+
+---- uplevel-4.18 start
+
+
+==== uplevel-4.18 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #-0xffffffff {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.18 FAILED
+
+---- uplevel-4.19 start
+
+
+==== uplevel-4.19 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel [expr -0xffffffff] {}}}
+
+---- Result was:
+invalid command name "-4294967295"
+---- Result should have been (exact matching):
+bad level "-4294967295"
+==== uplevel-4.19 FAILED
+
+---- uplevel-4.20 start
+
+
+==== uplevel-4.20 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #[expr -0xffffffff] {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.20 FAILED
+
+---- uplevel-4.21 start
+
+
+==== uplevel-4.21 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel -1 {}}}
+
+---- Result was:
+invalid command name "-1"
+---- Result should have been (exact matching):
+bad level "-1"
+==== uplevel-4.21 FAILED
+
+---- uplevel-4.22 start
+
+
+==== uplevel-4.22 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #-1 {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.22 FAILED
+
+---- uplevel-4.23 start
+
+
+==== uplevel-4.23 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel [expr -1] {}}}
+
+---- Result was:
+invalid command name "-1"
+---- Result should have been (exact matching):
+bad level "-1"
+==== uplevel-4.23 FAILED
+
+---- uplevel-4.24 start
+
+
+==== uplevel-4.24 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #[expr -1] {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.24 FAILED
+
+---- uplevel-4.25 start
+
+
+==== uplevel-4.25 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel 0xffffffff {}}}
+
+---- Result was:
+invalid command name "0xffffffff"
+---- Result should have been (exact matching):
+bad level "0xffffffff"
+==== uplevel-4.25 FAILED
+
+---- uplevel-4.26 start
+
+
+==== uplevel-4.26 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #0xffffffff {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.26 FAILED
+
+---- uplevel-4.27 start
+---- uplevel-4.28 start
+---- uplevel-4.29 start
+---- uplevel-4.30 start
+
+
+==== uplevel-4.30 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #0.2 {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.30 FAILED
+
+---- uplevel-4.31 start
+---- uplevel-4.32 start
+
+
+==== uplevel-4.32 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #[expr 0.2] {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.32 FAILED
+
+---- uplevel-4.33 start
+---- uplevel-4.34 start
+
+
+==== uplevel-4.34 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #.2 {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.34 FAILED
+
+---- uplevel-4.35 start
+---- uplevel-4.36 start
+
+
+==== uplevel-4.36 level parsing FAILED
+==== Contents of test case:
+
+    apply {{} {uplevel #[expr .2] {}}}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== uplevel-4.36 FAILED
+
+---- uplevel-5.1 start
+---- uplevel-5.2 start
+---- uplevel-6.1 start
+---- uplevel-7.1 start
+---- uplevel-7.2 start
+---- uplevel-7.3 start
+---- uplevel-8.0 start
+
+
+==== uplevel-8.0 string representation isn't generated when there is only one argument FAILED
+==== Contents of test case:
+
+    set res {}
+    set script [list lindex 5]
+    lappend res [apply {script {
+	uplevel $script
+    }} $script]
+    lappend res [string match {value is a list *no string representation*} [
+	::tcl::unsupported::representation $script]]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "::tcl::unsupported::representation"
+    while executing
+"::tcl::unsupported::representation $script"
+    ("uplevel" body line 8)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL LOOKUP COMMAND ::tcl::unsupported::representation
+==== uplevel-8.0 FAILED
+
+uplevel.test:	Total	57	Passed	41	Skipped	0	Failed	16

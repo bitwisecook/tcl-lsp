@@ -1,0 +1,35 @@
+{
+  "engine": "vm",
+  "stem": "proc-old",
+  "exit_code": 0,
+  "seconds": 12.092,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/proc-old.test"
+  ],
+  "input_sha256": "61d8b519a30102a79e05a07d80ecff55500358f13cb67d81fdad545d903e21d0",
+  "test_sha256": "b0671ac0aec7d48bd8e30ae108bfba253a4603a96ed4be931bbf52976daa81b7",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [
+    "proc-old-5.14",
+    "proc-old-5.15",
+    "proc-old-5.16",
+    "proc-old-7.11",
+    "proc-old-7.12",
+    "proc-old-7.14",
+    "proc-old-7.2",
+    "proc-old-7.7",
+    "proc-old-7.8",
+    "proc-old-7.9"
+  ],
+  "last_started_id": "proc-old-10.1",
+  "total": 74,
+  "passed": 64,
+  "skipped": 0,
+  "failed": 10,
+  "status": "fail"
+}

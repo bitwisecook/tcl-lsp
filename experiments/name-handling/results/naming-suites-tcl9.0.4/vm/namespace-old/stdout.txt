@@ -1,0 +1,188 @@
+---- namespace-old-1.1 start
+---- namespace-old-1.2 start
+---- namespace-old-1.3 start
+
+
+==== namespace-old-1.3 usage for "namespace eval" FAILED
+==== Contents of test case:
+
+    list [catch {namespace eval} msg] $msg
+
+---- Result was:
+1 {wrong # args: should be "namespace eval name arg ?arg ...?"}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace eval name arg ?arg...?"}
+==== namespace-old-1.3 FAILED
+
+---- namespace-old-1.4 start
+---- namespace-old-1.5 start
+---- namespace-old-1.6 start
+
+
+==== namespace-old-1.6 usage for "namespace eval" FAILED
+==== Contents of test case:
+
+    list [catch {namespace eval} msg] $msg
+
+---- Result was:
+1 {wrong # args: should be "namespace eval name arg ?arg ...?"}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace eval name arg ?arg...?"}
+==== namespace-old-1.6 FAILED
+
+---- namespace-old-1.7 start
+
+
+==== namespace-old-1.7 usage for "namespace eval" FAILED
+==== Contents of test case:
+
+    list [catch {namespace eval test_ns_xyzzy} msg] $msg
+
+---- Result was:
+1 {wrong # args: should be "namespace eval name arg ?arg ...?"}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace eval name arg ?arg...?"}
+==== namespace-old-1.7 FAILED
+
+---- namespace-old-1.8 start
+---- namespace-old-1.9 start
+---- namespace-old-1.10 start
+---- namespace-old-1.11 start
+---- namespace-old-1.12 start
+---- namespace-old-1.13 start
+---- namespace-old-1.14 start
+---- namespace-old-1.15 start
+---- namespace-old-1.16 start
+---- namespace-old-1.17 start
+---- namespace-old-1.18 start
+---- namespace-old-1.19 start
+---- namespace-old-1.20 start
+---- namespace-old-1.21 start
+---- namespace-old-1.22 start
+---- namespace-old-1.23 start
+---- namespace-old-1.24 start
+---- namespace-old-1.25 start
+---- namespace-old-1.26 start
+---- namespace-old-1.27 start
+---- namespace-old-2.1 start
+---- namespace-old-2.2 start
+---- namespace-old-2.3 start
+---- namespace-old-2.4 start
+---- namespace-old-2.5 start
+---- namespace-old-2.6 start
+---- namespace-old-2.7 start
+---- namespace-old-2.8 start
+---- namespace-old-2.9 start
+---- namespace-old-3.1 start
+
+
+==== namespace-old-3.1 usage for "namespace qualifiers" FAILED
+==== Contents of test case:
+
+    list [catch "namespace qualifiers" msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace qualifiers string"}
+==== namespace-old-3.1 FAILED
+
+---- namespace-old-3.2 start
+---- namespace-old-3.3 start
+
+
+==== namespace-old-3.3 usage for "namespace tail" FAILED
+==== Contents of test case:
+
+    list [catch "namespace tail" msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace tail string"}
+==== namespace-old-3.3 FAILED
+
+---- namespace-old-3.4 start
+---- namespace-old-4.1 start
+---- namespace-old-4.2 start
+---- namespace-old-4.3 start
+---- namespace-old-4.4 start
+---- namespace-old-5.1 start
+---- namespace-old-5.2 start
+---- namespace-old-5.3 start
+---- namespace-old-5.4 start
+---- namespace-old-5.5 start
+---- namespace-old-5.6 start
+---- namespace-old-5.7 start
+---- namespace-old-5.8 start
+---- namespace-old-5.9 start
+
+
+==== namespace-old-5.9 usage for "namespace children" FAILED
+==== Contents of test case:
+
+    list [catch {namespace children test_ns_hier1 y z} msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace children ?name? ?pattern?"}
+==== namespace-old-5.9 FAILED
+
+---- namespace-old-5.10 start
+---- namespace-old-5.11 start
+---- namespace-old-5.12 start
+---- namespace-old-5.13 start
+---- namespace-old-5.14 start
+---- namespace-old-5.15 start
+---- namespace-old-5.16 start
+---- namespace-old-5.17 start
+---- namespace-old-5.18 start
+
+
+==== namespace-old-5.18 usage for "namespace parent" FAILED
+==== Contents of test case:
+
+    list [catch {namespace parent x y} msg] $msg
+
+---- Result was:
+1 {namespace "x" not found in "::"}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "namespace parent ?name?"}
+==== namespace-old-5.18 FAILED
+
+---- namespace-old-5.19 start
+---- namespace-old-5.20 start
+---- namespace-old-5.21 start
+---- namespace-old-6.1 start
+---- namespace-old-6.2 start
+---- namespace-old-6.3 start
+---- namespace-old-6.4 start
+---- namespace-old-6.5 start
+---- namespace-old-6.6 start
+---- namespace-old-6.7 start
+---- namespace-old-6.8 start
+---- namespace-old-6.9 start
+---- namespace-old-6.10 start
+---- namespace-old-6.11 start
+---- namespace-old-6.12 start
+---- namespace-old-6.13 start
+---- namespace-old-6.14 start
+---- namespace-old-6.15 start
+---- namespace-old-6.16 start
+
+
+==== namespace-old-6.16 public variables affect all parent namespaces FAILED
+==== Contents of test case:
+
+    variable test_ns_cache1::test_ns_cache2::test_ns_cache_var "cache2 version"
+    list [namespace eval test_ns_cache1 $trigger2]  [namespace eval test_ns_cache1::test_ns_cache2 $trigger]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== namespace-old-6.16 FAILED
+
+---- namespace-old-6.17 start
+---- namespace-old-6.18 start
+---- namespace-old-6.19 start
+---- namespace-old-6.20 start

@@ -44,6 +44,18 @@ The final check reconciles all matches and all workspace members with the ledger
 | Tooling/AI | `tcl` CLI and support/query/refactor/compile/diagnostic paths, MCP including docstrings, debugger/explorer/evaluation, F5 CLI/query, AI prompts/skills and generators | CLI/LSP/MCP agree on identities and abstentions; generated AI guidance refers to current central APIs; equivalent tool-visible results. |
 | Enforcement/docs | owner manifest, drift gates, vector runners, contracts/design/KCS/README/glossary, generated docs, source comments | Coverage beyond proc/class equality scans; accurate current contracts; reproducible oracle evidence; zero final process/history artefacts. |
 
+## Measured engine priorities
+
+Use [the current suite evidence](../../../experiments/name-handling/results/RESULTS.md)
+to order the live-engine lane: restore 8.4/9.1 real-library bootstrap and a
+release-selectable VM runner; reduce suite-stopping namespace deletion,
+rename/trace and TclOO output-restore witnesses; resolve dead-cell/link/frame
+semantics; then complete path/unknown/introspection, arrays and OO library
+consumers. Promote C-passing cases as exact regressions and retain sequence tests.
+A passing focused suite is insufficient while original upstream files abort,
+time out or remain unexecuted. Static, backend, Jim and F5 obligations in the
+consumer matrix remain required.
+
 ## Ordered work
 
 1. **Reproduce and establish evidence.** Refresh issue relationships and the

@@ -1,0 +1,2 @@
+---- next-tailcall-simple-1 start
+ooNext2.test:	Total	62	Passed	1	Skipped	61	Failed	0

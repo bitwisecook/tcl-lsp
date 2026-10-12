@@ -1,0 +1,23 @@
+{
+  "engine": "c",
+  "stem": "set-old",
+  "exit_code": 0,
+  "seconds": 0.028,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+  ],
+  "input_sha256": "410badc7e324e994b4eae6c165e004547abb875d1733383dd77b6112412e6e40",
+  "test_sha256": "1672e9ae412f7fbeeb573f83c0c48d4039bcafe7bd359cc748c49b0ef5a039ae",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [],
+  "last_started_id": "set-old-12.2",
+  "total": 153,
+  "passed": 153,
+  "skipped": 0,
+  "failed": 0,
+  "status": "pass"
+}

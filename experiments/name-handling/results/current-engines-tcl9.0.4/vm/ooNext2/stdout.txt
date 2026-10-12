@@ -1,0 +1,1207 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- oo-nextto-1.1 start
+---- oo-nextto-1.2 start
+---- oo-nextto-1.3 start
+---- oo-nextto-1.4 start
+---- oo-nextto-2.1 start
+---- oo-nextto-2.2 start
+---- oo-nextto-2.3 start
+
+
+==== oo-nextto-2.3 errors in nextto FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x y {nextto $y}
+    }
+    oo::class create B {
+	superclass A
+	method x y {nextto A $y}
+    }
+    [B new] x B
+
+---- Result was:
+method has no non-filter implementation by "B"
+---- Result should have been (exact matching):
+method implementation by "B" not reachable from here
+==== oo-nextto-2.3 FAILED
+
+---- oo-nextto-2.4 start
+---- oo-nextto-2.5 start
+
+
+==== oo-nextto-2.5 errors in nextto FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x y {nextto $y}
+    }
+    oo::class create B {
+	superclass A
+	method x y {nextto $y $y $y}
+    }
+    [B new] x A
+
+---- Result was:
+wrong # args: should be "::oo::Obj52 x y"
+---- Result should have been (exact matching):
+wrong # args: should be "nextto A y"
+==== oo-nextto-2.5 FAILED
+
+---- oo-nextto-2.6 start
+
+
+==== oo-nextto-2.6 errors in nextto FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x y {nextto $y}
+    }
+    oo::class create B {
+	superclass A
+	method x y {nextto $y $y $y}
+    }
+    [B new] x [root create notAClass]
+
+---- Result was:
+method has no non-filter implementation by "::notAClass"
+---- Result should have been (exact matching):
+"::notAClass" is not a class
+==== oo-nextto-2.6 FAILED
+
+---- oo-nextto-2.7 start
+
+
+==== oo-nextto-2.7 errors in nextto FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x y {nextto $y}
+    }
+    oo::class create B {
+	superclass A
+	filter Y
+	method Y args {next {*}$args}
+    }
+    oo::class create C {
+	superclass B
+	method x y {nextto $y $y $y}
+    }
+    [C new] x B
+
+---- Result was:
+invalid command name "filter"
+---- Result should have been (exact matching):
+method has no non-filter implementation by "B"
+==== oo-nextto-2.7 FAILED
+
+---- oo-call-1.1 start
+
+
+==== oo-call-1.1 object call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    A create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info object subcommand "call"
+    while executing
+"info object call y x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-1.1 FAILED
+
+---- oo-call-1.2 start
+
+
+==== oo-call-1.2 object call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    B create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info object subcommand "call"
+    while executing
+"info object call y x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-1.2 FAILED
+
+---- oo-call-1.3 start
+
+
+==== oo-call-1.3 object call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    A create y
+    oo::objdefine y method x {} {}
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info object subcommand "call"
+    while executing
+"info object call y x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-1.3 FAILED
+
+---- oo-call-1.4 start
+
+
+==== oo-call-1.4 object object call introspection - unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    A create y
+    info object call y z
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info object subcommand "call"
+    while executing
+"info object call y z"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-1.4 FAILED
+
+---- oo-call-1.5 start
+
+
+==== oo-call-1.5 object call introspection - filters FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    A create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 5)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.5 FAILED
+
+---- oo-call-1.6 start
+
+
+==== oo-call-1.6 object call introspection - filters FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    B create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 5)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.6 FAILED
+
+---- oo-call-1.7 start
+
+
+==== oo-call-1.7 object call introspection - filters FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+    }
+    B create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 5)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.7 FAILED
+
+---- oo-call-1.8 start
+
+
+==== oo-call-1.8 object call introspection - filters FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	method z {} {}
+	filter z
+    }
+    B create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 5)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.8 FAILED
+
+---- oo-call-1.9 start
+
+
+==== oo-call-1.9 object call introspection - filters FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	method z {} {}
+	filter z
+    }
+    B create y
+    info object call y y
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 5)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.9 FAILED
+
+---- oo-call-1.10 start
+
+
+==== oo-call-1.10 object call introspection - filters + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method y {} {}
+	method unknown {} {}
+    }
+    B create y
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 4)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.10 FAILED
+
+---- oo-call-1.11 start
+
+
+==== oo-call-1.11 object call introspection - filters + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }
+    A create y
+    oo::objdefine y method unknown {} {}
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 4)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.11 FAILED
+
+---- oo-call-1.12 start
+
+
+==== oo-call-1.12 object call introspection - filters + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+    }
+    A create y
+    oo::objdefine y {
+	method unknown {} {}
+	filter y
+    }
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for object "::y" line 3)
+    invoked from within
+"oo::objdefine y {
+	method unknown {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.12 FAILED
+
+---- oo-call-1.13 start
+
+
+==== oo-call-1.13 object call introspection - filters + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+    }
+    A create y
+    oo::objdefine y {
+	method unknown {} {}
+	method x {} {}
+	filter y
+    }
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for object "::y" line 4)
+    invoked from within
+"oo::objdefine y {
+	method unknown {} {}
+	method x {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.13 FAILED
+
+---- oo-call-1.14 start
+
+
+==== oo-call-1.14 object call introspection - errors FAILED
+==== Contents of test case:
+
+    info object call
+
+---- Result was:
+wrong # args: should be "info object call object ?arg ...?"
+---- Result should have been (exact matching):
+wrong # args: should be "info object call objName methodName"
+==== oo-call-1.14 FAILED
+
+---- oo-call-1.15 start
+
+
+==== oo-call-1.15 object call introspection - errors FAILED
+==== Contents of test case:
+
+    info object call a
+
+---- Result was:
+a does not refer to an object
+---- Result should have been (exact matching):
+wrong # args: should be "info object call objName methodName"
+==== oo-call-1.15 FAILED
+
+---- oo-call-1.16 start
+
+
+==== oo-call-1.16 object call introspection - errors FAILED
+==== Contents of test case:
+
+    info object call a b c
+
+---- Result was:
+a does not refer to an object
+---- Result should have been (exact matching):
+wrong # args: should be "info object call objName methodName"
+==== oo-call-1.16 FAILED
+
+---- oo-call-1.17 start
+++++ oo-call-1.18 SKIPPED: memory
+++++ oo-call-1.19 SKIPPED: memory
+---- oo-call-1.20 start
+
+
+==== oo-call-1.20 object call introspection - complex case FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::C {
+	superclass root
+	method x {} {}
+	mixin B
+    }
+    oo::class create ::D {
+	superclass C
+	method x {} {}
+    }
+    oo::class create ::E {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::F {
+	superclass E
+	method x {} {}
+    }
+    oo::class create ::G {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::H {
+	superclass G
+	method x {} {}
+    }
+    oo::define F mixin H
+    F create y
+    oo::objdefine y {
+	method x {} {}
+	mixin D
+    }
+    info object call y x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info object subcommand "call"
+    while executing
+"info object call y x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-1.20 FAILED
+
+---- oo-call-1.21 start
+
+
+==== oo-call-1.21 object call introspection - complex case FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }
+    oo::class create ::B {
+	superclass A
+	method y {} {}
+    }
+    oo::class create ::C {
+	superclass root
+	method x {} {}
+	mixin B
+    }
+    oo::class create ::D {
+	superclass C
+	filter x
+    }
+    oo::class create ::E {
+	superclass root
+	method y {} {}
+	method x {} {}
+    }
+    oo::class create ::F {
+	superclass E
+	method z {} {}
+	method q {} {}
+    }
+    F create y
+    oo::objdefine y {
+	method unknown {} {}
+	mixin D
+	filter q
+    }
+    info object call y z
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::A" line 4)
+    invoked from within
+"oo::class create ::A {
+	superclass root
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-1.21 FAILED
+
+---- oo-call-2.1 start
+
+
+==== oo-call-2.1 class call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    info class call A x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info class subcommand "call"
+    while executing
+"info class call A x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-2.1 FAILED
+
+---- oo-call-2.2 start
+
+
+==== oo-call-2.2 class call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    list [info class call A x] [info class call B x]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info class subcommand "call"
+    while executing
+"list [info class call A x] [info class call B x]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-2.2 FAILED
+
+---- oo-call-2.3 start
+
+
+==== oo-call-2.3 class call introspection FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::C {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::D {
+	superclass C B
+	method x {} {}
+    }
+    info class call D x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info class subcommand "call"
+    while executing
+"info class call D x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-2.3 FAILED
+
+---- oo-call-2.4 start
+
+
+==== oo-call-2.4 class call introspection - mixin FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::C {
+	superclass A
+	method x {} {}
+    }
+    oo::class create ::D {
+	superclass C
+	mixin B
+	method x {} {}
+    }
+    info class call D x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unsupported info class subcommand "call"
+    while executing
+"info class call D x"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-call-2.4 FAILED
+
+---- oo-call-2.5 start
+
+
+==== oo-call-2.5 class call introspection - mixin + filter FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::C {
+	superclass A
+	method x {} {}
+	method y {} {}
+    }
+    oo::class create ::D {
+	superclass C
+	mixin B
+	method x {} {}
+    }
+    info class call D x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::B" line 5)
+    invoked from within
+"oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-2.5 FAILED
+
+---- oo-call-2.6 start
+
+
+==== oo-call-2.6 class call introspection - mixin + filter + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+	method unknown {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	filter y
+    }
+    oo::class create ::C {
+	superclass A
+	method x {} {}
+	method y {} {}
+    }
+    oo::class create ::D {
+	superclass C
+	mixin B
+	method x {} {}
+	method unknown {} {}
+    }
+    info class call D z
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter y"
+    (in definition script for class "::B" line 5)
+    invoked from within
+"oo::class create ::B {
+	superclass A
+	method x {} {}
+	method y {} {}
+	filter y
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-2.6 FAILED
+
+---- oo-call-2.7 start
+
+
+==== oo-call-2.7 class call introspection - mixin + filter + unknown FAILED
+==== Contents of test case:
+
+    oo::class create ::A {
+	superclass root
+	method x {} {}
+    }
+    oo::class create ::B {
+	superclass A
+	method x {} {}
+	filter x
+    }
+    info class call B x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter x"
+    (in definition script for class "::B" line 4)
+    invoked from within
+"oo::class create ::B {
+	superclass A
+	method x {} {}
+	filter x
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== oo-call-2.7 FAILED
+
+---- oo-call-2.8 start
+
+
+==== oo-call-2.8 class call introspection - errors FAILED
+==== Contents of test case:
+
+    info class call
+
+---- Result was:
+wrong # args: should be "info class call class ?arg ...?"
+---- Result should have been (exact matching):
+wrong # args: should be "info class call className methodName"
+==== oo-call-2.8 FAILED
+
+---- oo-call-2.9 start
+
+
+==== oo-call-2.9 class call introspection - errors FAILED
+==== Contents of test case:
+
+    info class call a
+
+---- Result was:
+a does not refer to an object
+---- Result should have been (exact matching):
+wrong # args: should be "info class call className methodName"
+==== oo-call-2.9 FAILED
+
+---- oo-call-2.10 start
+
+
+==== oo-call-2.10 class call introspection - errors FAILED
+==== Contents of test case:
+
+    info class call a b c
+
+---- Result was:
+a does not refer to an object
+---- Result should have been (exact matching):
+wrong # args: should be "info class call className methodName"
+==== oo-call-2.10 FAILED
+
+---- oo-call-2.11 start
+---- oo-call-2.12 start
+
+
+==== oo-call-2.12 class call introspection - errors FAILED
+==== Contents of test case:
+
+    root create notaclass
+    info class call notaclass x
+
+---- Result was:
+"::notaclass" is not a class
+---- Result should have been (exact matching):
+"notaclass" is not a class
+==== oo-call-2.12 FAILED
+
+++++ oo-call-2.13 SKIPPED: memory
+++++ oo-call-2.14 SKIPPED: memory
+---- oo-call-3.1 start
+
+
+==== oo-call-3.1 current call introspection FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	method x {} {lappend ::result [self call]}
+    }
+    oo::class create B {
+	superclass A
+	method x {} {lappend ::result [self call];next}
+    }
+    B create y
+    oo::objdefine y method x {} {lappend ::result [self call];next}
+    set ::result {}
+    y x
+
+---- Result was:
+{{::y ::B ::A} 0} {{::y ::B ::A} 1} {{::y ::B ::A} 2}
+---- Result should have been (exact matching):
+{{{method x object method} {method x ::B method} {method x ::A method}} 0} {{{method x object method} {method x ::B method} {method x ::A method}} 1} {{{method x object method} {method x ::B method} {method x ::A method}} 2}
+==== oo-call-3.1 FAILED
+
+++++ oo-call-3.2 SKIPPED: memory
+---- oo-call-3.3 start
+
+
+==== oo-call-3.3 current call introspection: in constructors FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	constructor {} {lappend ::result [self call]}
+    }
+    oo::class create B {
+	superclass A
+	constructor {} {lappend ::result [self call]; next}
+    }
+    set ::result {}
+    [B new] destroy
+    return $::result
+
+---- Result was:
+{{::B ::A} 0} {{::B ::A} 1}
+---- Result should have been (exact matching):
+{{{method <constructor> ::B method} {method <constructor> ::A method}} 0} {{{method <constructor> ::B method} {method <constructor> ::A method}} 1}
+==== oo-call-3.3 FAILED
+
+---- oo-call-3.4 start
+
+
+==== oo-call-3.4 current call introspection: in destructors FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass root
+	destructor {lappend ::result [self call]}
+    }
+    oo::class create B {
+	superclass A
+	destructor {lappend ::result [self call]; next}
+    }
+    set ::result {}
+    [B new] destroy
+    return $::result
+
+---- Result was:
+{{::B ::A} 0} {{::B ::A} 1}
+---- Result should have been (exact matching):
+{{{method <destructor> ::B method} {method <destructor> ::A method}} 0} {{{method <destructor> ::B method} {method <destructor> ::A method}} 1}
+==== oo-call-3.4 FAILED
+
+---- next-tailcall-simple-1 start
+---- next-tailcall-simple-2 start
+---- next-tailcall-simple-3 start
+---- next-tailcall-simple-4 start
+---- next-tailcall-superclass-1 start
+---- next-tailcall-superclass-2 start
+---- next-tailcall-mixin-1 start
+
+
+==== next-tailcall-mixin-1 class mixin FAILED
+==== Contents of test case:
+
+    oo::define Foo2 {
+	method Bar {} {
+	    puts a
+	    next
+	    puts b
+	}
+	filter Bar
+    }
+    oo::define Foo mixin Foo2
+    Foo create foo
+    foo bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter Bar"
+    (in definition script for class "::Foo2" line 7)
+    invoked from within
+"oo::define Foo2 {
+	method Bar {} {
+	    puts a
+	    next
+	    puts b
+	}
+	filter Bar
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== next-tailcall-mixin-1 FAILED
+
+---- next-tailcall-objmixin-1 start
+
+
+==== next-tailcall-objmixin-1 object mixin FAILED
+==== Contents of test case:
+
+    oo::define Foo2 {
+	method Bar {} {
+	    puts a
+	    next
+	    puts b
+	}
+	filter Bar
+    }
+    Foo create foo
+    oo::objdefine foo mixin Foo2
+    foo bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"filter Bar"
+    (in definition script for class "::Foo2" line 7)
+    invoked from within
+"oo::define Foo2 {
+	method Bar {} {
+	    puts a
+	    next
+	    puts b
+	}
+	filter Bar
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== next-tailcall-objmixin-1 FAILED
+
+---- next-tailcall-filter-1 start
+
+
+==== next-tailcall-filter-1 filter method FAILED
+==== Contents of test case:
+
+    oo::define Foo method Filter {} {
+	puts a
+	next
+	puts b
+    }
+    oo::define Foo filter Filter
+    [Foo new] bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "filter"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::define Foo filter Filter"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND filter
+==== next-tailcall-filter-1 FAILED
+
+---- next-tailcall-forward-1 start
+---- next-tailcall-constructor-1 start
+---- next-tailcall-destructor-1 start
+ooNext2.test:	Total	62	Passed	18	Skipped	5	Failed	39
+Number of tests skipped for each constraint:
+	4	${constraint}
+	1	memory

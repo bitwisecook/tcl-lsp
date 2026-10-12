@@ -1,0 +1,295 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- proc-old-1.1 start
+---- proc-old-1.2 start
+---- proc-old-1.3 start
+---- proc-old-1.4 start
+---- proc-old-1.5 start
+---- proc-old-1.6 start
+---- proc-old-2.1 start
+---- proc-old-2.2 start
+---- proc-old-2.3 start
+---- proc-old-2.4 start
+---- proc-old-2.5 start
+---- proc-old-2.6 start
+---- proc-old-3.1 start
+---- proc-old-3.2 start
+---- proc-old-3.3 start
+---- proc-old-3.4 start
+---- proc-old-3.5 start
+---- proc-old-3.6 start
+---- proc-old-3.7 start
+---- proc-old-3.8 start
+---- proc-old-3.9 start
+---- proc-old-30.1 start
+---- proc-old-30.2 start
+---- proc-old-30.3 start
+---- proc-old-30.4 start
+---- proc-old-30.5 start
+---- proc-old-30.6 start
+---- proc-old-30.7 start
+---- proc-old-30.8 start
+---- proc-old-30.9 start
+---- proc-old-30.10 start
+---- proc-old-30.11 start
+---- proc-old-30.12 start
+---- proc-old-4.1 start
+---- proc-old-4.2 start
+---- proc-old-4.3 start
+---- proc-old-4.4 start
+---- proc-old-4.5 start
+---- proc-old-4.6 start
+---- proc-old-5.1 start
+---- proc-old-5.2 start
+---- proc-old-5.3 start
+---- proc-old-5.4 start
+---- proc-old-5.5 start
+---- proc-old-5.6 start
+---- proc-old-5.7 start
+---- proc-old-5.8 start
+---- proc-old-5.10 start
+---- proc-old-5.11 start
+---- proc-old-5.12 start
+---- proc-old-5.13 start
+---- proc-old-5.14 start
+
+
+==== proc-old-5.14 error conditions FAILED
+==== Contents of test case:
+
+    proc tproc {} {
+	set a 22
+	break
+	return
+    }
+    catch tproc msg
+    set ::errorInfo
+
+---- Result was:
+invoked "break" outside of a loop
+    (procedure "tproc" line 3)
+    invoked from within
+"tproc"
+---- Result should have been (exact matching):
+invoked "break" outside of a loop
+    (procedure "tproc" line 1)
+    invoked from within
+"tproc"
+==== proc-old-5.14 FAILED
+
+---- proc-old-5.15 start
+
+
+==== proc-old-5.15 error conditions FAILED
+==== Contents of test case:
+
+    proc tproc {} {
+	set a 22
+	continue
+	return
+    }
+    catch tproc msg
+    set ::errorInfo
+
+---- Result was:
+invoked "continue" outside of a loop
+    (procedure "tproc" line 3)
+    invoked from within
+"tproc"
+---- Result should have been (exact matching):
+invoked "continue" outside of a loop
+    (procedure "tproc" line 1)
+    invoked from within
+"tproc"
+==== proc-old-5.15 FAILED
+
+---- proc-old-5.16 start
+
+
+==== proc-old-5.16 error conditions FAILED
+==== Contents of test case:
+
+    proc foo args {
+	global fooMsg
+	set fooMsg "foo was called: $args"
+    }
+    proc tproc {} {
+	set x 44
+	trace add var x unset foo
+	while {$x < 100} {
+	    error "Nested error"
+	}
+    }
+    set fooMsg "foo not called"
+    list [catch tproc msg] $msg $::errorInfo $fooMsg
+
+---- Result was:
+1 {Nested error} {
+    while executing
+"tproc"} {foo was called: x {} unset}
+---- Result should have been (exact matching):
+1 {Nested error} {Nested error
+    while executing
+"error "Nested error""
+    (procedure "tproc" line 5)
+    invoked from within
+"tproc"} {foo was called: x {} unset}
+==== proc-old-5.16 FAILED
+
+---- proc-old-6.1 start
+---- proc-old-6.2 start
+---- proc-old-7.1 start
+---- proc-old-7.2 start
+
+
+==== proc-old-7.2 return with special completion code FAILED
+==== Contents of test case:
+
+    list [catch {tproc error} msg] $msg $::errorInfo $::errorCode
+
+---- Result was:
+1 abc {abc
+    while executing
+"return -code $code abc"
+    invoked from within
+"tproc error"} NONE
+---- Result should have been (exact matching):
+1 abc {abc
+    while executing
+"tproc error"} NONE
+==== proc-old-7.2 FAILED
+
+---- proc-old-7.3 start
+---- proc-old-7.4 start
+---- proc-old-7.5 start
+---- proc-old-7.6 start
+---- proc-old-7.7 start
+
+
+==== proc-old-7.7 return with special completion code FAILED
+==== Contents of test case:
+
+    tproc err
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== proc-old-7.7 FAILED
+
+---- proc-old-7.8 start
+
+
+==== proc-old-7.8 return with special completion code FAILED
+==== Contents of test case:
+
+    tproc 10b
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== proc-old-7.8 FAILED
+
+---- proc-old-7.9 start
+
+
+==== proc-old-7.9 return with special completion code FAILED
+==== Contents of test case:
+
+    proc tproc2 {} {
+	tproc return
+    }
+    list [catch tproc2 msg] $msg
+
+---- Result was:
+2 abc
+---- Result should have been (exact matching):
+0 abc
+==== proc-old-7.9 FAILED
+
+---- proc-old-7.10 start
+---- proc-old-7.11 start
+
+
+==== proc-old-7.11 return with special completion code FAILED
+==== Contents of test case:
+
+    proc tproc2 {} {
+	global errorCode errorInfo
+	catch {open _bad_file_name r} msg
+	return -code error -errorinfo $errorInfo -errorcode $errorCode $msg
+    }
+    set msg [list [catch tproc2 msg] $msg $::errorInfo $::errorCode]
+    regsub -all [file join {} _bad_file_name] $msg "_bad_file_name" msg
+    normalizeMsg $msg
+
+---- Result was:
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"open _bad_file_name r"
+    invoked from within
+"tproc2"} none
+---- Result should have been (exact matching):
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"open _bad_file_name r"
+    invoked from within
+"tproc2"} {posix enoent {no such file or directory}}
+==== proc-old-7.11 FAILED
+
+---- proc-old-7.12 start
+
+
+==== proc-old-7.12 return with special completion code FAILED
+==== Contents of test case:
+
+    proc tproc2 {} {
+	global errorCode errorInfo
+	catch {open _bad_file_name r} msg
+	return -code error -errorcode $errorCode $msg
+    }
+    set msg [list [catch tproc2 msg] $msg $::errorInfo $::errorCode]
+    regsub -all [file join {} _bad_file_name] $msg "_bad_file_name" msg
+    normalizeMsg $msg
+
+---- Result was:
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"return -code error -errorcode $errorcode $msg"
+    invoked from within
+"tproc2"} none
+---- Result should have been (exact matching):
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"tproc2"} {posix enoent {no such file or directory}}
+==== proc-old-7.12 FAILED
+
+---- proc-old-7.13 start
+---- proc-old-7.14 start
+
+
+==== proc-old-7.14 return with special completion code FAILED
+==== Contents of test case:
+
+    proc tproc2 {} {
+	global errorCode errorInfo
+	catch {open _bad_file_name r} msg
+	return -code error $msg
+    }
+    set msg [list [catch tproc2 msg] $msg $::errorInfo $::errorCode]
+    regsub -all [file join {} _bad_file_name] $msg "_bad_file_name" msg
+    normalizeMsg $msg
+
+---- Result was:
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"return -code error $msg"
+    invoked from within
+"tproc2"} none
+---- Result should have been (exact matching):
+1 {couldn't open "_bad_file_name": no such file or directory} {couldn't open "_bad_file_name": no such file or directory
+    while executing
+"tproc2"} none
+==== proc-old-7.14 FAILED
+
+---- proc-old-7.15 start
+---- proc-old-8.1 start
+---- proc-old-9.1 start
+---- proc-old-10.1 start
+proc-old.test:	Total	74	Passed	64	Skipped	0	Failed	10

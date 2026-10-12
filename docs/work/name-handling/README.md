@@ -13,6 +13,7 @@ alongside the broader command, namespace, variable and object identity work.
 | [Issues](issues.md) | Related open/closed issues, dependencies and branch evidence rules |
 | [Completion plan](plan.md) | Every consumer group, ordered work and acceptance criteria |
 | [Continuation prompt](continue-prompt.md) | Complete prompt for a coordinating agent using subagents |
+| [Measured engine gaps](../../../experiments/name-handling/results/RESULTS.md) | Real upstream suite outcomes and prioritised live-engine work |
 | [Oracle protocol](../../../experiments/name-handling/README.md) | Durable scripts, measurements, provenance and test promotion |
 | [BIG-IP handoff](../../../experiments/name-handling/f5/REQUEST.md) | Questions and return format for the chat with appliance access |
 

@@ -1,0 +1,27 @@
+{
+  "engine": "vm",
+  "stem": "uplevel",
+  "exit_code": 0,
+  "seconds": 10.631,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/uplevel.test"
+  ],
+  "input_sha256": "d43a1c6369d4854e0bca4f3fc6c23ecd94844ed0678f01d2baa71cec5fabc5b8",
+  "test_sha256": "2040f3df75f3dbc187e0b29d16ad618aad52d18574fbdc70d3a0671569e036ea",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [
+    "uplevel-4.3",
+    "uplevel-8.0"
+  ],
+  "last_started_id": "uplevel-8.0",
+  "total": 57,
+  "passed": 55,
+  "skipped": 0,
+  "failed": 2,
+  "status": "fail"
+}

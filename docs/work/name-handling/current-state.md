@@ -4,6 +4,19 @@ Audit basis: `work` at `127dba9d9`, 12 October 2026. This is a source inspection
 not a claim that all tests passed or the oracle matrix ran. Refresh the basis
 when changing this document. GitHub issue status is recorded separately.
 
+## Measured VM/runtime readiness
+
+[The retained suite report](../../../experiments/name-handling/results/RESULTS.md)
+records current engine execution at `b7ad30f1f`: 21 original Tcl 9.0.4 files on
+C/VM/runtime, six-file runtime matrices on the other four C releases, and seven
+independent upstream case selections. Both engines use real `init.tcl` and
+`tcltest.tcl`. Focused regressions pass (442 VM tests, 350 distinct runtime tests),
+but whole upstream suites expose variable/link/frame, namespace lifecycle,
+trace/rename, TclOO and introspection gaps. Runtime 8.4 Tcltest loading and 9.1
+initialisation block whole-suite coverage. The VM suite driver is fixed to 9.0.
+Use the report's completed/partial/skipped classifications and exact C-passing
+IDs; do not treat regression passes or aggregate failure counts as conformance.
+
 ## What exists
 
 - `tcl-core-types` provides command/namespace IDs, `CommandSlot` and the

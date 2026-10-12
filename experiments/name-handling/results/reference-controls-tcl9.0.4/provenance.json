@@ -1,0 +1,21 @@
+{
+  "subject_commit": "b7ad30f1fcc1911f8e8744485d809f5348b9b850",
+  "source_root": "/workspace/tcl-lsp/tmp/tcl9.0.4",
+  "version": "9.0",
+  "init_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+  "tcltest_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+  "overlay_sha256": "b966abe9d580ba8d180926ddc1b301d30aba642f32bba9a150df5ffc8d0a1e54",
+  "runner_sha256": "466a481e49d949ec18003cfc9aad0ccc8d6ac30297acb9ddb5333251d19c5ddc",
+  "engines": {
+    "c": [
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ]
+  },
+  "binary_sha256": {
+    "c": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965"
+  },
+  "timeout_seconds": 90,
+  "match": null,
+  "started_utc": "2026-10-12T10:33:54Z",
+  "runner_source_snapshot": "runner-source.txt"
+}

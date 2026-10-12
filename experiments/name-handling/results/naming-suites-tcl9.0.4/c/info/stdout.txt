@@ -1,0 +1,362 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- info-1.1 start
+---- info-1.2 start
+---- info-1.3 start
+---- info-1.4 start
+---- info-1.5 start
+---- info-1.6 start
+---- info-1.7 start
+---- info-2.1 start
+---- info-2.2 start
+---- info-2.3 start
+---- info-2.4 start
+---- info-2.5 start
+---- info-2.6 start
+---- info-3.1 start
+---- info-3.2 start
+---- info-3.3 start
+---- info-3.4 start
+---- info-4.1 start
+---- info-4.2 start
+---- info-4.3 start
+---- info-4.4 start
+---- info-4.5 start
+---- info-5.1 start
+---- info-5.2 start
+---- info-5.3 start
+---- info-5.4 start
+---- info-5.5 start
+---- info-5.6 start
+---- info-6.1 start
+---- info-6.2 start
+---- info-6.3 start
+---- info-6.4 start
+---- info-6.5 start
+---- info-6.6 start
+---- info-6.7 start
+---- info-6.8 start
+---- info-6.9 start
+---- info-6.10 start
+---- info-6.11 start
+---- info-7.1 start
+---- info-7.2 start
+---- info-7.3 start
+---- info-7.4 start
+---- info-7.5 start
+---- info-7.6 start
+---- info-7.7 start
+---- info-7.8 start
+---- info-7.9 start
+---- info-8.1 start
+---- info-8.2 start
+---- info-8.3 start
+---- info-8.4 start
+---- info-8.5 start
+---- info-9.1 start
+---- info-9.2 start
+---- info-9.3 start
+---- info-9.4 start
+---- info-9.5 start
+---- info-9.6 start
+---- info-9.7 start
+---- info-9.8 start
+---- info-9.9 start
+---- info-9.10 start
+++++ info-9.11 SKIPPED: knownBug
+++++ info-9.12 SKIPPED: knownBug
+---- info-10.1 start
+---- info-10.2 start
+---- info-10.3 start
+---- info-11.1 start
+---- info-11.2 start
+---- info-12.1 start
+---- info-12.2 start
+---- info-12.3 start
+---- info-12.4 start
+---- info-12.5 start
+---- info-12.6 start
+---- info-12.7 start
+---- info-13.1 start
+---- info-14.1 start
+---- info-14.2 start
+---- info-14.3 start
+---- info-15.1 start
+---- info-15.2 start
+---- info-15.3 start
+---- info-15.4 start
+---- info-15.5 start
+---- info-15.6 start
+---- info-15.7 start
+++++ info-15.8 SKIPPED: knownBug
+---- info-16.1 start
+---- info-16.2 start
+---- info-16.3 start
+---- info-16.4 start
+---- info-16.5 start
+---- info-16.6 start
+---- info-16.7 start
+---- info-16.8 start
+---- info-17.1 start
+---- info-18.1 start
+---- info-18.2 start
+---- info-18.3 start
+---- info-19.1 start
+---- info-19.2 start
+---- info-19.3 start
+---- info-19.4 start
+---- info-19.5 start
+---- info-19.6 start
+---- info-20.1 start
+---- info-20.2 start
+---- info-20.3 start
+---- info-20.4 start
+---- info-20.5 start
+---- info-21.1 start
+---- info-21.2 start
+---- info-21.3 start
+---- info-21.4 start
+---- info-21.5 start
+---- info-22.0 start
+
+
+==== info-22.0 info frame, levels FAILED
+==== Contents of test case:
+
+    info frame
+
+---- Result was:
+8
+---- Result should have been (exact matching):
+7
+==== info-22.0 FAILED
+
+---- info-22.1 start
+
+
+==== info-22.1 info frame, bad level relative FAILED
+==== Contents of test case:
+
+    # catch is another level!, i.e. we have 8, not 7
+    catch {info frame -8} msg
+    set msg
+
+---- Result was:
+type eval line 1 cmd {source "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/info.test"} level 0
+---- Result should have been (exact matching):
+bad level "-8"
+==== info-22.1 FAILED
+
+---- info-22.2 start
+
+
+==== info-22.2 info frame, bad level absolute FAILED
+==== Contents of test case:
+
+    # catch is another level!, i.e. we have 8, not 7
+    catch {info frame 9} msg
+    set msg
+
+---- Result was:
+type source line 746 file /workspace/tcl-lsp/tmp/tcl9.0.4/tests/info.test cmd {info frame 9} proc ::tcltest::RunTest
+---- Result should have been (exact matching):
+bad level "9"
+==== info-22.2 FAILED
+
+---- info-22.3 start
+---- info-22.4 start
+---- info-22.5 start
+
+
+==== info-22.5 info frame, current, absolute FAILED
+==== Contents of test case:
+
+    reduce [info frame 7]
+
+---- Result was:
+type source line 2482 file tcltest.tcl cmd {uplevel 1 $script} proc ::tcltest::RunTest
+---- Result should have been (glob matching):
+type source line 756 file info.test cmd {info frame 7} proc ::tcltest::RunTest
+==== info-22.5 FAILED
+
+---- info-22.6 start
+---- info-22.7 start
+
+
+==== info-22.7 info frame, global, absolute FAILED
+==== Contents of test case:
+
+    reduce [info frame 1]
+
+---- Result was:
+type eval line 1 cmd {source "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/info.test"} level 0
+---- Result should have been (exact matching):
+type source line 761 file info.test cmd test\ info-22.7\ \{info\ frame,\ global,\ absolute\}\ \{!singleTestInter level 0
+==== info-22.7 FAILED
+
+---- info-22.8 start
+---- info-23.0 start
+---- info-23.1 start
+---- info-23.2 start
+---- info-23.3 start
+---- info-23.4 start
+---- info-23.5 start
+---- info-23.6 start
+---- info-24.0 start
+---- info-24.1 start
+---- info-24.2 start
+---- info-24.3 start
+---- info-24.4 start
+---- info-24.5 start
+---- info-24.6.0 start
+---- info-24.6.1 start
+---- info-24.6.2 start
+---- info-24.7 start
+---- info-24.8 start
+---- info-24.9 start
+---- info-25.0 start
+---- info-25.1 start
+---- info-30.0 start
+---- info-31.0 start
+---- info-31.1 start
+---- info-31.1a start
+---- info-31.2 start
+---- info-31.4 start
+---- info-31.5 start
+---- info-31.6 start
+---- info-31.7 start
+---- info-32.0 start
+---- info-33.0 start
+---- info-33.1 start
+---- info-33.2 start
+---- info-33.2a start
+---- info-33.3 start
+---- info-33.3a start
+---- info-34.0 start
+---- info-34.1 start
+---- info-35.0 start
+---- info-35.1 start
+---- info-36.0 start
+---- info-36.1.0 start
+---- info-36.1.1 start
+---- info-37.0 start
+---- info-38.1 start
+---- info-38.3 start
+---- info-38.5 start
+++++ info-38.7 SKIPPED: testevalex
+---- info-39.0 start
+---- info-30.1 start
+---- info-30.2 start
+---- info-30.3 start
+---- info-30.4 start
+---- info-30.5 start
+---- info-30.6 start
+---- info-30.7 start
+---- info-30.8 start
+---- info-30.9 start
+---- info-30.10 start
+---- info-30.11 start
+---- info-30.12 start
+---- info-30.13 start
+---- info-30.14 start
+---- info-30.15 start
+---- info-30.16 start
+---- info-30.17 start
+---- info-30.18 start
+---- info-30.19 start
+---- info-30.20 start
+---- info-30.21 start
+---- info-30.22 start
+---- info-30.23 start
+---- info-30.24 start
+---- info-30.25 start
+---- info-30.26 start
+---- info-30.27 start
+---- info-30.28 start
+---- info-30.29 start
+---- info-30.30 start
+---- info-30.31 start
+---- info-30.32 start
+---- info-30.33 start
+---- info-30.34 start
+---- info-30.35 start
+---- info-30.36 start
+---- info-30.37 start
+---- info-30.38 start
+---- info-30.39 start
+---- info-30.40 start
+---- info-30.41 start
+---- info-30.42 start
+---- info-30.43 start
+---- info-30.44 start
+---- info-30.45 start
+---- info-30.46 start
+---- info-30.47 start
+++++ info-30.48 SKIPPED: testevalex
+---- info-39.1 start
+---- info-38.6 start
+---- info-38.4 start
+---- info-38.2 start
+---- info-9.13 start
+---- info-33.4 start
+---- info-33.5 start
+---- info-33.6 start
+---- info-33.7 start
+---- info-33.8 start
+---- info-33.9 start
+---- info-33.10 start
+---- info-33.11 start
+---- info-33.12 start
+---- info-33.13 start
+---- info-33.14 start
+---- info-33.15 start
+---- info-33.16 start
+---- info-33.17 start
+---- info-33.18 start
+---- info-33.19 start
+---- info-33.20 start
+---- info-33.21 start
+---- info-33.22 start
+---- info-33.23 start
+---- info-33.24 start
+---- info-33.25 start
+---- info-33.26 start
+---- info-33.27 start
+---- info-33.28 start
+---- info-33.29 start
+---- info-33.30 start
+---- info-33.31 start
+---- info-33.32 start
+---- info-33.33 start
+---- info-33.34 start
+---- info-33.35 start
+---- info-40.1 start
+---- info-40.2 start
+---- info-40.3 start
+---- info-40.4 start
+---- info-40.5 start
+---- info-40.6 start
+---- info-40.7 start
+---- info-40.8 start
+---- info-40.9 start
+---- info-40.10 start
+---- info-40.11 start
+---- info-40.12 start
+---- info-40.13 start
+---- info-40.14 start
+---- info-40.15 start
+---- info-40.16 start
+---- info-40.17 start
+---- info-40.18 start
+---- info-40.19 start
+---- info-40.20 start
+---- info-19.7 start
+---- info-19.8 start
+---- info-19.9 start
+---- info-39.2 start
+---- info-41.0 start
+---- info-41.1 start
+info.test:	Total	287	Passed	277	Skipped	5	Failed	5
+Number of tests skipped for each constraint:
+	3	knownBug
+	2	testevalex

@@ -1,0 +1,27 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.74s
+     Running tests/command_resolution_conformance.rs (tmp/name-target-vm/debug/deps/command_resolution_conformance-72bdf1e22dcbbbb8)
+
+running 3 tests
+test canonical_resolver_matches_every_vector ... ok
+test untagged_rows_are_uniform_across_the_ladder ... ok
+test vectors_match_real_tclsh ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+
+     Running tests/namespace_op_conformance.rs (tmp/name-target-vm/debug/deps/namespace_op_conformance-736541d8322f4532)
+
+running 2 tests
+test tagging_matches_whether_the_releases_disagree ... ok
+test vectors_match_real_tclsh ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.99s
+
+     Running tests/variable_resolution_conformance.rs (tmp/name-target-vm/debug/deps/variable_resolution_conformance-55c38f82bd41674c)
+
+running 2 tests
+test tagging_matches_whether_the_releases_disagree ... ok
+test vectors_match_real_tclsh ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.20s
+

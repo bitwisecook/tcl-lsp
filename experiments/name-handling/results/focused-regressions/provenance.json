@@ -1,0 +1,32 @@
+{
+  "subject_commit": "b7ad30f1fcc1911f8e8744485d809f5348b9b850",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "vm_integration_tests": 333,
+  "vm_unit_tests": 109,
+  "runtime_distinct_tests": 350,
+  "shared_conformance_tests": 7,
+  "reference_patchlevels": [
+    "8.4.20",
+    "8.5.19",
+    "8.6.18",
+    "9.0.4",
+    "9.1.0"
+  ],
+  "logs_sha256": {
+    "name-runtime-build.txt": "355a0bdb7fff64403a75c62c29dda14605b99fde4c817174ce53e6d848a840b9",
+    "name-shared-conformance.txt": "8b1a794e100953a109af54a6671f00f7275b7b0a0eb2b6c1923aaf8c8a4e777c",
+    "name-vm-integration.txt": "2cde70208494f1497433233cef20e6a6430186b66adb247155f7da58f094e1c4",
+    "name-runtime-units.txt": "973de5208056afa0c223e902516e1322bc56648668467ab01c92c1ada495dce3",
+    "name-build-vm.txt": "e4cfbe1eb89766b9d5f963a232f2c5048852e8f97044ff2586802e8f948c1460",
+    "name-vm-startup.txt": "51d394eaa6ad0527def41e51c7fe0b0976d5416da0b768374fb5766566e1b00f",
+    "name-vm-all-units.txt": "7d7f049f1ff7e01fdf28906d51e502e76f85ef8b5d74351734239c0f84da0707",
+    "name-install-tcl.txt": "847af100b99668446f8b8420e2268d0f55a3f26d7a9d2011cb86a7641ebb5636",
+    "name-runtime-real-library-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "name-runtime-integrations.txt": "f16b6347773121827e68201fad9a54615c08eeb558ce9e1c000b3af6277e997d",
+    "name-capture-lint.txt": "1b64d9e186b1efd889b46bd217f04414899e116f7e998fbb2603dc4965aad90f",
+    "name-runtime-real-library.txt": "1df7973e4f88bb4804788cbfe02d1aa60865df8e1087b84408daa5ad02122d6f",
+    "name-vm-startup-stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "name-runtime-frames-lookup.txt": "796e2c93c16e26e9fdb255211ed5332577dd6604854fd54262cc44cdaa270a9d",
+    "name-install-rust.txt": "6b0c1cfa440387e0e96981b1e30b178202f11f6c621e954ec411ea92d8b08ff1"
+  }
+}

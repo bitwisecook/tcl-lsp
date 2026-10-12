@@ -1,0 +1,396 @@
+LIBRARY /workspace/tcl-lsp/tmp/tcl9.0.4/library INIT 1
+TCLTEST 2.5.11 FILE 1
+TESTPROC {
+    global tcl_platform
+    variable testLevel
+    variable coreModTime
+    variable fullutf
+
+    DebugPuts 3 "test $name $args"
+    DebugDo 1 {
+	variable TestNames
+	catch {
+	    puts "test name '$name' re-used; prior use in $TestNames($name)"
+	}
+	set TestNames($name) [info script]
+    }
+
+    FillFilesExisted
+    incr testLevel
+
+    # Predefine everything to null except output and errorOutput.  We
+    # determine whether or not to trap output based on whether or not
+    # these variables (output & errorOutput) are defined.
+    lassign {} constraints setup cleanup body result returnCodes errorCode match
+
+    # Set the default match mode
+    set match exact
+
+    # Set the default match values for return codes (0 is the standard
+    # expected return value if everything went well; 2 represents
+    # 'return' being used in the test script).
+    set returnCodes [list 0 2]
+
+    # Set the default error code pattern
+    set errorCode "*"
+
+    # The old test format can't have a 3rd argument (constraints or
+    # script) that starts with '-'.
+    if {[string match -* [lindex $args 0]] || ([llength $args] <= 1)} {
+	if {[llength $args] == 1} {
+	    set list [SubstArguments [lindex $args 0]]
+	    foreach {element value} $list {
+		set testAttributes($element) $value
+	    }
+	    foreach item {constraints match setup body cleanup  result returnCodes errorCode output errorOutput} {
+		if {[info exists testAttributes(-$item)]} {
+		    set testAttributes(-$item) [uplevel 1  ::concat $testAttributes(-$item)]
+		}
+	    }
+	} else {
+	    array set testAttributes $args
+	}
+
+	set validFlags {-setup -cleanup -body -result -returnCodes  -errorCode -match -output -errorOutput -constraints}
+
+	foreach flag [array names testAttributes] {
+	    if {$flag ni $validFlags} {
+		incr testLevel -1
+		set sorted [lsort $validFlags]
+		set options [join [lrange $sorted 0 end-1] ", "]
+		append options ", or [lindex $sorted end]"
+		return -code error "bad option \"$flag\": must be $options"
+	    }
+	}
+
+	# store whatever the user gave us
+	foreach item [array names testAttributes] {
+	    set [string trimleft $item "-"] $testAttributes($item)
+	}
+
+	# Check the values supplied for -match
+	variable CustomMatch
+	if {$match ni [array names CustomMatch]} {
+	    incr testLevel -1
+	    set sorted [lsort [array names CustomMatch]]
+	    set values [join [lrange $sorted 0 end-1] ", "]
+	    append values ", or [lindex $sorted end]"
+	    return -code error "bad -match value \"$match\": must be $values"
+	}
+
+	# Replace symbolic valies supplied for -returnCodes
+	foreach {strcode numcode} {ok 0 normal 0 error 1 return 2 break 3 continue 4} {
+	    set returnCodes [string map -nocase [list $strcode $numcode] $returnCodes]
+	}
+	# errorCode without returnCode 1 is meaningless
+	if {$errorCode ne "*" && 1 ni $returnCodes} {
+	    set returnCodes 1
+	}
+    } else {
+	# This is parsing for the old test command format; it is here
+	# for backward compatibility.
+	set result [lindex $args end]
+	if {[llength $args] == 2} {
+	    set body [lindex $args 0]
+	} elseif {[llength $args] == 3} {
+	    set constraints [lindex $args 0]
+	    set body [lindex $args 1]
+	} else {
+	    incr testLevel -1
+	    return -code error "wrong # args: should be \"test name desc ?options?\""
+	}
+    }
+
+    if {[Skipped $name $constraints]} {
+	incr testLevel -1
+	return
+    }
+
+    # Save information about the core file.
+    if {[preserveCore]} {
+	if {[file exists [file join [workingDirectory] core]]} {
+	    set coreModTime [file mtime [file join [workingDirectory] core]]
+	}
+    }
+
+    # First, run the setup script (or a hook if it presents):
+    if {[set cmd [namespace which -command [namespace current]::SetupTest]] ne ""} {
+	set setup [list $cmd $setup]
+    }
+    set processTest 1
+    set code [catch {uplevel 1 $setup} setupMsg]
+    if {$code == 1} {
+	set errorInfo(setup) $::errorInfo
+	set errorCodeRes(setup) $::errorCode
+	if {$errorCodeRes(setup) eq "BYPASS-SKIPPED-TEST"} {
+	    _noticeSkipped $name $setupMsg
+	    set processTest [set code 0]
+	}
+    }
+    set setupFailure [expr {$code != 0}]
+
+    # Only run the test body if the setup was successful
+    if {$processTest && !$setupFailure} {
+
+	# Register startup time
+	if {[IsVerbose msec] || [IsVerbose usec]} {
+	    set timeStart [clock microseconds]
+	}
+
+	# Verbose notification of $body start
+	if {[IsVerbose start]} {
+	    puts [outputChannel] "---- $name start"
+	    flush [outputChannel]
+	}
+
+	set command [list [namespace origin RunTest] $name $body]
+	if {[info exists output] || [info exists errorOutput]} {
+	    set testResult [uplevel 1 [list [namespace origin Eval] $command 0]]
+	} else {
+	    set testResult [uplevel 1 [list [namespace origin Eval] $command 1]]
+	}
+	lassign $testResult actualAnswer returnCode
+	if {$returnCode == 1} {
+	    set errorInfo(body) $::errorInfo
+	    set errorCodeRes(body) $::errorCode
+	    if {$errorCodeRes(body) eq "BYPASS-SKIPPED-TEST"} {
+		_noticeSkipped $name $actualAnswer
+		set processTest [set returnCode 0]
+	    }
+	}
+    }
+
+    # check if the return code matched the expected return code
+    set codeFailure 0
+    if {$processTest && !$setupFailure && ($returnCode ni $returnCodes)} {
+	set codeFailure 1
+    }
+    set errorCodeFailure 0
+    if {$processTest && !$setupFailure && !$codeFailure && $returnCode == 1 &&  ![string match $errorCode $errorCodeRes(body)]} {
+	set errorCodeFailure 1
+    }
+
+    # If expected output/error strings exist, we have to compare
+    # them.  If the comparison fails, then so did the test.
+    set outputFailure 0
+    variable outData
+    if {$processTest && [info exists output] && !$codeFailure} {
+	if {[set outputCompare [catch {
+	    CompareStrings $outData $output $match
+	} outputMatch]] == 0} {
+	    set outputFailure [expr {!$outputMatch}]
+	} else {
+	    set outputFailure 1
+	}
+    }
+
+    set errorFailure 0
+    variable errData
+    if {$processTest && [info exists errorOutput] && !$codeFailure} {
+	if {[set errorCompare [catch {
+	    CompareStrings $errData $errorOutput $match
+	} errorMatch]] == 0} {
+	    set errorFailure [expr {!$errorMatch}]
+	} else {
+	    set errorFailure 1
+	}
+    }
+
+    # check if the answer matched the expected answer
+    # Only check if we ran the body of the test (no setup failure)
+    if {!$processTest} {
+	set scriptFailure 0
+    } elseif {$setupFailure || $codeFailure} {
+	set scriptFailure 0
+    } elseif {[set scriptCompare [catch {
+	CompareStrings $actualAnswer $result $match
+    } scriptMatch]] == 0} {
+	set scriptFailure [expr {!$scriptMatch}]
+    } else {
+	set scriptFailure 1
+    }
+
+    # Always run the cleanup script (or a hook if it presents):
+    if {[set cmd [namespace which -command [namespace current]::CleanupTest]] ne ""} {
+	set cleanup [list $cmd $cleanup]
+    }
+    set code [catch {uplevel 1 $cleanup} cleanupMsg]
+    if {$code == 1} {
+	set errorInfo(cleanup) $::errorInfo
+	set errorCodeRes(cleanup) $::errorCode
+    }
+    set cleanupFailure [expr {$code != 0}]
+
+    set coreFailure 0
+    set coreMsg ""
+    # check for a core file first - if one was created by the test,
+    # then the test failed
+    if {[preserveCore]} {
+	if {[file exists [file join [workingDirectory] core]]} {
+	    # There's only a test failure if there is a core file
+	    # and (1) there previously wasn't one or (2) the new
+	    # one is different from the old one.
+	    if {[info exists coreModTime]} {
+		if {$coreModTime != [file mtime  [file join [workingDirectory] core]]} {
+		    set coreFailure 1
+		}
+	    } else {
+		set coreFailure 1
+	    }
+
+	    if {([preserveCore] > 1) && ($coreFailure)} {
+		append coreMsg "\nMoving file to: [file join [temporaryDirectory] core-$name]"
+		catch {file rename -force --  [file join [workingDirectory] core]  [file join [temporaryDirectory] core-$name]
+		} msg
+		if {$msg ne {}} {
+		    append coreMsg "\nError: Problem renaming core file: $msg"
+		}
+	    }
+	}
+    }
+
+    if {[IsVerbose msec] || [IsVerbose usec]} {
+	set t [expr {[clock microseconds] - $timeStart}]
+	if {[IsVerbose usec]} {
+	    puts [outputChannel] "++++ $name took $t \xB5s"
+	}
+	if {[IsVerbose msec]} {
+	    puts [outputChannel] "++++ $name took [expr {round($t/1000.)}] ms"
+	}
+    }
+
+    # if skipped, it is safe to return here
+    if {!$processTest} {
+	incr testLevel -1
+	return
+    }
+
+    # if we didn't experience any failures, then we passed
+    variable numTests
+    if {!($setupFailure || $cleanupFailure || $coreFailure
+	    || $outputFailure || $errorFailure || $codeFailure
+	    || $errorCodeFailure || $scriptFailure)} {
+	if {$testLevel == 1} {
+	    incr numTests(Passed)
+	    if {[IsVerbose pass]} {
+		puts [outputChannel] "++++ $name PASSED"
+	    }
+	}
+	incr testLevel -1
+	return
+    }
+
+    # We know the test failed, tally it...
+    if {$testLevel == 1} {
+	incr numTests(Failed)
+    }
+
+    # ... then report according to the type of failure
+    variable currentFailure true
+    if {![IsVerbose body]} {
+	set body ""
+    }
+    puts [outputChannel] "\n"
+    if {[IsVerbose line]} {
+	if {![catch {set testFrame [info frame -1]}] &&
+		[dict get $testFrame type] eq "source"} {
+	    set testFile [dict get $testFrame file]
+	    set testLine [dict get $testFrame line]
+	} else {
+	    set testFile [file normalize [uplevel 1 {info script}]]
+	    if {[file readable $testFile]} {
+		set testFd [open $testFile r]
+		if {$fullutf} {
+		    fconfigure $testFd -profile tcl8 -encoding utf-8
+		}
+		set testLine [expr {[lsearch -regexp  [split [read $testFd] "\n"]  "^\[ \t\]*test [string map {. \\.} $name] "] + 1}]
+		close $testFd
+	    }
+	}
+	if {[info exists testLine]} {
+	    puts [outputChannel] "$testFile:$testLine: error: test failed: $name [string trim $description]"
+	}
+    }
+    puts [outputChannel] "==== $name [string trim $description] FAILED"
+    if {[string length $body]} {
+	puts [outputChannel] "==== Contents of test case:"
+	puts [outputChannel] $body
+    }
+    if {$setupFailure} {
+	puts [outputChannel] "---- Test setup failed:\n$setupMsg"
+	if {[info exists errorInfo(setup)]} {
+	    puts [outputChannel] "---- errorInfo(setup): $errorInfo(setup)"
+	    puts [outputChannel] "---- errorCode(setup): $errorCodeRes(setup)"
+	}
+    }
+    if {$processTest && $scriptFailure} {
+	if {$scriptCompare} {
+	    puts [outputChannel] "---- Error testing result: $scriptMatch"
+	} else {
+	    if {[string length $actualAnswer] > 1000} {
+		set actualAnswer [string cat  [string range $actualAnswer 0 499]  "(long output elided)"  [string range $actualAnswer end-499 end]]
+	    }
+	    if {[string length $result] > 1000} {
+		set result [string cat  [string range $result 0 499]  "(long output elided)"  [string range $result end-499 end]]
+	    }
+	    if {[catch {
+		puts [outputChannel] "---- Result was:\n[Asciify $actualAnswer]"
+	    } errMsg]} {
+		puts [outputChannel] "\n---- Result was:\n<error printing result: $errMsg>"
+	    }
+	    puts [outputChannel] "---- Result should have been ($match matching):\n[Asciify $result]"
+	}
+    }
+    if {$errorCodeFailure} {
+	puts [outputChannel] "---- Error code was: '$errorCodeRes(body)'"
+	puts [outputChannel] "---- Error code should have been: '$errorCode'"
+    }
+    if {$codeFailure} {
+	switch -- $returnCode {
+	    0 { set msg "Test completed normally" }
+	    1 { set msg "Test generated error" }
+	    2 { set msg "Test generated return exception" }
+	    3 { set msg "Test generated break exception" }
+	    4 { set msg "Test generated continue exception" }
+	    default { set msg "Test generated exception" }
+	}
+	puts [outputChannel] "---- $msg; Return code was: $returnCode"
+	puts [outputChannel] "---- Return code should have been one of: $returnCodes"
+	if {[IsVerbose error]} {
+	    if {[info exists errorInfo(body)] && (1 ni $returnCodes)} {
+		puts [outputChannel] "---- errorInfo: $errorInfo(body)"
+		puts [outputChannel] "---- errorCode: $errorCodeRes(body)"
+	    }
+	}
+    }
+    if {$outputFailure} {
+	if {$outputCompare} {
+	    puts [outputChannel] "---- Error testing output: $outputMatch"
+	} else {
+	    puts [outputChannel] "---- Output was:\n$outData"
+	    puts [outputChannel] "---- Output should have been ($match matching):\n$output"
+	}
+    }
+    if {$errorFailure} {
+	if {$errorCompare} {
+	    puts [outputChannel] "---- Error testing errorOutput: $errorMatch"
+	} else {
+	    puts [outputChannel] "---- Error output was:\n$errData"
+	    puts [outputChannel] "---- Error output should have been ($match matching):\n$errorOutput"
+	}
+    }
+    if {$cleanupFailure} {
+	puts [outputChannel] "---- Test cleanup failed:\n$cleanupMsg"
+	if {[info exists errorInfo(cleanup)]} {
+	    puts [outputChannel] "---- errorInfo(cleanup): $errorInfo(cleanup)"
+	    puts [outputChannel] "---- errorCode(cleanup): $errorCodeRes(cleanup)"
+	}
+    }
+    if {$coreFailure} {
+	puts [outputChannel] "---- Core file produced while running test!  $coreMsg"
+    }
+    puts [outputChannel] "==== $name FAILED\n"
+
+    incr testLevel -1
+    return
+}

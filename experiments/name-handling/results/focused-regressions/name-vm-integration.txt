@@ -1,0 +1,469 @@
+   Compiling typenum v1.20.1
+   Compiling tcl-dialect v0.1.0 (/workspace/tcl-lsp/rust/tcl-dialect)
+   Compiling bitflags v2.13.2
+   Compiling num-traits v0.2.19
+   Compiling thiserror v2.0.21
+   Compiling hybrid-array v0.4.15
+   Compiling const-oid v0.10.2
+   Compiling tcl-core-types v0.1.0 (/workspace/tcl-lsp/rust/tcl-core-types)
+   Compiling libm v0.2.16
+   Compiling num-integer v0.1.47
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling cfg-if v1.0.5
+   Compiling tcl-lexer v0.1.0 (/workspace/tcl-lsp/rust/tcl-lexer)
+   Compiling num-bigint v0.5.1
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-platform v0.1.0 (/workspace/tcl-lsp/rust/tcl-platform)
+   Compiling sha2 v0.11.0
+   Compiling sha1 v0.11.0
+   Compiling md-5 v0.11.0
+   Compiling memchr v2.8.3
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling aho-corasick v1.1.5
+   Compiling rustc-hash v2.1.3
+   Compiling regex-syntax v0.8.11
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling smallvec v1.16.2
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling regex-automata v0.4.18
+   Compiling unicode-general-category v1.1.0
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling regex v1.13.1
+   Compiling tcl-host-native v0.1.0 (/workspace/tcl-lsp/rust/tcl-host-native)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 10s
+     Running tests/cmd_oo_e2e.rs (tmp/name-target-vm/debug/deps/cmd_oo_e2e-a844fa60ceaec0db)
+
+running 73 tests
+test automatic_instance_variable_link_yields_to_a_formal_local ... ok
+test basic_class_and_method ... ok
+test bodyless_forward_needs_no_runtime_procedure_compiler ... ok
+test class_factory_names_in_unknown_error ... ok
+test class_method_bodies_compile_per_object_private_namespace ... ok
+test colon_colliding_object_slots_keep_distinct_identity ... ok
+test constructor_and_instance_variables ... ok
+test constructor_next_chains_to_superclass ... ok
+test context_commands_outside_method_are_invalid ... ok
+test create_with_explicit_name ... ok
+test deeply_recursive_method_errors_instead_of_crashing ... ok
+test destroy_runs_destructor_and_removes_command ... ok
+test destroying_a_class_cascades_to_instances_and_subclasses ... ok
+test destroying_a_hidden_object_unlinks_its_hidden_command_token ... ok
+test destructor_next_chains ... ok
+test diamond_inheritance_linearisation ... ok
+test empty_constructor_body_ignores_extra_args ... ok
+test export_default_is_lowercase_initial ... ok
+test exposing_a_hidden_object_does_not_rename_its_public_identity ... ok
+test forward_delegates_to_prefix ... ok
+test forward_requires_a_target_command ... ok
+test info_class_introspection ... ok
+test info_class_methods_lists_only_exported ... ok
+test info_object_class_and_isa ... ok
+test info_object_isa_category_resolves_like_tcl_get_index_from_obj ... ok
+test info_object_isa_enforces_the_per_category_arity ... ok
+test info_variables_separates_public_and_private_declarations ... ok
+test instances_have_independent_state ... ok
+test mixin_adds_methods ... ok
+test moderately_recursive_method_still_runs ... ok
+test multilevel_next_chain ... ok
+test my_calls_unexported_method ... ok
+test my_variable_and_varname_reach_a_private_slot ... ok
+test my_variable_links_instance_state ... ok
+test namespace_teardown_destroys_tcloo_commands ... ok
+test next_past_end_errors ... ok
+test nextto_resumes_at_named_class ... ok
+test oo_define_adds_method_later ... ok
+test oo_define_change_superclass ... ok
+test oo_objdefine_per_instance_method ... ok
+test private_block_form_declares_privately ... ok
+test private_instance_variable_on_a_class_matches_var_29_3 ... ok
+test private_instance_variable_on_an_object_matches_var_29_6 ... ok
+test realistic_stack_object ... ok
+test relative_qualified_object_publication_uses_the_resolved_slot ... ok
+test rename_preserves_object_and_class_identity ... ok
+test renamed_object_destroy_removes_the_destination_command ... ok
+test replacing_tcloo_commands_runs_their_delete_lifecycle ... ok
+test retained_and_recreated_tcloo_commands_have_distinct_identity ... ok
+test retained_tcloo_self_destroy_retires_the_exact_command_token ... ok
+test same_named_private_variables_do_not_collide_across_a_hierarchy ... ok
+test self_class_and_method ... ok
+test self_class_reports_declaring_class_via_inheritance ... ok
+test self_returns_object_name ... ok
+test single_inheritance_next ... ok
+test tcl_oo_package_and_version_vars ... ok
+test tip558_configurable_bad_property ... ok
+test tip558_configurable_configure_get_set_list ... ok
+test tip558_configurable_custom_get_set ... ok
+test tip558_configurable_define_errorinfo_frame ... ok
+test tip558_configurable_inheritance_and_next ... ok
+test tip558_configurable_kind_readable_and_writable ... ok
+test tip558_configurable_not_on_plain_class ... ok
+test tip558_configurable_option_abbreviation ... ok
+test tip558_configurable_per_object_property ... ok
+test tip558_configurable_property_abbreviates ... ok
+test tip558_configurable_property_name_validation ... ok
+test tip558_core_property_slots ... ok
+test tip558_property_all_walks_superclasses ... ok
+test tip558_property_and_info_options_match_tcl_prefix_diagnostics ... ok
+test tip558_property_slot_ops_and_writable ... ok
+test unexport_hides_from_public_dispatch ... ok
+test variable_declarations_honour_slot_operations ... ok
+
+test result: ok. 73 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.61s
+
+     Running tests/command_resolution_conformance.rs (tmp/name-target-vm/debug/deps/command_resolution_conformance-e29b44816b507d62)
+
+running 1 test
+test vm_dispatch_matches_every_vector ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.23s
+
+     Running tests/command_traces_e2e.rs (tmp/name-target-vm/debug/deps/command_traces_e2e-eeb3dbf29fe8abdf)
+
+running 5 tests
+test native_invoke_uses_the_post_enter_trace_owner_snapshot ... ok
+test replacement_retires_a_generation_moved_by_its_delete_trace ... ok
+test step_traces_observe_inlined_commands_too ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_trace_vectors ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.64s
+
+     Running tests/cross_interp_alias_e2e.rs (tmp/name-target-vm/debug/deps/cross_interp_alias_e2e-37bda0fea26ae093)
+
+running 4 tests
+test child_interpreter_deletion_uses_command_token_lifecycle_once ... ok
+test deleting_an_alias_target_retires_a_retained_source_token ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_cross_interp_alias_vectors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s
+
+     Running tests/cross_interp_reentry_e2e.rs (tmp/name-target-vm/debug/deps/cross_interp_reentry_e2e-40d4448953cba7a4)
+
+running 2 tests
+test reentry_vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_reentry_vectors ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s
+
+     Running tests/cross_version_vars_e2e.rs (tmp/name-target-vm/debug/deps/cross_version_vars_e2e-ce3a7dcf6f3649c1)
+
+running 28 tests
+test braced_var_close_rule_matches_real_tclsh ... ok
+test compiled_array_index_braced_var_follows_the_emulated_release ... ok
+test compiled_array_index_braced_var_matches_real_tclsh ... ok
+test compiled_array_index_source_mask_follows_the_emulated_release ... ok
+test compiled_backslash_braced_var_names_follow_the_emulated_release ... ok
+test compiled_backslash_braced_var_names_match_real_tclsh ... ok
+test compiled_braced_var_close_rule_follows_the_emulated_release ... ok
+test compiled_braced_var_close_rule_matches_real_tclsh ... ok
+test compiled_braced_var_escape_follows_the_emulated_release ... ok
+test compiled_composite_array_key_follows_the_emulated_release ... ok
+test compiled_composite_array_key_matches_real_tclsh ... ok
+test compiled_dollar_equals_word_is_literal_at_every_release ... ok
+test compiled_dollar_equals_word_matches_real_tclsh ... ok
+test compiled_escaped_open_brace_key_resolves_at_every_release ... ok
+test compiled_interpolated_and_switch_paths_follow_the_emulated_release ... ok
+test compiled_interpolated_and_switch_paths_match_real_tclsh ... ok
+test foreach_completion_handoff_matches_c_tcl_8_and_9 ... ok
+test foreach_completion_vectors_match_real_tclsh ... ok
+test namespace_path_resolution_tier_is_8_5_plus_m10 ... ok
+test namespace_upvar_release_surface_and_zero_pair_arity_are_registry_driven ... ok
+test ordinary_braced_var_references_are_unchanged_at_every_release ... ok
+test subst_braced_var_close_rule_follows_the_emulated_release ... ok
+test switch_subject_whole_under_the_8x_rule_only_follows_the_emulated_release ... ok
+test switch_subject_whole_under_the_8x_rule_only_matches_real_tclsh ... ok
+test unterminated_braced_var_in_a_compiled_word_is_a_parse_error ... ok
+test unterminated_braced_var_raises_on_both_releases ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_cross_version_vectors ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.30s
+
+     Running tests/element_recovery_traces_e2e.rs (tmp/name-target-vm/debug/deps/element_recovery_traces_e2e-34c9e0e115b956cf)
+
+running 3 tests
+test element_recovery_follows_the_selected_release ... ok
+test the_dialect_owns_the_release_boundary ... ok
+test vectors_match_real_tclsh_when_available ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/legacy_variable_traces_e2e.rs (tmp/name-target-vm/debug/deps/legacy_variable_traces_e2e-20aef05bb218f1df)
+
+running 3 tests
+test legacy_variable_trace_forms_follow_the_selected_release ... ok
+test the_registry_owns_the_release_boundary ... ok
+test vectors_match_real_tclsh_when_available ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running tests/namespace_colon_runs_e2e.rs (tmp/name-target-vm/debug/deps/namespace_colon_runs_e2e-5013b27dc3d1e9dd)
+
+running 22 tests
+test apply_namespace_canonicalises_separator_runs ... ok
+test colon_edge_command_bindings_do_not_collide ... ok
+test colon_edge_imports_keep_distinct_binding_identity ... ok
+test colon_edge_namespace_deletion_and_recreation_are_isolated ... ok
+test colon_edge_namespace_paths_do_not_collapse_in_the_live_index ... ok
+test colon_edge_rename_and_trace_ownership_is_token_stable ... ok
+test colon_run_call_resolves_like_double_colon ... ok
+test forget_with_root_qualified_pattern_is_a_quiet_no_op ... ok
+test import_and_forget_collapse_runs_in_patterns ... ok
+test import_global_builtin_keeps_absolute_marker ... ok
+test namespace_delete_collapses_runs ... ok
+test namespace_eval_trailing_run_creates_plain_namespace ... ok
+test namespace_exists_and_parent_collapse_runs ... ok
+test nested_literal_colon_namespace_keeps_its_constructed_key ... ok
+test proc_body_in_literal_colon_namespace_keeps_its_namespace ... ok
+test proc_colon_run_into_missing_namespace_errors ... ok
+test proc_with_colon_run_defines_collapsed_name ... ok
+test proc_with_trailing_run_defines_empty_named_command ... ok
+test qualified_variable_names_canonicalise_runs_and_require_parent_namespaces ... ok
+test relative_namespace_lookup_below_literal_colon_context_keeps_its_key ... ok
+test rename_through_colon_run_re_homes_the_proc ... ok
+test variable_substitution_consumes_colon_runs ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.25s
+
+     Running tests/namespace_surface_e2e.rs (tmp/name-target-vm/debug/deps/namespace_surface_e2e-7ad0e446768f66e2)
+
+running 123 tests
+test a_command_deleted_from_a_retained_frame_reports_its_own_namespace ... ok
+test a_deferred_namespace_is_unpublished_for_every_caller ... ok
+test a_deferred_teardown_keeps_tcl_hash_order ... ok
+test a_delete_callbacks_own_trace_dies_with_the_dying_token ... ok
+test a_hidden_tcloo_root_cannot_be_renamed_back_into_view ... ok
+test a_live_path_keeps_an_exact_retained_target_token ... ok
+test a_namespace_eval_frame_defers_its_own_deletion ... ok
+test a_recreated_namespace_is_a_distinct_token_from_the_retained_one ... ok
+test a_refused_alias_rename_keeps_the_command_tables_growth ... ok
+test a_relative_namespace_eval_enters_the_retained_child ... ok
+test a_renamed_tcloo_root_still_gates_by_its_registry_identity ... ok
+test a_replacements_trace_survives_the_deletion_that_created_it ... ok
+test a_retained_path_reaches_its_retained_child_target ... ok
+test a_retained_procedure_runs_in_its_own_token_not_the_recreations ... ok
+test a_retained_token_keeps_its_children ... ok
+test a_retained_token_keeps_its_namespace_path ... ok
+test a_retained_token_keeps_its_variables ... ok
+test a_retained_token_loses_its_unknown_handler_and_keeps_its_exports ... ok
+test a_retained_token_reports_its_own_name_and_commands ... ok
+test a_retained_token_takes_relative_definitions_only ... ok
+test a_script_created_object_is_release_invariant ... ok
+test a_suspended_coroutine_releases_its_retained_namespace_on_completion ... ok
+test an_absolute_proc_definition_targets_the_live_recreation ... ok
+test an_active_child_defers_while_its_parent_tears_down ... ok
+test an_owned_ensemble_dies_while_its_namespace_is_retained ... ok
+test an_unset_namespace_unknown_is_empty_outside_the_global_namespace ... ok
+test child_namespace_teardown_uses_tcl_string_hash_order ... ok
+test command_delete_traces_wait_for_the_last_activation ... ok
+test command_lookup_codes_are_attached_only_by_real_lookup_failures ... ok
+test command_origin_reports_none_for_a_command_that_was_not_imported ... ok
+test command_table_hash_order_moves_a_redefined_command ... ok
+test command_table_hash_order_records_table_growth ... ok
+test command_table_hash_order_retains_capacity_across_deletions ... ok
+test configuring_an_imported_ensemble_updates_the_origin ... ok
+test declared_but_unset_namespace_variables_are_introspectable ... ok
+test deleting_a_namespace_clears_its_own_path_and_unknown_handler ... ok
+test deleting_a_namespace_clears_paths_in_both_directions ... ok
+test deleting_a_namespace_deletes_its_ensembles ... ok
+test deleting_a_namespace_fully_retires_its_visible_ensemble_once ... ok
+test deleting_a_namespace_fully_retires_ordinary_commands_once ... ok
+test deleting_an_imported_intermediate_retires_its_downstream_imports ... ok
+test deleting_the_running_namespace_retains_it_for_the_frame ... ok
+test dying_namespace_handles_are_rejected_during_command_delete_traces ... ok
+test ensemble_configure_reads_and_writes_the_config_table ... ok
+test ensemble_create_accepts_parameters_and_threads_them ... ok
+test ensemble_create_checks_pair_arity_before_option_words ... ok
+test ensemble_create_has_no_namespace_option ... ok
+test ensemble_create_options_abbreviate ... ok
+test ensemble_default_target_miss_names_the_rewritten_subcommand ... ok
+test ensemble_dispatch_messages_match_c ... ok
+test ensemble_map_preserves_dict_order_and_collapses_repeats ... ok
+test ensemble_map_validation_matches_tcl_dict_and_target_errors ... ok
+test ensemble_subcommand_scan_matches_c_on_the_empty_word ... ok
+test ensemble_unknown_deleted_seeds_the_handler_errorinfo_frame ... ok
+test ensemble_unknown_exceptional_codes_and_malformed_results_match_c ... ok
+test ensemble_unknown_nonempty_prefix_uses_live_parameter_count ... ok
+test ensemble_unknown_result_is_redispatched_as_a_command_prefix ... ok
+test ensemble_unknown_retains_the_live_command_token ... ok
+test ensemble_wrong_args_list_quotes_the_command_and_parameters ... ok
+test export_clear_really_clears ... ok
+test export_query_form_reports_the_pattern_list ... ok
+test finalising_a_path_target_unlinks_live_and_retained_owners ... ok
+test import_cascade_retires_the_relocated_generation_once ... ok
+test import_created_by_a_source_delete_trace_joins_the_old_token_cascade ... ok
+test import_delete_retires_the_exact_generation_after_trace_relocation ... ok
+test import_delete_trace_can_reimport_the_same_origin_at_the_same_name ... ok
+test import_delete_traces_are_depth_first_with_visible_ancestors ... ok
+test import_tree_refollows_parent_generation_after_child_callbacks ... ok
+test imported_binding_delete_trace_runs_before_unlink_and_is_reentrant ... ok
+test imported_ensemble_keeps_source_identity_across_hide_and_expose ... ok
+test imported_ensemble_tracks_atomic_replacement_but_not_true_deletion ... ok
+test inscope_and_apply_frames_defer_their_own_deletion ... ok
+test interp_hide_and_expose_failures_keep_typed_tcl_identities ... ok
+test interp_visibility_qualifier_validation_is_shared_by_every_entry_form ... ok
+test lookup_error_codes_quote_dynamic_names_as_list_elements ... ok
+test namespace_children_matches_tcls_string_hash_iteration_order ... ok
+test namespace_children_retains_tcls_hash_capacity_after_deletion ... ok
+test namespace_delete_accepts_the_global_root ... ok
+test namespace_delete_marks_the_namespace_dying_before_command_traces ... ok
+test namespace_delete_retires_callback_created_hidden_ensemble_imports ... ok
+test namespace_exists_uses_namespace_name_canonicalisation ... ok
+test namespace_import_rejects_a_cycle_before_mutating_the_graph ... ok
+test namespace_import_rejects_self_and_unknown_sources ... ok
+test namespace_origin_reports_its_own_usage_for_both_bad_arities ... ok
+test namespace_owned_ensemble_trace_precedes_the_dying_marker ... ok
+test namespace_owned_ensembles_retire_live_heads_in_creation_order ... ok
+test namespace_path_checks_that_every_entry_exists ... ok
+test namespace_scoped_links_are_namespace_variables ... ok
+test namespace_teardown_defers_a_callback_recreated_command_to_the_next_pass ... ok
+test namespace_teardown_fires_trace_only_undefined_cells ... ok
+test namespace_teardown_places_imports_at_their_hash_positions ... ok
+test namespace_teardown_removes_one_cell_then_purges_its_recreation ... ok
+test namespace_teardown_retires_each_sources_import_tree_before_the_next_entry ... ok
+test namespace_teardown_skips_a_command_a_callback_already_deleted ... ok
+test namespace_teardown_uses_command_table_tcl_string_hash_order ... ok
+test namespace_teardown_visits_a_callback_created_command_in_the_next_pass ... ok
+test namespace_upvar_keeps_the_resolved_retained_namespace_token ... ok
+test namespace_which_validates_its_positional_option_shape ... ok
+test only_the_first_word_is_the_export_flag ... ok
+test only_the_first_word_is_the_import_flag ... ok
+test origin_follows_import_chains ... ok
+test parent_teardown_reaches_each_child_after_parent_commands ... ok
+test real_delete_retires_the_exact_generation_after_trace_relocation ... ok
+test reconfiguring_an_ensemble_reaches_transitive_importers ... ok
+test recreated_namespace_does_not_revive_a_retained_dead_token ... ok
+test relative_qualified_rename_projects_the_resolved_procedure_slot ... ok
+test renaming_an_ensemble_into_a_retained_namespace_still_dispatches ... ok
+test retained_and_recreated_namespace_variable_traces_are_isolated ... ok
+test retained_and_recreated_namespace_variables_have_distinct_cells ... ok
+test retained_command_rename_mutates_the_exact_token_table ... ok
+test retained_command_replacement_retires_the_old_token ... ok
+test retained_import_graph_retargets_with_its_source_token ... ok
+test retained_import_graph_retires_with_its_source_token ... ok
+test retained_import_query_and_forget_use_the_token_table ... ok
+test retained_namespace_handle_remains_dead_after_deletion_returns ... ok
+test retained_namespace_rejects_new_import_publication_without_panicking ... ok
+test retained_teardown_does_not_unlink_a_recreated_namespace_path_target ... ok
+test source_deletion_refollows_generation_after_import_callbacks ... ok
+test tcloo_roots_follow_their_introducing_release ... ok
+test transitive_import_tracks_an_intermediate_replacement_and_deletion ... ok
+test which_variable_global_fallback_is_a_release_axis ... ok
+test which_variable_ignores_proc_locals ... ok
+test which_variable_resolves_real_namespace_variables ... ok
+
+test result: ok. 123 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.52s
+
+     Running tests/safe_interp_e2e.rs (tmp/name-target-vm/debug/deps/safe_interp_e2e-b44460296b51263b)
+
+running 12 tests
+test after_and_vwait_remain_callable_in_a_safe_interp ... ok
+test child_and_safe_platform_schemas_come_from_the_shared_owner ... ok
+test clock_remains_callable_in_a_safe_child ... ok
+test hidden_command_direct_call_raises_invalid_command_name ... ok
+test hidden_command_via_ensemble_map_redirect_raises_invalid_command_name ... ok
+test hidden_command_via_eval_of_built_string_raises_invalid_command_name ... ok
+test hidden_command_via_expand_list_quoting_raises_invalid_command_name ... ok
+test marktrusted_preserves_a_visible_command_colliding_with_hidden_token ... ok
+test measured_hidden_sets_match_real_tclsh_when_available ... ok
+test rename_cannot_resurrect_a_hidden_command ... ok
+test safe_interp_hidden_set_matches_the_measured_tclsh_sets ... ok
+test the_unhidden_residue_is_genuinely_unimplemented ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+     Running tests/tcltest_load.rs (tmp/name-target-vm/debug/deps/tcltest_load-6ad48673cd50dd9f)
+
+running 12 tests
+test init_library_sources_the_selected_init_and_require_discovers_its_package ... ok
+test real_tcl_9_0_4_init_discovers_tcltest_via_package_require ... ok
+test upstream_array_get_read_trace_definitions_pass_after_real_startup ... ok
+test upstream_channel_output_cases_use_real_tcltest ... ok
+test upstream_dict_info_definitions_pass_after_real_startup ... ok
+test upstream_error_shifted_context_definitions_pass_after_real_startup ... ok
+test upstream_error_stack_reset_preserves_shifted_context ... ok
+test upstream_invalid_error_stack_preserves_shifted_context ... ok
+test upstream_namespace_active_deletion_definitions_pass_after_real_startup ... ok
+test upstream_package_badresult_definitions_pass_after_real_startup ... ok
+test upstream_set_stem_emits_a_parseable_summary_after_real_startup ... ok
+test upstream_var_search_mutation_handlers_receive_errorinfo ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 83.33s
+
+     Running tests/tricky_resolution_e2e.rs (tmp/name-target-vm/debug/deps/tricky_resolution_e2e-2b705b0130eeb2b0)
+
+running 13 tests
+test alias_keeps_the_callers_frame ... ok
+test alias_target_resolves_globally_not_in_caller_namespace ... ok
+test colon_named_proc_dispatches_bare_but_not_via_written_runs ... ok
+test colon_proc_in_colon_namespace_is_relatively_reachable_only ... ok
+test forward_target_resolves_in_object_namespace_not_caller ... ok
+test namespace_local_mathfunc_shadows_global_in_expr ... ok
+test namespace_unknown_beats_the_global_unknown_proc ... ok
+test namespace_unknown_handler_fires_for_misses_in_that_namespace ... ok
+test namespace_unknown_is_not_inherited_by_children ... ok
+test namespace_unknown_query_reports_handler_or_default ... ok
+test proc_defined_mathfunc_is_callable_from_expr ... ok
+test rename_finds_its_source_via_namespace_path ... ok
+test unknown_math_function_reports_the_command_miss ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/variable_name_resolution_e2e.rs (tmp/name-target-vm/debug/deps/variable_name_resolution_e2e-e0e97bb14e2d7ee9)
+
+running 3 tests
+test release_invariant_vectors_hold_at_every_release ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_variable_name_vectors ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.50s
+
+     Running tests/variable_trace_semantics_e2e.rs (tmp/name-target-vm/debug/deps/variable_trace_semantics_e2e-0dd2394bce5cb9f3)
+
+running 26 tests
+test alias_wrappers_begin_a_fresh_completion_option_scope ... ok
+test array_content_validation_preserves_structured_error_codes ... ok
+test array_for_non_array_errors_have_the_lookup_identity ... ok
+test array_for_tracks_structural_revision_and_read_trace_deletion ... ok
+test array_get_reads_candidates_through_the_shared_trace_contract ... ok
+test array_operation_reference_preserves_same_binding_recreation ... ok
+test array_operation_trace_self_gates_on_the_parent_cell ... ok
+test array_operations_fire_the_registry_resolved_array_trace ... ok
+test array_trace_alias_retarget_uses_located_cell_policy ... ok
+test array_trace_resolution_distinguishes_direct_and_linked_elements ... ok
+test array_trace_resolution_handles_undefined_scalar_and_alias_cells ... ok
+test compiled_proc_local_array_exists_fires_the_array_trace ... ok
+test control_commands_apply_the_tcl9_completion_option_scope_matrix ... ok
+test every_advertised_array_member_validates_arity_before_tracing ... ok
+test read_and_write_trace_wrappers_publish_their_lookup_error_codes ... ok
+test trace_reentrancy_is_per_resolved_variable_cell ... ok
+test unset_element_miss_kind_survives_parent_mutation_in_its_callback ... ok
+test unset_from_an_active_write_trace_fires_the_taken_unset_list ... ok
+test unsetting_a_trace_only_array_element_fires_then_reports_it_missing ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_trace_vectors ... ok
+test whole_array_teardown_visits_trace_only_undefined_elements ... ok
+test whole_array_unset_detaches_old_element_aliases ... ok
+test whole_array_unset_fires_each_old_element_cell ... ok
+test whole_array_unset_retargets_live_alias_and_preserves_const_error ... ok
+test whole_array_write_trace_can_enter_a_sibling_element ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.70s
+
+     Running tests/word_value_resolution_e2e.rs (tmp/name-target-vm/debug/deps/word_value_resolution_e2e-2e9699f94b09e8af)
+
+running 3 tests
+test the_vectors_hold_at_every_release ... ok
+test vectors_match_real_tclsh ... ok
+test vm_matches_the_pinned_word_value_vectors ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.22s
+

@@ -1,0 +1,26 @@
+{
+  "engine": "vm",
+  "stem": "ooNext2",
+  "exit_code": 0,
+  "seconds": 9.202,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/ooNext2.test",
+    "--match",
+    "next-tailcall-simple-1"
+  ],
+  "input_sha256": "7c3b59e10264399030fe335b533bb1d9999738231aba6ecd4c98fb501d5e2c25",
+  "test_sha256": "da04f77d779abe237d4880e4c0de6a7131f376554a96a42cf25412e3f8da5e1b",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [],
+  "last_started_id": "next-tailcall-simple-1",
+  "total": 62,
+  "passed": 1,
+  "skipped": 61,
+  "failed": 0,
+  "status": "pass"
+}

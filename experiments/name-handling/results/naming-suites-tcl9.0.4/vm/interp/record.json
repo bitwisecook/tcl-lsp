@@ -1,0 +1,27 @@
+{
+  "engine": "vm",
+  "stem": "interp",
+  "exit_code": 1,
+  "seconds": 11.368,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/interp.test"
+  ],
+  "input_sha256": "c01c146f4af1125ed9bbcda881fb3a3157aac457b4a3dd6e37a2b47498cb4740",
+  "test_sha256": "4ef99d03e020f7636438fb4ef1cc7105a751bf49873df2957a4e6c821c99dc13",
+  "bootstrap_seen": false,
+  "bootstrap_record": "separate VM startup probe",
+  "failed_ids": [
+    "interp-1.10",
+    "interp-1.11",
+    "interp-1.2",
+    "interp-1.7",
+    "interp-1.8",
+    "interp-1.9"
+  ],
+  "last_started_id": "interp-2.13",
+  "status": "process-error"
+}

@@ -1,0 +1,25 @@
+{
+  "engine": "c",
+  "stem": "var",
+  "exit_code": 0,
+  "seconds": 0.113,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/results/reference-controls-tcl9.0.4/c/var/input.tcl"
+  ],
+  "input_sha256": "754a2620d582d43a73787e020394f45a6be5a7491811c464a52eace1ba278ebc",
+  "test_sha256": "c15ad7304e4443b416f4a71dfb673b20b9f0b3cdf48e22699c951ee42f413a36",
+  "bootstrap_seen": true,
+  "failed_ids": [
+    "var-21.0"
+  ],
+  "last_started_id": "var-31.3",
+  "total": 221,
+  "passed": 199,
+  "skipped": 21,
+  "failed": 1,
+  "status": "fail"
+}

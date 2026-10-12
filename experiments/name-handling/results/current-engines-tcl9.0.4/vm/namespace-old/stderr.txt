@@ -1,0 +1,2 @@
+VM error: variable "test_ns_cache_var" already exists
+options: -code 1 -level 0 -errorcode {TCL UPVAR EXISTS}

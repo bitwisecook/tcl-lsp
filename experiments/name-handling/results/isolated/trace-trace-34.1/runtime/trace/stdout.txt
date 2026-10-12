@@ -1,0 +1,30 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- trace-34.1 start
+
+
+==== trace-34.1 Bug 1201035 FAILED
+==== Contents of test case:
+
+    set ::x [list]
+    proc foo {} {lappend ::x foo}
+    proc bar args {
+	lappend ::x $args
+	trace remove execution foo leavestep bar
+	trace remove execution foo enterstep bar
+	trace add execution foo leavestep bar
+	trace add execution foo enterstep bar
+	lappend ::x done
+    }
+    trace add execution foo leavestep bar
+    trace add execution foo enterstep bar
+    foo
+    set ::x
+
+---- Result was:
+{{lappend ::x foo} enterstep} done foo {{lappend ::x foo} 0 {{{lappend ::x foo} enterstep} done foo} leavestep} done
+---- Result should have been (exact matching):
+{{lappend ::x foo} enterstep} done foo
+==== trace-34.1 FAILED
+
+trace.test:	Total	290	Passed	0	Skipped	289	Failed	1

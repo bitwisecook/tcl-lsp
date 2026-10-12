@@ -1,0 +1,328 @@
+---- upvar-1.1 start
+---- upvar-1.2 start
+---- upvar-1.3 start
+---- upvar-1.4 start
+---- upvar-1.5 start
+---- upvar-2.1 start
+---- upvar-2.2 start
+---- upvar-2.3 start
+---- upvar-2.4 start
+---- upvar-3.1 start
+
+
+==== upvar-3.1 unsetting variables with upvar FAILED
+==== Contents of test case:
+
+    proc p1 {a b} {set c 22; set d 33; p2; lsort [info vars]}
+    proc p2 {} {
+	upvar 1 a x1 d x2
+	unset x1 x2
+    }
+    p1 foo bar
+
+---- Result was:
+a b c d
+---- Result should have been (exact matching):
+b c
+==== upvar-3.1 FAILED
+
+---- upvar-3.2 start
+
+
+==== upvar-3.2 unsetting variables with upvar FAILED
+==== Contents of test case:
+
+    proc p1 {a b} {set c 22; set d 33; p2; lsort [info vars]}
+    proc p2 {} {
+	upvar 1 a x1 d x2
+	unset x1 x2
+	set x2 28
+    }
+    p1 foo bar
+
+---- Result was:
+a b c d
+---- Result should have been (exact matching):
+b c d
+==== upvar-3.2 FAILED
+
+---- upvar-3.3 start
+---- upvar-3.4 start
+---- upvar-3.5 start
+---- upvar-3.6 start
+---- upvar-4.1 start
+---- upvar-4.2 start
+---- upvar-5.1 start
+---- upvar-5.2 start
+---- upvar-5.3 start
+---- upvar-5.4 start
+---- upvar-5.5 start
+---- upvar-5.6 start
+---- upvar-5.7 start
+---- upvar-6.1 start
+---- upvar-6.2 start
+---- upvar-6.3 start
+---- upvar-6.4 start
+
+
+==== upvar-6.4 retargeting a variable created by upvar to itself is allowed FAILED
+==== Contents of test case:
+
+	catch {
+		unset x
+	}
+	catch {
+		unset y
+	}
+	set res {}
+    set x abcde
+	set res [catch {
+		upvar 0 x x
+	} cres copts]
+	lappend res [dict get $copts -errorcode]
+	upvar 0 x y
+	lappend res $y
+	upvar 0 y y
+	lappend res $y
+	return $res
+
+---- Result was:
+1 {TCL UPVAR EXISTS} abcde abcde
+---- Result should have been (exact matching):
+1 {TCL UPVAR SELF} abcde abcde
+==== upvar-6.4 FAILED
+
+---- upvar-7.1 start
+---- upvar-7.2 start
+---- upvar-7.3 start
+---- upvar-7.4 start
+---- upvar-7.5 start
+---- upvar-8.1 start
+---- upvar-8.2 start
+---- upvar-8.2.1 start
+
+
+==== upvar-8.2.1 upvar with numeric first argument FAILED
+==== Contents of test case:
+
+    apply {{} {set 0 ok; apply {{} {upvar 0 x; return $x}}}}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== upvar-8.2.1 FAILED
+
+---- upvar-8.3 start
+
+
+==== upvar-8.3 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar a b c}
+    p1
+
+---- Result was:
+wrong # args: should be "upvar ?level? otherVar localVar ?otherVar localVar ...?"
+---- Result should have been (exact matching):
+bad level "a"
+==== upvar-8.3 FAILED
+
+---- upvar-8.3.1 start
+
+
+==== upvar-8.3.1 bad level for upvar (upvar at top-level, bug [775ee88560]) FAILED
+==== Contents of test case:
+
+    proc p1 {} { uplevel { upvar b b; lappend b UNEXPECTED } }
+    uplevel #0 { p1 }
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.3.1 FAILED
+
+---- upvar-8.3.2 start
+
+
+==== upvar-8.3.2 bad level for upvar (upvar at top-level, bug [775ee88560]) FAILED
+==== Contents of test case:
+
+    i eval { upvar b b; lappend b UNEXPECTED }
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.3.2 FAILED
+
+---- upvar-8.4 start
+
+
+==== upvar-8.4 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar 0 b b}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.4 FAILED
+
+---- upvar-8.5 start
+
+
+==== upvar-8.5 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar 0 a b; upvar 0 b a}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.5 FAILED
+
+---- upvar-8.6 start
+---- upvar-8.7 start
+---- upvar-8.8 start
+
+
+==== upvar-8.8 create nested array with upvar FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar x(a) b; set b(2) 44}
+    catch {unset x}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.8 FAILED
+
+---- upvar-8.9 start
+---- upvar-8.10 start
+---- upvar-8.11 start
+---- upvar-10.1 start
+
+
+==== upvar-10.1 CompileWord OBOE FAILED
+==== Contents of test case:
+
+    apply {n {
+	upvar 1 {*}{
+	} [return [incr n -[linenumber]]] x
+    }} [linenumber]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== upvar-10.1 FAILED
+
+---- upvar-NS-1.1 start
+---- upvar-NS-1.2 start
+---- upvar-NS-1.3 start
+
+
+==== upvar-NS-1.3 nsupvar links to correct variable FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_1 {
+	namespace upvar test_ns_0 x w
+	set w
+    }
+
+---- Result was:
+namespace "test_ns_0" not found
+---- Result should have been (exact matching):
+namespace "test_ns_0" not found in "::test_ns_1"
+==== upvar-NS-1.3 FAILED
+
+---- upvar-NS-1.4 start
+
+
+==== upvar-NS-1.4 nsupvar links to correct variable FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_1 {
+	proc a {} {
+	    namespace upvar test_ns_0 x w
+	    set w
+	}
+	return [a]
+    }
+
+---- Result was:
+namespace "test_ns_0" not found
+---- Result should have been (exact matching):
+namespace "test_ns_0" not found in "::test_ns_1"
+==== upvar-NS-1.4 FAILED
+
+---- upvar-NS-1.5 start
+---- upvar-NS-1.6 start
+---- upvar-NS-1.7 start
+---- upvar-NS-1.8 start
+---- upvar-NS-1.9 start
+
+
+==== upvar-NS-1.9 nsupvar links to correct variable FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_1 {
+	variable x test_ns_1
+	proc a {} {
+	    namespace upvar test_ns_0 x w
+	    set w
+	}
+	return [a]
+    }
+
+---- Result was:
+namespace "test_ns_0" not found
+---- Result should have been (exact matching):
+namespace "test_ns_0" not found in "::test_ns_1"
+==== upvar-NS-1.9 FAILED
+
+---- upvar-NS-2.1 start
+---- upvar-NS-2.2 start
+---- upvar-NS-3.1 start
+
+
+==== upvar-NS-3.1 CompileWord OBOE FAILED
+==== Contents of test case:
+
+    apply {n {
+	namespace upvar {*}{
+	} [return [incr n -[linenumber]]] x y
+    }} [linenumber]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== upvar-NS-3.1 FAILED
+
+---- upvar-NS-3.2 start
+
+
+==== upvar-NS-3.2 CompileWord OBOE FAILED
+==== Contents of test case:
+
+    apply {n {
+	namespace upvar :: {*}{
+	} [return [incr n -[linenumber]]] x
+    }} [linenumber]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== upvar-NS-3.2 FAILED
+
+---- upvar-NS-3.3 start
+
+
+==== upvar-NS-3.3 CompileWord OBOE FAILED
+==== Contents of test case:
+
+    apply {n {
+	variable x {*}{
+	} [return [incr n -[linenumber]]]
+    }} [linenumber]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== upvar-NS-3.3 FAILED
+
+upvar.test:	Total	70	Passed	45	Skipped	8	Failed	17
+Number of tests skipped for each constraint:
+	7	${constraint}
+	1	testupvar

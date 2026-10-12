@@ -1,0 +1,23 @@
+{
+  "engine": "vm",
+  "stem": "resolver",
+  "exit_code": 0,
+  "seconds": 10.694,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/vm/resolver/input.tcl"
+  ],
+  "input_sha256": "b71171bdd56cb2a6cb9a6cd550ed8940597f88c9ad7178ebdcc48162a6a9b4d2",
+  "test_sha256": "65abad9b3470d69229e37d50ac6ba785b47ff8964b6ed8d5ea94d5fa774dc662",
+  "bootstrap_seen": true,
+  "failed_ids": [],
+  "last_started_id": null,
+  "total": 10,
+  "passed": 0,
+  "skipped": 10,
+  "failed": 0,
+  "status": "no-executed-tests"
+}

@@ -1,0 +1,818 @@
+---- var-1.1 start
+---- var-1.2 start
+---- var-1.3 start
+---- var-1.4 start
+---- var-1.5 start
+---- var-1.6 start
+---- var-1.7 start
+---- var-1.8 start
+---- var-1.9 start
+---- var-1.10 start
+---- var-1.11 start
+---- var-1.12 start
+---- var-1.13 start
+---- var-1.14 start
+---- var-1.15 start
+
+
+==== var-1.15 TclLookupVar, resurrect variable via upvar to deleted namespace: compiled code path FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_var {
+	variable foo 2
+    }
+    proc p {} {
+	variable ::test_ns_var::foo
+	lappend result [catch {set foo} msg] $msg
+	namespace delete ::test_ns_var
+	lappend result [catch {set foo 3} msg] $msg
+	lappend result [catch {set foo(3) 3} msg] $msg
+    }
+    p
+
+---- Result was:
+0 2 0 3 1 {can't set "foo(3)": variable isn't array}
+---- Result should have been (exact matching):
+0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} 1 {can't set "foo(3)": upvar refers to variable in deleted namespace}
+==== var-1.15 FAILED
+
+---- var-1.16 start
+
+
+==== var-1.16 TclLookupVar, resurrect variable via upvar to deleted namespace: uncompiled code path FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_var {
+	variable result
+	namespace eval subns {
+	    variable foo 2
+	}
+	upvar 0 subns::foo foo
+	lappend result [catch {set foo} msg] $msg
+	namespace delete subns
+	lappend result [catch {set foo 3} msg] $msg
+	lappend result [catch {set foo(3) 3} msg] $msg
+	namespace delete [namespace current]
+	set result
+    }
+
+---- Result was:
+0 2 0 3 1 {can't set "foo(3)": variable isn't array}
+---- Result should have been (exact matching):
+0 2 1 {can't set "foo": upvar refers to variable in deleted namespace} 1 {can't set "foo(3)": upvar refers to variable in deleted namespace}
+==== var-1.16 FAILED
+
+---- var-1.17 start
+---- var-1.18 start
+---- var-1.19 start
+---- var-1.20 start
+
+
+==== var-1.20 TclLookupVar, regression on utf-8 variable names FAILED
+==== Contents of test case:
+
+    # test variable with non-ascii name is available (euro and a-uml chars here):
+    list  [p 1 2]  [apply [list [list € ä] {info vars}] 1 2]  [apply [list [list [list € €] [list ä ä]] {info vars}]]  
+---- Result was:
+{\xE4 \u20AC} {\xE4 \u20AC} {\xE4 \u20AC}
+---- Result should have been (exact matching):
+{\u20AC \xE4} {\u20AC \xE4} {\u20AC \xE4}
+==== var-1.20 FAILED
+
+---- var-1.21 start
+---- var-2.1 start
+---- var-3.1 start
+---- var-3.2 start
+---- var-3.5 start
+---- var-3.6 start
+---- var-3.7 start
+---- var-3.8 start
+---- var-3.9 start
+---- var-3.10 start
+---- var-3.11 start
+---- var-5.1 start
+---- var-5.2 start
+---- var-5.3 start
+---- var-6.1 start
+
+
+==== var-6.1 Tcl_GlobalObjCmd, variable is qualified by a namespace name FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_var {
+	variable boeing 777
+    }
+    apply {{} {
+	global ::test_ns_var::boeing
+	set boeing
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-6.1 FAILED
+
+---- var-6.2 start
+
+
+==== var-6.2 Tcl_GlobalObjCmd, variable is qualified by a namespace name FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_var {
+	namespace eval test_ns_nested {
+	    variable java java
+	}
+	proc p {} {
+	    global ::test_ns_var::test_ns_nested::java
+	    set java
+	}
+    }
+    test_ns_var::p
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-6.2 FAILED
+
+---- var-6.3 start
+
+
+==== var-6.3 Tcl_GlobalObjCmd, variable named {} qualified by a namespace name FAILED
+==== Contents of test case:
+
+    namespace eval ::test_ns_var::test_ns_nested {}
+    set ::test_ns_var::test_ns_nested:: 24
+    apply {{} {
+	global ::test_ns_var::test_ns_nested::
+	set {}
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-6.3 FAILED
+
+---- var-6.4 start
+---- var-6.5 start
+---- var-6.6 start
+---- var-7.1 start
+---- var-7.2 start
+---- var-7.3 start
+---- var-7.4 start
+---- var-7.5 start
+---- var-7.6 start
+---- var-7.7 start
+---- var-7.8 start
+---- var-7.9 start
+---- var-7.10 start
+---- var-7.11 start
+---- var-7.12 start
+---- var-7.13 start
+---- var-7.14 start
+---- var-7.15 start
+---- var-7.16 start
+
+
+==== var-7.16 Tcl_VariableObjCmd, no args (TIP 323) FAILED
+==== Contents of test case:
+
+    variable
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-7.16 FAILED
+
+---- var-7.17 start
+
+
+==== var-7.17 Tcl_VariableObjCmd, no args (TIP 323) FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_var {
+	variable
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-7.17 FAILED
+
+---- var-8.1 start
+---- var-8.2 start
+---- var-10.1 start
+---- var-10.2 start
+---- var-11.1 start
+---- var-11.2 start
+---- var-11.3 start
+---- var-12.1 start
+---- var-13.1 start
+---- var-13.2 start
+
+
+==== var-13.2 unset array with search, bug 46a2410650 FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set a {aa 11 bb 22 cc 33 dd 44 ee 55 ff 66}
+	set s [array startsearch a]
+	unset a([array nextelement a $s])
+	array nextelement a $s
+    }}
+
+---- Result was:
+unknown or ambiguous subcommand "startsearch": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+couldn't find search "s-1-a"
+==== var-13.2 FAILED
+
+---- var-13.3 start
+
+
+==== var-13.3 unset array with search, SIGSEGV, bug 46a2410650 FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set a {aa 11 bb 22 cc 33 dd 44 ee 55 ff 66}
+	set s [array startsearch a]
+	unset a(ff)
+	array nextelement a $s
+    }}
+
+---- Result was:
+unknown or ambiguous subcommand "startsearch": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+couldn't find search "s-1-a"
+==== var-13.3 FAILED
+
+---- var-14.1 start
+---- var-14.2 start
+
+
+==== var-14.2 array names -glob FAILED
+==== Contents of test case:
+
+    array names tcl_platform -glob os
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-14.2 FAILED
+
+---- var-15.1 start
+---- var-15.2 start
+
+
+==== var-15.2 compiled unset evaluation order, Bug 3970f54c4e FAILED
+==== Contents of test case:
+
+    apply {{} {unset foo [return ok]}}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-15.2 FAILED
+
+---- var-16.1 start
+---- var-17.1 start
+---- var-17.2 start
+
+
+==== var-17.2 TclArraySet Dict shortcut only on pure value FAILED
+==== Contents of test case:
+
+    trace add variable a write "[list incr [namespace which -variable foo]];#"
+    array set a $d
+    set foo
+
+---- Result was:
+1
+---- Result should have been (exact matching):
+2
+==== var-17.2 FAILED
+
+---- var-18.1 start
+---- var-19.1 start
+---- var-20.1 start
+---- var-20.2 start
+---- var-20.3 start
+---- var-20.4 start
+---- var-20.5 start
+---- var-20.6 start
+---- var-20.7 start
+---- var-20.8 start
+---- var-20.9 start
+---- var-20.10 start
+---- var-20.11 start
+---- var-20.12 start
+---- var-21.0 start
+
+
+==== var-21.0 PushVarNameWord OBOE in compiled unset FAILED
+==== Contents of test case:
+
+    apply {n {
+	set foo bar
+	unset foo {*}{
+	} [return [incr n -[linenumber]]]
+    }} [linenumber]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-21.0 FAILED
+
+---- var-23.1 start
+---- var-23.2 start
+---- var-23.3 start
+---- var-23.4 start
+---- var-23.5 start
+---- var-23.6 start
+---- var-23.7 start
+---- var-23.9 start
+---- var-23.10 start
+---- var-23.11 start
+---- var-23.12 start
+---- var-23.13 start
+---- var-23.14 start
+---- var-24.1 start
+
+
+==== var-24.1 array default set and get: interpreted FAILED
+==== Contents of test case:
+
+    array set ary {a 3}
+    array default set ary 7
+    list $ary(a) $ary(b) [info exist ary(a)] [info exist ary(b)]  [array default get ary]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.1 FAILED
+
+---- var-24.2 start
+
+
+==== var-24.2 array default set and get: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set ary {a 3}
+	array default set ary 7
+	list $ary(a) $ary(b) [info exist ary(a)] [info exist ary(b)]  [array default get ary]
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.2 FAILED
+
+---- var-24.3 start
+
+
+==== var-24.3 array default unset: interpreted FAILED
+==== Contents of test case:
+
+    array set ary {a 3}
+    array default set ary 7
+    list $ary(a) $ary(b) [array default unset ary] $ary(a) [catch {set ary(b)}]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.3 FAILED
+
+---- var-24.4 start
+
+
+==== var-24.4 array default unset: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set ary {a 3}
+	array default set ary 7
+	list $ary(a) $ary(b) [array default unset ary] $ary(a)  [catch {set ary(b)}]
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.4 FAILED
+
+---- var-24.5 start
+
+
+==== var-24.5 array default exists: interpreted FAILED
+==== Contents of test case:
+
+    array set ary {a 3}
+    lappend result [info exists ary],[array exists ary],[array default exists ary]
+    array default set ary 7
+    lappend result [info exists ary],[array exists ary],[array default exists ary]
+    array default unset ary
+    lappend result [info exists ary],[array exists ary],[array default exists ary]
+    unset ary
+    lappend result [info exists ary],[array exists ary],[array default exists ary]
+    array default set ary 11
+    lappend result [info exists ary],[array exists ary],[array default exists ary]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.5 FAILED
+
+---- var-24.6 start
+
+
+==== var-24.6 array default exists: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set ary {a 3}
+	lappend result [info exists ary],[array exists ary],[array default exists ary]
+	array default set ary 7
+	lappend result [info exists ary],[array exists ary],[array default exists ary]
+	array default unset ary
+	lappend result [info exists ary],[array exists ary],[array default exists ary]
+	unset ary
+	lappend result [info exists ary],[array exists ary],[array default exists ary]
+	array default set ary 11
+	lappend result [info exists ary],[array exists ary],[array default exists ary]
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.6 FAILED
+
+---- var-24.7 start
+
+
+==== var-24.7 array default and append: interpreted FAILED
+==== Contents of test case:
+
+    array default set ary grill
+    lappend result [array size ary] [info exist ary(x)]
+    append ary(x) abc
+    lappend result [array size ary] $ary(x)
+    array default unset ary
+    append ary(x) def
+    append ary(y) ghi
+    lappend result [array size ary] $ary(x) $ary(y)
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.7 FAILED
+
+---- var-24.8 start
+
+
+==== var-24.8 array default and append: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array default set ary grill
+	lappend result [array size ary] [info exist ary(x)]
+	append ary(x) abc
+	lappend result [array size ary] $ary(x)
+	array default unset ary
+	append ary(x) def
+	append ary(y) ghi
+	lappend result [array size ary] $ary(x) $ary(y)
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.8 FAILED
+
+---- var-24.9 start
+
+
+==== var-24.9 array default and lappend: interpreted FAILED
+==== Contents of test case:
+
+    array default set ary grill
+    lappend result [array size ary] [info exist ary(x)]
+    lappend ary(x) abc
+    lappend result [array size ary] $ary(x)
+    array default unset ary
+    lappend ary(x) def
+    lappend ary(y) ghi
+    lappend result [array size ary] $ary(x) $ary(y)
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.9 FAILED
+
+---- var-24.10 start
+
+
+==== var-24.10 array default and lappend: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array default set ary grill
+	lappend result [array size ary] [info exist ary(x)]
+	lappend ary(x) abc
+	lappend result [array size ary] $ary(x)
+	array default unset ary
+	lappend ary(x) def
+	lappend ary(y) ghi
+	lappend result [array size ary] $ary(x) $ary(y)
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.10 FAILED
+
+---- var-24.11 start
+
+
+==== var-24.11 array default and incr: interpreted FAILED
+==== Contents of test case:
+
+    array default set ary 7
+    lappend result [array size ary] [info exist ary(x)]
+    incr ary(x) 11
+    lappend result [array size ary] $ary(x)
+    array default unset ary
+    incr ary(x)
+    incr ary(y)
+    lappend result [array size ary] $ary(x) $ary(y)
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.11 FAILED
+
+---- var-24.12 start
+
+
+==== var-24.12 array default and incr: compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array default set ary 7
+	lappend result [array size ary] [info exist ary(x)]
+	incr ary(x) 11
+	lappend result [array size ary] $ary(x)
+	array default unset ary
+	incr ary(x)
+	incr ary(y)
+	lappend result [array size ary] $ary(x) $ary(y)
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.12 FAILED
+
+---- var-24.13 start
+
+
+==== var-24.13 array default and dict: interpreted FAILED
+==== Contents of test case:
+
+    array default set ary {x y}
+    dict lappend ary(p) x z
+    dict update ary(q) x y {
+	set y z
+    }
+    dict with ary(r) {
+	set x 123
+    }
+    lsort -stride 2 -index 0 [array get ary]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.13 FAILED
+
+---- var-24.14 start
+
+
+==== var-24.14 array default and dict: compiled FAILED
+==== Contents of test case:
+
+    lsort -stride 2 -index 0 [apply {{} {
+	array default set ary {x y}
+	dict lappend ary(p) x z
+	dict update ary(q) x y {
+	    set y z
+	}
+	dict with ary(r) {
+	    set x 123
+	}
+	array get ary
+    }}]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.14 FAILED
+
+---- var-24.15 start
+
+
+==== var-24.15 array default set and get: two-level FAILED
+==== Contents of test case:
+
+    apply {{} {
+	array set ary {a 3}
+	array default set ary 7
+	apply {{} {
+	    upvar 1 ary ary ary(c) c
+	    lappend result $ary(a) $ary(b) $c
+	    lappend result [info exist ary(a)] [info exist ary(b)] [info exist c]
+	    lappend result [array default get ary]
+	}}
+    }}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== var-24.15 FAILED
+
+---- var-24.16 start
+
+
+==== var-24.16 array default set: errors FAILED
+==== Contents of test case:
+
+    set ary not-an-array
+    array default set ary 7
+
+---- Result was:
+unknown or ambiguous subcommand "default": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+can't array default set "ary": variable isn't array
+==== var-24.16 FAILED
+
+---- var-24.17 start
+---- var-24.18 start
+---- var-24.19 start
+
+
+==== var-24.19 array default get: errors FAILED
+==== Contents of test case:
+
+    set ary not-an-array
+    array default get ary
+
+---- Result was:
+unknown or ambiguous subcommand "default": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+"ary" isn't an array
+==== var-24.19 FAILED
+
+---- var-24.20 start
+---- var-24.21 start
+
+
+==== var-24.21 array default exists: errors FAILED
+==== Contents of test case:
+
+    set ary not-an-array
+    array default exists ary
+
+---- Result was:
+unknown or ambiguous subcommand "default": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+"ary" isn't an array
+==== var-24.21 FAILED
+
+---- var-24.22 start
+---- var-24.23 start
+
+
+==== var-24.23 array default unset: errors FAILED
+==== Contents of test case:
+
+    set ary not-an-array
+    array default unset ary
+
+---- Result was:
+unknown or ambiguous subcommand "default": must be exists, for, get, names, set, size, or unset
+---- Result should have been (exact matching):
+"ary" isn't an array
+==== var-24.23 FAILED
+
+---- var-24.24 start
+---- var-25.1 start
+---- var-25.2 start
+---- var-25.3 start
+---- var-25.4 start
+---- var-25.5 start
+---- var-25.6 start
+
+
+==== var-25.6 const: non-existing namespace Bug [4b22d84a62] FAILED
+==== Contents of test case:
+
+    apply {{} {
+	const ::nosuchns::x 10
+    }}
+
+---- Result was:
+can't set "::nosuchns::x": parent namespace doesn't exist
+---- Result should have been (exact matching):
+can't const "::nosuchns::x": parent namespace doesn't exist
+==== var-25.6 FAILED
+
+---- var-25.7 start
+
+
+==== var-25.7 const: non-existing namespace Bug [4b22d84a62] - non compiled FAILED
+==== Contents of test case:
+
+    apply {{} {
+	set const const
+	$const ::nosuchns::x 10
+    }}
+
+---- Result was:
+can't set "::nosuchns::x": parent namespace doesn't exist
+---- Result should have been (exact matching):
+can't const "::nosuchns::x": parent namespace doesn't exist
+==== var-25.7 FAILED
+
+---- var-26.1 start
+---- var-26.2 start
+---- var-26.3 start
+---- var-26.4 start
+---- var-26.5 start
+---- var-26.6 start
+---- var-26.7 start
+---- var-26.8 start
+---- var-26.9.1 start
+---- var-26.9.2 start
+---- var-26.10.1 start
+---- var-26.10.2 start
+---- var-26.11 start
+---- var-26.12 start
+---- var-26.13 start
+---- var-26.14 start
+---- var-26.15 start
+---- var-26.16 start
+---- var-26.17 start
+---- var-27.1 start
+---- var-27.2 start
+---- var-27.3 start
+---- var-27.4 start
+---- var-27.5 start
+---- var-27.6 start
+---- var-27.7 start
+---- var-27.8 start
+---- var-27.9.1 start
+---- var-27.9.2 start
+---- var-27.10.1 start
+---- var-27.10.2 start
+---- var-27.11 start
+---- var-27.12 start
+---- var-27.13 start
+---- var-27.14 start
+---- var-27.15 start
+---- var-27.16 start
+---- var-27.17 start
+---- var-28.1 start
+---- var-28.2 start
+---- var-28.3 start
+---- var-28.4 start
+---- var-28.5 start
+---- var-29.1 start
+---- var-29.2 start
+---- var-29.3 start
+---- var-29.4 start
+---- var-29.5 start
+---- var-29.6 start
+---- var-29.7 start
+---- var-30.1 start
+---- var-30.2 start
+---- var-30.3 start
+---- var-30.4 start
+---- var-30.5 start
+---- var-30.6 start
+---- var-30.7 start
+---- var-30.8 start
+---- var-30.9 start
+---- var-30.10 start
+---- var-30.11 start
+---- var-30.12 start
+---- var-30.13 start
+---- var-31.1 start
+
+
+==== var-31.1 info constant: syntax FAILED
+==== Contents of test case:
+
+    info constant
+
+---- Result was:
+wrong # args: should be "info constant varname"
+---- Result should have been (exact matching):
+wrong # args: should be "info constant varName"
+==== var-31.1 FAILED
+
+---- var-31.2 start
+
+
+==== var-31.2 info constant: syntax FAILED
+==== Contents of test case:
+
+    info constant foo bar
+
+---- Result was:
+wrong # args: should be "info constant varname"
+---- Result should have been (exact matching):
+wrong # args: should be "info constant varName"
+==== var-31.2 FAILED
+
+---- var-31.3 start
+var.test:	Total	221	Passed	163	Skipped	21	Failed	37
+Number of tests skipped for each constraint:
+	17	${constraint}
+	1	memory
+	1	testgetvarfullname
+	1	testsetnoerr
+	1	testupvar

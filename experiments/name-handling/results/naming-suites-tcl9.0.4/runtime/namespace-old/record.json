@@ -1,0 +1,30 @@
+{
+  "engine": "runtime",
+  "stem": "namespace-old",
+  "exit_code": 0,
+  "seconds": 2.837,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0"
+  ],
+  "input_sha256": "2bb4d874bb746a5e2db4680bbaa2b21e79c0580557e45283051365d499c8323a",
+  "test_sha256": "a72c4cec42867ae7598ddbf82dcdd75547e61c2d3c94805a1c131ba8512fb191",
+  "bootstrap_seen": true,
+  "bootstrap_record": "stdout NH_HARNESS",
+  "failed_ids": [
+    "namespace-old-7.11",
+    "namespace-old-7.9"
+  ],
+  "last_started_id": "namespace-old-10.8",
+  "total": 126,
+  "passed": 124,
+  "skipped": 0,
+  "failed": 2,
+  "status": "fail"
+}

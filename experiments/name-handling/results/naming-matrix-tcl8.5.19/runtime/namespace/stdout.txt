@@ -1,0 +1,777 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl8.5.19/library tcl 8.5.19 tcltest 2.3.8 loader {source /workspace/tcl-lsp/tmp/tcl8.5.19/library/tcltest/tcltest.tcl}
+---- namespace-1.1 start
+---- namespace-2.1 start
+---- namespace-2.2 start
+---- namespace-3.1 start
+---- namespace-4.1 start
+---- namespace-4.2 start
+---- namespace-5.1 start
+---- namespace-5.2 start
+---- namespace-6.1 start
+---- namespace-6.2 start
+---- namespace-6.3 start
+---- namespace-6.4 start
+---- namespace-6.5 start
+---- namespace-7.1 start
+---- namespace-7.2 start
+---- namespace-7.3 start
+---- namespace-7.4 start
+---- namespace-7.5 start
+---- namespace-7.6 start
+
+
+==== namespace-7.7 Bug 1655305 FAILED
+==== Contents of test case:
+
+    slave eval foo
+    slave invokehidden infocommands
+
+---- Test setup failed:
+can't rename "::tcl::info::commands": command doesn't exist
+---- errorInfo(setup): unknown namespace "::test_ns_2" in namespace delete command
+    while executing
+"namespace delete ::test_ns_2"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel 1 $setup"
+---- errorCode(setup): NONE
+==== namespace-7.7 FAILED
+
+---- namespace-8.1 start
+---- namespace-8.2 start
+---- namespace-8.3 start
+---- namespace-8.4 start
+---- namespace-8.5 start
+
+
+==== namespace-8.5 TclTeardownNamespace: preserve errorInfo; errorCode values FAILED
+==== Contents of test case:
+
+    interp create slave
+    slave eval {trace add execution error leave {namespace delete :: ;#}}
+    catch {slave eval error foo bar baz}
+    interp delete slave
+    set ::errorInfo
+
+---- Result was:
+foo
+    while executing
+"slave eval error foo bar baz"
+---- Result should have been (exact matching):
+bar
+    invoked from within
+"slave eval error foo bar baz"
+==== namespace-8.5 FAILED
+
+---- namespace-8.6 start
+
+
+==== namespace-8.6 TclTeardownNamespace: preserve errorInfo; errorCode values FAILED
+==== Contents of test case:
+
+    interp create slave 
+    slave eval {trace add variable errorCode write {namespace delete :: ;#}}
+    catch {slave eval error foo bar baz}
+    interp delete slave
+    set ::errorInfo
+
+---- Result was:
+foo
+    while executing
+"slave eval error foo bar baz"
+---- Result should have been (exact matching):
+bar
+    invoked from within
+"slave eval error foo bar baz"
+==== namespace-8.6 FAILED
+
+---- namespace-8.7 start
+
+
+==== namespace-8.7 TclTeardownNamespace: preserve errorInfo; errorCode values FAILED
+==== Contents of test case:
+
+    interp create slave
+    slave eval {trace add execution error leave {namespace delete :: ;#}}
+    catch {slave eval error foo bar baz}
+    interp delete slave
+    set ::errorCode
+
+---- Result was:
+NONE
+---- Result should have been (exact matching):
+baz
+==== namespace-8.7 FAILED
+
+---- namespace-9.1 start
+---- namespace-9.2 start
+---- namespace-9.3 start
+---- namespace-9.4 start
+---- namespace-9.5 start
+---- namespace-9.6 start
+---- namespace-9.7 start
+---- namespace-9.8 start
+---- namespace-9.9 start
+---- namespace-10.1 start
+---- namespace-10.2 start
+---- namespace-10.3 start
+---- namespace-10.4 start
+---- namespace-10.5 start
+---- namespace-10.6 start
+
+
+==== namespace-10.6 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval your namespace forget newname
+    your::newname
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== namespace-10.6 FAILED
+
+---- namespace-10.7 start
+
+
+==== namespace-10.7 Tcl_ForgetImport: Bug 560297 FAILED
+==== Contents of test case:
+
+    namespace eval my  [list namespace forget [namespace current]::origin::cmd]
+    my::cmd
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== namespace-10.7 FAILED
+
+---- namespace-10.8 start
+---- namespace-10.9 start
+---- namespace-11.1 start
+---- namespace-11.2 start
+---- namespace-11.3 start
+---- namespace-12.1 start
+---- namespace-13.1 start
+---- namespace-13.2 start
+---- namespace-14.1 start
+---- namespace-14.2 start
+---- namespace-14.3 start
+---- namespace-14.4 start
+---- namespace-14.5 start
+---- namespace-14.6 start
+---- namespace-14.7 start
+---- namespace-14.8 start
+---- namespace-14.9 start
+---- namespace-14.10 start
+---- namespace-14.11 start
+---- namespace-14.12 start
+
+
+==== namespace-14.12 TclGetNamespaceForQualName, extra ::s are significant for vars FAILED
+==== Contents of test case:
+
+    catch {namespace delete {*}[namespace children :: test_ns_*]}
+    namespace eval test_ns_1 {
+        variable {}
+        set test_ns_1::(x) y
+    }
+    set test_ns_1::(x)
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't set "test_ns_1::(x)": parent namespace doesn't exist
+    while executing
+"set test_ns_1::(x) y"
+    (in namespace eval "::test_ns_1" script line 3)
+    invoked from within
+"namespace eval test_ns_1 {
+        variable {}
+        set test_ns_1::(x) y
+    }"
+    ("uplevel" body line 3)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== namespace-14.12 FAILED
+
+---- namespace-14.13 start
+
+
+==== namespace-14.13 TclGetNamespaceForQualName, namespace other than global ns can't have empty name FAILED
+==== Contents of test case:
+
+    catch {namespace delete {*}[namespace children :: test_ns_*]}
+    list [catch {namespace eval test_ns_1 {proc {} {} {}; namespace eval {} {}; {}}} msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {can't create namespace "": only global namespace can have empty name}
+==== namespace-14.13 FAILED
+
+---- namespace-15.1 start
+---- namespace-15.2 start
+---- namespace-15.3 start
+---- namespace-15.4 start
+---- namespace-16.1 start
+---- namespace-16.2 start
+---- namespace-16.3 start
+---- namespace-16.4 start
+---- namespace-16.5 start
+---- namespace-16.6 start
+---- namespace-16.7 start
+---- namespace-16.8 start
+---- namespace-16.9 start
+---- namespace-16.10 start
+---- namespace-16.11 start
+---- namespace-17.1 start
+---- namespace-17.2 start
+---- namespace-17.3 start
+---- namespace-17.4 start
+---- namespace-17.5 start
+---- namespace-17.6 start
+---- namespace-17.7 start
+---- namespace-17.8 start
+---- namespace-17.9 start
+---- namespace-17.10 start
+---- namespace-18.1 start
+---- namespace-18.2 start
+---- namespace-19.1 start
+---- namespace-19.2 start
+---- namespace-19.3 start
+---- namespace-19.4 start
+---- namespace-20.1 start
+---- namespace-20.2 start
+
+
+==== namespace-20.2 Tcl_NamespaceObjCmd, bad subcommand FAILED
+==== Contents of test case:
+
+    namespace wombat {}
+
+---- Result was:
+unknown or ambiguous subcommand "wombat": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which
+---- Result should have been (glob matching):
+bad option "wombat": must be *
+==== namespace-20.2 FAILED
+
+---- namespace-20.3 start
+---- namespace-21.1 start
+---- namespace-21.2 start
+---- namespace-21.3 start
+---- namespace-21.4 start
+---- namespace-21.5 start
+---- namespace-21.6 start
+---- namespace-21.7 start
+---- namespace-21.8 start
+---- namespace-22.1 start
+---- namespace-22.2 start
+---- namespace-22.3 start
+---- namespace-22.4 start
+---- namespace-22.5 start
+---- namespace-22.6 start
+---- namespace-22.7 start
+
+
+==== namespace-22.7 NamespaceCodeCmd, Bug 3202171 FAILED
+==== Contents of test case:
+
+    namespace eval demo {
+	proc namespace args {puts $args}
+	::namespace code {namespace inscope foo}
+    }
+
+---- Result was:
+namespace inscope foo
+---- Result should have been (exact matching):
+::namespace inscope ::demo {namespace inscope foo}
+==== namespace-22.7 FAILED
+
+---- namespace-23.1 start
+---- namespace-23.2 start
+---- namespace-23.3 start
+---- namespace-24.1 start
+---- namespace-24.2 start
+---- namespace-24.3 start
+---- namespace-24.4 start
+---- namespace-25.1 start
+---- namespace-25.2 start
+
+
+==== namespace-25.2 NamespaceEvalCmd, bad args FAILED
+==== Contents of test case:
+
+    namespace test_ns_1
+
+---- Result was:
+unknown or ambiguous subcommand "test_ns_1": must be children, code, current, delete, ensemble, eval, exists, export, forget, import, inscope, origin, parent, path, qualifiers, tail, unknown, upvar, or which
+---- Result should have been (glob matching):
+bad option "test_ns_1": must be *
+==== namespace-25.2 FAILED
+
+---- namespace-25.3 start
+---- namespace-25.4 start
+---- namespace-25.5 start
+---- namespace-25.6 start
+---- namespace-25.7 start
+---- namespace-25.8 start
+---- namespace-25.9 start
+
+
+==== namespace-25.9 NamespaceEvalCmd, 545325 FAILED
+==== Contents of test case:
+
+    namespace eval test_ns_1 info level 0
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad level "0"
+    while executing
+"info level 0"
+    (in namespace eval "::test_ns_1" script line 1)
+    invoked from within
+"namespace eval test_ns_1 info level 0"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== namespace-25.9 FAILED
+
+---- namespace-26.1 start
+---- namespace-26.2 start
+---- namespace-26.3 start
+---- namespace-26.4 start
+---- namespace-26.5 start
+---- namespace-26.6 start
+---- namespace-26.7 start
+---- namespace-26.8 start
+---- namespace-27.1 start
+---- namespace-27.2 start
+---- namespace-27.3 start
+---- namespace-28.1 start
+---- namespace-28.2 start
+---- namespace-28.3 start
+---- namespace-29.1 start
+---- namespace-29.2 start
+---- namespace-29.3 start
+
+
+==== namespace-29.3 NamespaceInscopeCmd, specified ns must exist FAILED
+==== Contents of test case:
+
+    namespace inscope test_ns_1 {set v}
+
+---- Result was:
+can't read "v": no such variable
+---- Result should have been (exact matching):
+namespace "test_ns_1" not found in "::"
+==== namespace-29.3 FAILED
+
+---- namespace-29.4 start
+---- namespace-29.5 start
+---- namespace-29.6 start
+
+
+==== namespace-29.6 NamespaceInscopeCmd, 1400572 FAILED
+==== Contents of test case:
+
+    namespace inscope test_ns_1 {info level 0}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad level "0"
+    while executing
+"info level 0"
+    (in namespace eval "::test_ns_1" script line 1)
+    invoked from within
+"namespace inscope test_ns_1 {info level 0}"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== namespace-29.6 FAILED
+
+---- namespace-30.1 start
+---- namespace-30.2 start
+---- namespace-30.3 start
+---- namespace-30.4 start
+---- namespace-30.5 start
+---- namespace-31.1 start
+---- namespace-31.2 start
+---- namespace-31.3 start
+---- namespace-31.4 start
+---- namespace-32.1 start
+---- namespace-32.2 start
+---- namespace-32.3 start
+---- namespace-32.4 start
+---- namespace-32.5 start
+---- namespace-32.6 start
+---- namespace-32.7 start
+---- namespace-32.8 start
+---- namespace-33.1 start
+---- namespace-33.2 start
+---- namespace-33.3 start
+---- namespace-33.4 start
+---- namespace-33.5 start
+---- namespace-33.6 start
+---- namespace-33.7 start
+---- namespace-33.8 start
+---- namespace-34.1 start
+---- namespace-34.2 start
+---- namespace-34.3 start
+---- namespace-34.4 start
+---- namespace-34.5 start
+---- namespace-34.6 start
+---- namespace-34.7 start
+---- namespace-35.1 start
+---- namespace-35.2 start
+---- namespace-36.1 start
+---- namespace-37.1 start
+---- namespace-37.2 start
+---- namespace-38.1 start
+---- namespace-39.1 start
+---- namespace-39.2 start
+---- namespace-39.3 start
+---- namespace-40.1 start
+---- namespace-41.1 start
+---- namespace-41.2 start
+---- namespace-41.3 start
+---- namespace-42.1 start
+---- namespace-42.2 start
+---- namespace-42.3 start
+---- namespace-42.4 start
+---- namespace-42.5 start
+---- namespace-42.6 start
+---- namespace-42.7 start
+---- namespace-42.8 start
+---- namespace-43.1 start
+---- namespace-43.2 start
+---- namespace-43.3 start
+---- namespace-43.4 start
+---- namespace-43.5 start
+---- namespace-43.6 start
+---- namespace-43.7 start
+---- namespace-43.8 start
+---- namespace-43.9 start
+---- namespace-43.10 start
+---- namespace-43.11 start
+---- namespace-43.12 start
+---- namespace-43.13 start
+---- namespace-43.14 start
+---- namespace-43.15 start
+---- namespace-43.16 start
+---- namespace-43.17 start
+---- namespace-44.1 start
+---- namespace-44.2 start
+---- namespace-44.3 start
+---- namespace-44.4 start
+---- namespace-44.5 start
+
+
+==== namespace-44.5 ensemble: errors FAILED
+==== Contents of test case:
+
+    foobar foobarcon
+
+---- Result was:
+invalid command name "foobarconfigure"
+---- Result should have been (exact matching):
+invalid command name "::foobarconfigure"
+==== namespace-44.5 FAILED
+
+---- namespace-45.1 start
+
+
+==== namespace-45.1 ensemble: introspection FAILED
+==== Contents of test case:
+
+    namespace eval ns {
+	namespace export x
+	proc x {} {}
+	namespace ensemble create
+	set ::result [namespace ensemble configure ::ns]
+    }
+    namespace delete ns
+    set result
+
+---- Result was:
+-map {} -namespace ::ns -parameters {} -prefixes 1 -subcommands {} -unknown {}
+---- Result should have been (exact matching):
+-map {} -namespace ::ns -prefixes 1 -subcommands {} -unknown {}
+==== namespace-45.1 FAILED
+
+---- namespace-45.2 start
+---- namespace-46.1 start
+---- namespace-46.2 start
+---- namespace-46.3 start
+
+
+==== namespace-46.3 ensemble: implementation errors FAILED
+==== Contents of test case:
+
+    namespace eval ns {
+	variable count 0
+	namespace ensemble create -map {
+	    a {::lappend ::result}
+	    b {::incr ::ns::count}
+	}
+    }
+    set result {}
+    lappend result [catch { ns } msg] $msg
+    ns a [ns b 10]
+    catch {rename p {}}
+    rename ns p
+    p a [p b 3000]
+    lappend result $ns::count
+    namespace delete ns
+    lappend result [info command p]
+
+---- Result was:
+1 {wrong # args: should be "ns subcommand ?arg ...?"} 10 3010 3010 {}
+---- Result should have been (exact matching):
+1 {wrong # args: should be "ns subcommand ?argument ...?"} 10 3010 3010 {}
+==== namespace-46.3 FAILED
+
+---- namespace-46.4 start
+---- namespace-46.5 start
+---- namespace-46.6 start
+---- namespace-46.7 start
+---- namespace-46.8 start
+---- namespace-46.9 start
+---- namespace-47.1 start
+---- namespace-47.2 start
+---- namespace-47.3 start
+---- namespace-47.4 start
+---- namespace-47.5 start
+
+
+==== namespace-47.5 ensemble: unknown handler FAILED
+==== Contents of test case:
+
+    namespace ensemble create -command foo -unknown bar
+    proc bar {args} {
+	global result target
+	lappend result "LOG $args"
+	return $target
+    }
+    set result {}
+    set target {}
+    lappend result [catch {foo bar} msg] $msg
+    set target {lappend result boo hoo}
+    lappend result [catch {foo bar} msg] $msg [namespace ensemble config foo]
+    rename foo {}
+    set result
+
+---- Result was:
+{LOG ::foo bar} 1 {unknown subcommand "bar": namespace :: does not export any commands} {LOG ::foo bar} boo hoo 0 {{LOG ::foo bar} 1 {unknown subcommand "bar": namespace :: does not export any commands} {LOG ::foo bar} boo hoo} {-map {} -namespace :: -parameters {} -prefixes 1 -subcommands {} -unknown bar}
+---- Result should have been (exact matching):
+{LOG ::foo bar} 1 {unknown subcommand "bar": namespace :: does not export any commands} {LOG ::foo bar} boo hoo 0 {{LOG ::foo bar} 1 {unknown subcommand "bar": namespace :: does not export any commands} {LOG ::foo bar} boo hoo} {-map {} -namespace :: -prefixes 1 -subcommands {} -unknown bar}
+==== namespace-47.5 FAILED
+
+---- namespace-47.6 start
+---- namespace-47.7 start
+---- namespace-47.8 start
+---- namespace-48.1 start
+
+
+==== namespace-48.1 ensembles and namespace import: unknown handler FAILED
+==== Contents of test case:
+
+    namespace eval foo {
+	namespace export bar
+	namespace ensemble create -command bar -unknown ::foo::u -subcomm x
+	proc u {ens args} {
+	    global result
+	    lappend result $ens $args
+	    namespace ensemble config $ens -subcommand {x y}
+	}
+	proc u2 {ens args} {
+	    global result
+	    lappend result $ens $args
+	    namespace ensemble config ::bar -subcommand {x y z}
+	}
+	proc x args {
+	    global result
+	    lappend result XXX $args
+	}
+	proc y args {
+	    global result
+	    lappend result YYY $args
+	}
+	proc z args {
+	    global result
+	    lappend result ZZZ $args
+	}
+    }
+    namespace import -force foo::bar
+    set result [list [namespace ensemble config bar]]
+    bar x 123
+    bar y 456
+    namespace ensemble config bar -unknown ::foo::u2
+    bar z 789
+    namespace delete foo
+    set result
+
+---- Result was:
+{-map {} -namespace ::foo -parameters {} -prefixes 1 -subcommands x -unknown ::foo::u} XXX 123 ::foo::bar {y 456} YYY 456 ::foo::bar {z 789} ZZZ 789
+---- Result should have been (exact matching):
+{-map {} -namespace ::foo -prefixes 1 -subcommands x -unknown ::foo::u} XXX 123 ::foo::bar {y 456} YYY 456 ::foo::bar {z 789} ZZZ 789
+==== namespace-48.1 FAILED
+
+---- namespace-48.2 start
+---- namespace-48.3 start
+---- namespace-49.1 start
+---- namespace-49.2 start
+---- namespace-50.1 start
+
+
+==== namespace-50.1 ensembles affect proc arguments error messages FAILED
+==== Contents of test case:
+
+    namespace ens cre -command a -map {b {bb foo}}
+    proc bb {c d {e f} args} {list $c $args}
+    a b
+
+---- Result was:
+wrong # args: should be "a b d ?e? ?arg ...?"
+---- Result should have been (exact matching):
+wrong # args: should be "a b d ?e? ..."
+==== namespace-50.1 FAILED
+
+---- namespace-50.2 start
+
+
+==== namespace-50.2 ensembles affect WrongNumArgs error messages FAILED
+==== Contents of test case:
+
+    namespace ens cre -command a -map {b {string is}}
+    a b boolean
+
+---- Result was:
+wrong # args: should be "string is class ?-strict? ?-failindex var? str"
+---- Result should have been (exact matching):
+wrong # args: should be "a b class ?-strict? ?-failindex var? str"
+==== namespace-50.2 FAILED
+
+---- namespace-50.3 start
+---- namespace-50.4 start
+---- namespace-51.1 start
+---- namespace-51.2 start
+---- namespace-51.3 start
+---- namespace-51.4 start
+---- namespace-51.5 start
+---- namespace-51.6 start
+---- namespace-51.7 start
+---- namespace-51.8 start
+---- namespace-51.9 start
+---- namespace-51.10 start
+---- namespace-51.11 start
+---- namespace-51.12 start
+---- namespace-51.13 start
+
+
+==== namespace-51.13 name resolution path control FAILED
+==== Contents of test case:
+
+    set ::result {}
+    namespace eval ::test_ns_1 {
+	proc foo {} {lappend ::result 1}
+    }
+    namespace eval ::test_ns_2 {
+	proc foo {} {lappend ::result 2}
+	trace add command foo delete {namespace eval ::test_ns_3 foo;#}
+    }
+    namespace eval ::test_ns_3 {
+	proc foo {} {
+	    lappend ::result 3
+	    namespace delete [namespace current]
+	    ::test_ns_4::bar
+	}
+    }
+    namespace eval ::test_ns_4 {
+	namespace path {::test_ns_2 ::test_ns_3 ::test_ns_1}
+	proc bar {} {
+	    list [foo] [namespace delete ::test_ns_2] [foo]
+	}
+	bar
+    }
+    # Should the result be "2 {} {2 3 2 1}" instead?
+
+---- Result was:
+2 {} {2 3 3 1}
+---- Result should have been (exact matching):
+2 {} {2 3 1 1}
+==== namespace-51.13 FAILED
+
+---- namespace-51.14 start
+
+
+==== namespace-51.14 name resolution path control FAILED
+==== Contents of test case:
+
+    foreach cmd [info commands foo*] {
+	rename $cmd {}
+    }
+    proc foo0 {} {}
+    namespace eval ::test_ns_1 {
+	proc foo1 {} {}
+    }
+    namespace eval ::test_ns_2 {
+	proc foo2 {} {}
+    }
+    namespace eval ::test_ns_3 {
+	variable result {}
+	lappend result [info commands foo*]
+	namespace path {::test_ns_1 ::test_ns_2}
+	lappend result [info commands foo*]
+	proc foo2 {} {}
+	lappend result [info commands foo*]
+	rename foo2 {}
+	lappend result [info commands foo*]
+	namespace delete ::test_ns_1
+	lappend result [info commands foo*]
+    }
+
+---- Result was:
+foo0 foo0 {foo0 foo2} foo0 foo0
+---- Result should have been (exact matching):
+foo0 {foo1 foo2 foo0} {foo2 foo1 foo0} {foo1 foo2 foo0} {foo2 foo0}
+==== namespace-51.14 FAILED
+
+---- namespace-51.15 start
+---- namespace-51.16 start
+---- namespace-51.17 start
+---- namespace-52.1 start
+---- namespace-52.2 start
+---- namespace-52.3 start
+---- namespace-52.4 start
+---- namespace-52.5 start
+---- namespace-52.6 start
+---- namespace-52.7 start
+---- namespace-52.8 start
+---- namespace-52.9 start
+++++ namespace-52.10 SKIPPED: testevalobjv
+---- namespace-52.11 start
+
+
+==== namespace-52.11 unknown: with TCL_EVAL_INVOKE FAILED
+==== Contents of test case:
+
+    $::slave alias bar noSuchCommand
+    namespace eval test_ns_1 {
+	namespace unknown unknown
+	proc unknown args {
+	    return FAIL
+	}
+	$::slave eval bar
+    }
+
+---- Result was:
+FAIL
+---- Result should have been (exact matching):
+SUCCESS
+==== namespace-52.11 FAILED
+
+---- namespace-52.12 start
+namespace.test:	Total	281	Passed	256	Skipped	1	Failed	24
+Number of tests skipped for each constraint:
+	1	testevalobjv

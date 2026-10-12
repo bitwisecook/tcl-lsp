@@ -1,0 +1,1059 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- ooUtil-1.1 start
+
+
+==== ooUtil-1.1 TIP 478: classmethod FAILED
+==== Contents of test case:
+
+    oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }
+    oo::class create Table {
+	superclass ActiveRecord
+    }
+    Table find foo bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod find args {
+	    return "[self] called with arguments: $args"
+	}"
+    (in definition script for class "::ActiveRecord" line 3)
+    invoked from within
+"oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.1 FAILED
+
+---- ooUtil-1.2 start
+
+
+==== ooUtil-1.2 TIP 478: classmethod in namespace FAILED
+==== Contents of test case:
+
+    namespace eval ::testns {
+	oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}
+	oo::class create Table {
+	    superclass ActiveRecord
+	}
+    }
+    testns::Table find foo bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod find args {
+		return "[self] called with arguments: $args"
+	    }"
+    (in definition script for class "::testns::ActiveRecord" line 2)
+    invoked from within
+"oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}"
+    invoked from within
+"namespace eval ::testns {
+	oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}
+	oo::..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.2 FAILED
+
+---- ooUtil-1.3 start
+
+
+==== ooUtil-1.3 TIP 478: classmethod must not interfere with constructor signatures FAILED
+==== Contents of test case:
+
+    oo::class create TestClass {
+	superclass oo::class parent
+	self method create {name ignore body} {
+	    next $name $body
+	}
+    }
+    TestClass create okay {} {}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"self method create {name ignore body} {
+	    next $name $body
+	}"
+    (in definition script for class "::TestClass" line 3)
+    invoked from within
+"oo::class create TestClass {
+	superclass oo::class parent
+	self method create {name ignore body} {
+	    next $name $body
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== ooUtil-1.3 FAILED
+
+---- ooUtil-1.4 start
+
+
+==== ooUtil-1.4 TIP 478: classmethod with several inheritance levels FAILED
+==== Contents of test case:
+
+    oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }
+    oo::class create Table {
+	superclass ActiveRecord
+    }
+    oo::class create SubTable {
+	superclass Table
+    }
+    SubTable find foo bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod find args {
+	    return "[self] called with arguments: $args"
+	}"
+    (in definition script for class "::ActiveRecord" line 3)
+    invoked from within
+"oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.4 FAILED
+
+---- ooUtil-1.5 start
+
+
+==== ooUtil-1.5 TIP 478: classmethod and instances FAILED
+==== Contents of test case:
+
+    oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }
+    oo::class create Table {
+	superclass ActiveRecord
+    }
+    set t [Table new]
+    $t find 1 2 3
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod find args {
+	    return "[self] called with arguments: $args"
+	}"
+    (in definition script for class "::ActiveRecord" line 3)
+    invoked from within
+"oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.5 FAILED
+
+---- ooUtil-1.6 start
+
+
+==== ooUtil-1.6 TIP 478: classmethod and instances FAILED
+==== Contents of test case:
+
+    oo::class create ActiveRecord {
+	superclass parent
+	classmethod find args {
+	    return "[self] called with arguments: $args"
+	}
+    }
+    oo::class create Table {
+	superclass ActiveRecord
+	unexport find
+    }
+    set t [Table new]
+    $t find 1 2 3
+
+---- Result was:
+invalid command name "classmethod"
+---- Result should have been (glob matching):
+unknown method "find": must be *
+==== ooUtil-1.6 FAILED
+
+---- ooUtil-1.7 start
+
+
+==== ooUtil-1.7  FAILED
+==== Contents of test case:
+
+    oo::class create Foo {
+	superclass parent
+	classmethod bar {} {
+	    puts "This is in the class; self is [self]"
+	    my meee
+	}
+	classmethod meee {} {
+	    puts "This is meee"
+	}
+    }
+    oo::class create Grill {
+	superclass Foo
+	classmethod meee {} {
+	    puts "This is meee 2"
+	}
+    }
+    list [Foo bar] [Grill bar] [[Foo new] bar] [[Grill new] bar]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod bar {} {
+	    puts "This is in the class; self is [self]"
+	    my meee
+	}"
+    (in definition script for class "::Foo" line 3)
+    invoked from within
+"oo::class create Foo {
+	superclass parent
+	classmethod bar {} {
+	    puts "This is in the class; self is [self]"
+	    my meee
+	}
+	classmethod meee {} ..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.7 FAILED
+
+---- ooUtil-1.8 start
+
+
+==== ooUtil-1.8 TIP 478: classmethod in child interp FAILED
+==== Contents of test case:
+
+    $childinterp eval {
+	oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}
+	oo::class create Table {
+	    superclass ActiveRecord
+	}
+	# This is confirming that this is not the parent interpreter
+	list [Table find foo bar] [info globals childinterp]
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"classmethod find args {
+		return "[self] called with arguments: $args"
+	    }"
+    (in definition script for class "::ActiveRecord" line 2)
+    invoked from within
+"oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.8 FAILED
+
+---- ooUtil-1.9 start
+
+
+==== ooUtil-1.9 TIP 478: classmethod in safe child interp FAILED
+==== Contents of test case:
+
+    $safeinterp eval {
+	oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}
+	oo::class create Table {
+	    superclass ActiveRecord
+	}
+	# This is confirming that this is a (basic) safe interpreter
+	list [Table find foo bar] [info commands source]
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"classmethod find args {
+		return "[self] called with arguments: $args"
+	    }"
+    (in definition script for class "::ActiveRecord" line 2)
+    invoked from within
+"oo::class create ActiveRecord {
+	    classmethod find args {
+		return "[self] called with arguments: $args"
+	    }
+	}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.9 FAILED
+
+---- ooUtil-1.10.1 start
+
+
+==== ooUtil-1.10.1 Bug 680503: classmethod shouldn't require create body FAILED
+==== Contents of test case:
+
+    oo::class create C
+    oo::define C {classmethod cm {} {}}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod cm {} {}"
+    (in definition script for class "::C" line 1)
+    invoked from within
+"oo::define C {classmethod cm {} {}}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.10.1 FAILED
+
+---- ooUtil-1.10.2 start
+
+
+==== ooUtil-1.10.2 Bug 680503: case that worked FAILED
+==== Contents of test case:
+
+    oo::class create C {}
+    oo::define C {classmethod cm {} {}}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "classmethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"classmethod cm {} {}"
+    (in definition script for class "::C" line 1)
+    invoked from within
+"oo::define C {classmethod cm {} {}}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND classmethod
+==== ooUtil-1.10.2 FAILED
+
+---- ooUtil-2.1 start
+
+
+==== ooUtil-2.1 TIP 478: callback generation FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	method CallMe {} { return ok,[self] }
+	method makeCall {} {
+	    return [callback CallMe]
+	}
+    }
+    c create ::context
+    set cb [context makeCall]
+    {*}$cb
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "callback"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"return [callback CallMe]"
+    (procedure "makeCall" line 2)
+    invoked from within
+"set cb [context makeCall]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND callback
+==== ooUtil-2.1 FAILED
+
+---- ooUtil-2.2 start
+
+
+==== ooUtil-2.2 TIP 478: callback generation FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	method CallMe {a b c} { return ok,[self],$a,$b,$c }
+	method makeCall {b} {
+	    return [callback CallMe 123 $b]
+	}
+    }
+    c create ::context
+    set cb [context makeCall "a b c"]
+    {*}$cb PQR
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "callback"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"return [callback CallMe 123 $b]"
+    (procedure "makeCall" line 2)
+    invoked from within
+"set cb [context makeCall "a b c"]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND callback
+==== ooUtil-2.2 FAILED
+
+---- ooUtil-2.3 start
+
+
+==== ooUtil-2.3 TIP 478: callback generation, alternate name FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	method CallMe {} { return ok,[self] }
+	method makeCall {} {
+	    return [mymethod CallMe]
+	}
+    }
+    c create ::context
+    set cb [context makeCall]
+    {*}$cb
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "mymethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"return [mymethod CallMe]"
+    (procedure "makeCall" line 2)
+    invoked from within
+"set cb [context makeCall]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND mymethod
+==== ooUtil-2.3 FAILED
+
+---- ooUtil-2.4 start
+
+
+==== ooUtil-2.4 TIP 478: callback generation, alternate name FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	method CallMe {a b c} { return ok,[self],$a,$b,$c }
+	method makeCall {b} {
+	    return [mymethod CallMe 123 $b]
+	}
+    }
+    c create ::context
+    set cb [context makeCall "a b c"]
+    {*}$cb PQR
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "mymethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"return [mymethod CallMe 123 $b]"
+    (procedure "makeCall" line 2)
+    invoked from within
+"set cb [context makeCall "a b c"]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND mymethod
+==== ooUtil-2.4 FAILED
+
+---- ooUtil-2.5 start
+
+
+==== ooUtil-2.5 TIP 478: callbacks and method lifetime FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	method makeCall {b} {
+	    return [callback CallMe 123 $b]
+	}
+    }
+    c create ::context
+    set cb [context makeCall "a b c"]
+    set result [list [catch {{*}$cb PQR} msg] $msg]
+    oo::objdefine context {
+	method CallMe {a b c} { return ok,[self],$a,$b,$c }
+    }
+    lappend result [{*}$cb PQR]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "callback"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"return [callback CallMe 123 $b]"
+    (procedure "makeCall" line 2)
+    invoked from within
+"set cb [context makeCall "a b c"]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND callback
+==== ooUtil-2.5 FAILED
+
+---- ooUtil-2.6 start
+
+
+==== ooUtil-2.6 TIP 478: callback use case FAILED
+==== Contents of test case:
+
+    oo::class create c {
+	superclass parent
+	variable count
+	constructor {var} {
+	    set count 0
+	    upvar 1 $var v
+	    trace add variable v write [callback TraceCallback]
+	}
+	method count {} {return $count}
+	method TraceCallback {name1 name2 op} {
+	    incr count
+	}
+    }
+    set o [c new x]
+    for {set x 0} {$x < 5} {incr x} {}
+    $o count
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "callback"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"trace add variable v write [callback TraceCallback]"
+    (procedure "" line 4)
+    invoked from within
+"set o [c new x]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND callback
+==== ooUtil-2.6 FAILED
+
+---- ooUtil-3.1 start
+
+
+==== ooUtil-3.1 TIP 478: class initialisation FAILED
+==== Contents of test case:
+
+    oo::class create ::cls {
+	superclass parent
+	initialise {
+	    proc foobar-3.1 {} {return ok}
+	}
+	method calls {} {
+	    list [catch foobar-3.1 msg] $msg  [namespace eval [info object namespace [self class]] foobar-3.1]
+	}
+    }
+    [cls new] calls
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "initialise"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"initialise {
+	    proc foobar-3.1 {} {return ok}
+	}"
+    (in definition script for class "::cls" line 3)
+    invoked from within
+"oo::class create ::cls {
+	superclass parent
+	initialise {
+	    proc foobar-3.1 {} {return ok}
+	}
+	method calls {} {
+	    list [catch foobar-3.1 msg] $..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND initialise
+==== ooUtil-3.1 FAILED
+
+---- ooUtil-3.2 start
+
+
+==== ooUtil-3.2 TIP 478: class variables FAILED
+==== Contents of test case:
+
+    oo::class create ::cls {
+	superclass parent
+	initialise {
+	    variable x 123
+	}
+	method call {} {
+	    classvariable x
+	    incr x
+	}
+    }
+    cls create a
+    cls create b
+    cls create c
+    list [a call] [b call] [c call] [a call] [b call] [c call]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "initialise"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"initialise {
+	    variable x 123
+	}"
+    (in definition script for class "::cls" line 3)
+    invoked from within
+"oo::class create ::cls {
+	superclass parent
+	initialise {
+	    variable x 123
+	}
+	method call {} {
+	    classvariable x
+	    incr x
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND initialise
+==== ooUtil-3.2 FAILED
+
+---- ooUtil-3.3 start
+
+
+==== ooUtil-3.3 TIP 478: class initialisation FAILED
+==== Contents of test case:
+
+    oo::class create ::cls {
+	superclass parent
+	initialize {
+	    proc foobar-3.3 {} {return ok}
+	}
+	method calls {} {
+	    list [catch foobar-3.3 msg] $msg  [namespace eval [info object namespace [self class]] foobar-3.3]
+	}
+    }
+    [cls new] calls
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "initialize"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"initialize {
+	    proc foobar-3.3 {} {return ok}
+	}"
+    (in definition script for class "::cls" line 3)
+    invoked from within
+"oo::class create ::cls {
+	superclass parent
+	initialize {
+	    proc foobar-3.3 {} {return ok}
+	}
+	method calls {} {
+	    list [catch foobar-3.3 msg] $..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND initialize
+==== ooUtil-3.3 FAILED
+
+---- ooUtil-3.4 start
+
+
+==== ooUtil-3.4 TIP 478: class initialisation FAILED
+==== Contents of test case:
+
+    trace add execution oo::define::initialise enter appendToResultVar
+    oo::class create ::cls {
+	superclass parent
+	initialise {proc xyzzy {} {}}
+    }
+    return $result
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unknown command "oo::define::initialise"
+    while executing
+"trace add execution oo::define::initialise enter appendToResultVar"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== ooUtil-3.4 FAILED
+
+---- ooUtil-4.1 start
+
+
+==== ooUtil-4.1 TIP 478: singleton FAILED
+==== Contents of test case:
+
+    oo::singleton create xyz {
+	superclass parent
+    }
+    set x [xyz new]
+    set y [xyz new]
+    set z [xyz new]
+    set code [catch {$x destroy} msg]
+    set p [xyz new]
+    lappend code [catch {rename $x ""}]
+    set q [xyz new]
+    string map [list $x ONE $q TWO] [list {*}$code $x $y $z $p $q [xyz new]]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "oo::singleton"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::singleton create xyz {
+	superclass parent
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND oo::singleton
+==== ooUtil-4.1 FAILED
+
+---- ooUtil-4.2 start
+
+
+==== ooUtil-4.2 TIP 478: singleton errors FAILED
+==== Contents of test case:
+
+    oo::singleton create xyz {
+	superclass parent
+    }
+    [xyz new] destroy
+
+---- Result was:
+invalid command name "oo::singleton"
+---- Result should have been (exact matching):
+may not destroy a singleton object
+==== ooUtil-4.2 FAILED
+
+---- ooUtil-4.3 start
+
+
+==== ooUtil-4.3 TIP 478: singleton errors FAILED
+==== Contents of test case:
+
+    oo::singleton create xyz {
+	superclass parent
+    }
+    oo::copy [xyz new]
+
+---- Result was:
+invalid command name "oo::singleton"
+---- Result should have been (exact matching):
+may not clone a singleton object
+==== ooUtil-4.3 FAILED
+
+---- ooUtil-5.1 start
+
+
+==== ooUtil-5.1 TIP 478: abstract FAILED
+==== Contents of test case:
+
+    oo::abstract create xyz {
+	superclass parent
+	method foo {} {return 123}
+    }
+    oo::class create pqr {
+	superclass xyz
+	method bar {} {return 456}
+    }
+    set codes [list [catch {xyz new}] [catch {xyz create x}] [catch {xyz createWithNamespace x y}]]
+    set x [pqr new]
+    set y [pqr create ::y]
+    lappend codes [$x foo] [$x bar] $y
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "oo::abstract"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::abstract create xyz {
+	superclass parent
+	method foo {} {return 123}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND oo::abstract
+==== ooUtil-5.1 FAILED
+
+---- ooUtil-6.1 start
+
+
+==== ooUtil-6.1 TIP 478: classvariable FAILED
+==== Contents of test case:
+
+    oo::class create xyz {
+	superclass parent
+	initialise {
+	    variable x 1 y 2
+	}
+	method a {} {
+	    classvariable x
+	    incr x
+	}
+	method b {} {
+	    classvariable y
+	    incr y
+	}
+	method c {} {
+	    classvariable x y
+	    list $x $y
+	}
+    }
+    set p [xyz new]
+    set q [xyz new]
+    set result [list [$p c] [$q c]]
+    $p a
+    $q b
+    lappend result [[xyz new] c]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "initialise"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"initialise {
+	    variable x 1 y 2
+	}"
+    (in definition script for class "::xyz" line 3)
+    invoked from within
+"oo::class create xyz {
+	superclass parent
+	initialise {
+	    variable x 1 y 2
+	}
+	method a {} {
+	    classvariable x
+	    incr x
+	}
+	method b {} {
+	  ..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND initialise
+==== ooUtil-6.1 FAILED
+
+---- ooUtil-6.2 start
+
+
+==== ooUtil-6.2 TIP 478: classvariable error case FAILED
+==== Contents of test case:
+
+    oo::class create xyz {
+	superclass parent
+	method a {} {
+	    classvariable x(1)
+	    incr x(1)
+	}
+    }
+    set p [xyz new]
+    set q [xyz new]
+    list [$p a] [$q a]
+
+---- Result was:
+invalid command name "classvariable"
+---- Result should have been (exact matching):
+bad variable name "x(1)": can't create a scalar variable that looks like an array element
+==== ooUtil-6.2 FAILED
+
+---- ooUtil-6.3 start
+
+
+==== ooUtil-6.3 TIP 478: classvariable error case FAILED
+==== Contents of test case:
+
+    oo::class create xyz {
+	superclass parent
+	method a {} {
+	    classvariable ::x
+	    incr x
+	}
+    }
+    set p [xyz new]
+    set q [xyz new]
+    list [$p a] [$q a]
+
+---- Result was:
+invalid command name "classvariable"
+---- Result should have been (exact matching):
+bad variable name "::x": can't create a local variable with a namespace separator in it
+==== ooUtil-6.3 FAILED
+
+---- ooUtil-7.1 start
+
+
+==== ooUtil-7.1 TIP 478: link calling pattern FAILED
+==== Contents of test case:
+
+    oo::class create cls {
+	superclass parent
+	method foo {} {return "in foo of [self]"}
+	method Bar {} {return "in bar of [self]"}
+	method Grill {} {return "in grill of [self]"}
+	export eval
+	constructor {} {
+	    link foo
+	    link {bar Bar} {grill Grill}
+	}
+    }
+    cls create o
+    o eval {list [foo] [bar] [grill]}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "link"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"link foo"
+    (procedure "" line 2)
+    invoked from within
+"cls create o"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND link
+==== ooUtil-7.1 FAILED
+
+---- ooUtil-7.2 start
+
+
+==== ooUtil-7.2 TIP 478: link removed when [my] disappears FAILED
+==== Contents of test case:
+
+    oo::class create cls {
+	superclass parent
+	method foo {} {return "in foo of [self]"}
+	constructor {cmd} {
+	    link [list ::$cmd foo]
+	}
+    }
+    cls create o pqr
+    list [o foo] [pqr] [rename [info object namespace o]::my {}] [catch pqr msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "link"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"link [list ::$cmd foo]"
+    (procedure "" line 2)
+    invoked from within
+"cls create o pqr"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND link
+==== ooUtil-7.2 FAILED
+
+---- ooUtil-8.1 start
+---- ooUtil-tcllib-ticket-b3577ed586 start
+
+
+==== ooUtil-tcllib-ticket-fe7a0e0a3a classmethod must not interfere with constructor signatures FAILED
+==== Contents of test case:
+
+    TestClass create okay {} {}
+
+---- Test setup failed:
+invalid command name "self"
+---- errorInfo(setup): invalid command name "self"
+    while executing
+"self method create {name ignore body} {
+	    next $name $body
+	}"
+    (in definition script for class "::TestClass" line 3)
+    invoked from within
+"oo::class create TestClass {
+	superclass oo::class
+	self method create {name ignore body} {
+	    next $name $body
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $setup} setupMsg]"
+---- errorCode(setup): NONE
+---- Test cleanup failed:
+can't delete "TestClass": command doesn't exist
+---- errorInfo(cleanup): can't delete "TestClass": command doesn't exist
+    while executing
+"rename TestClass {}"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): NONE
+==== ooUtil-tcllib-ticket-fe7a0e0a3a FAILED
+
+ooUtil.test:	Total	33	Passed	2	Skipped	0	Failed	31

@@ -1,0 +1,2389 @@
+NH_FRAME_DEBUG enabled
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- interp-1.1 start
+---- interp-1.2 start
+
+
+==== interp-1.2 options for interp command FAILED
+==== Contents of test case:
+
+    interp frobox
+
+---- Result was:
+bad option "frobox": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+---- Result should have been (exact matching):
+bad option "frobox": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer
+==== interp-1.2 FAILED
+
+---- interp-1.3 start
+---- interp-1.4 start
+---- interp-1.5 start
+
+
+==== interp-1.5 options for interp command FAILED
+==== Contents of test case:
+
+    interp exists foo bar
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-1.5 FAILED
+
+---- interp-1.6 start
+
+
+==== interp-1.6 options for interp command FAILED
+==== Contents of test case:
+
+    interp children foo bar zop
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-1.6 FAILED
+
+---- interp-1.7 start
+
+
+==== interp-1.7 options for interp command FAILED
+==== Contents of test case:
+
+    interp hello
+
+---- Result was:
+bad option "hello": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+---- Result should have been (exact matching):
+bad option "hello": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer
+==== interp-1.7 FAILED
+
+---- interp-1.8 start
+
+
+==== interp-1.8 options for interp command FAILED
+==== Contents of test case:
+
+    interp -froboz
+
+---- Result was:
+bad option "-froboz": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+---- Result should have been (exact matching):
+bad option "-froboz": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer
+==== interp-1.8 FAILED
+
+---- interp-1.9 start
+
+
+==== interp-1.9 options for interp command FAILED
+==== Contents of test case:
+
+    interp -froboz -safe
+
+---- Result was:
+bad option "-froboz": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+---- Result should have been (exact matching):
+bad option "-froboz": must be alias, aliases, bgerror, cancel, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, share, target, or transfer
+==== interp-1.9 FAILED
+
+---- interp-1.10 start
+---- interp-1.11 start
+---- interp-2.1 start
+---- interp-2.2 start
+---- interp-2.3 start
+---- interp-2.4 start
+---- interp-2.5 start
+---- interp-2.6 start
+---- interp-2.7 start
+---- interp-2.8 start
+---- interp-2.9 start
+---- interp-2.10 start
+---- interp-2.11 start
+---- interp-2.12 start
+---- interp-2.13 start
+---- interp-3.1 start
+---- interp-3.2 start
+---- interp-3.3 start
+---- interp-3.4 start
+
+
+==== interp-3.4 testing interp exists and interp children FAILED
+==== Contents of test case:
+
+    interp children a b c
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-3.4 FAILED
+
+---- interp-3.5 start
+
+
+==== interp-3.5 testing interp exists and interp children FAILED
+==== Contents of test case:
+
+    interp exists a b c
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-3.5 FAILED
+
+---- interp-3.6 start
+---- interp-3.7 start
+---- interp-3.8 start
+
+
+==== interp-3.8 testing interp exists and interp children FAILED
+==== Contents of test case:
+
+    interp children a b c
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-3.8 FAILED
+
+---- interp-3.9 start
+---- interp-3.10 start
+---- interp-3.11 start
+---- interp-4.1 start
+---- interp-4.2 start
+---- interp-4.3 start
+---- interp-4.4 start
+---- interp-4.5 start
+---- interp-4.6 start
+---- interp-4.7 start
+---- interp-4.8 start
+
+
+==== interp-4.8 testing interp delete FAILED
+==== Contents of test case:
+
+    interp delete {}
+
+---- Result was:
+could not find interpreter ""
+---- Result should have been (exact matching):
+cannot delete the current interpreter
+==== interp-4.8 FAILED
+
+---- interp-5.1 start
+---- interp-5.2 start
+---- interp-5.3 start
+---- interp-6.1 start
+---- interp-6.2 start
+---- interp-6.3 start
+---- interp-6.4 start
+---- interp-6.5 start
+---- interp-6.6 start
+---- interp-7.1 start
+---- interp-7.2 start
+---- interp-7.3 start
+
+
+==== interp-7.3 testing basic alias creation FAILED
+==== Contents of test case:
+
+    a alias foo
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"
+    while executing
+"a alias foo"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL WRONGARGS
+==== interp-7.3 FAILED
+
+---- interp-7.4 start
+
+
+==== interp-7.4 testing basic alias creation FAILED
+==== Contents of test case:
+
+    a alias bar
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: wrong # args: should be "a alias aliasName ?targetName? ?arg ...?"
+    while executing
+"a alias bar"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: TCL WRONGARGS
+==== interp-7.4 FAILED
+
+---- interp-7.5 start
+---- interp-7.6 start
+---- interp-8.1 start
+---- interp-8.2 start
+---- interp-8.3 start
+---- interp-9.1 start
+---- interp-9.2 start
+---- interp-9.3 start
+
+
+==== interp-9.3 testing aliases for hidden commands FAILED
+==== Contents of test case:
+
+    catch {interp create a}
+    a eval {proc p {} {return ENTER_A}}
+    interp alias {} p a p
+    set res {}
+    lappend res [list [catch p msg] $msg]
+    interp hide a p
+    lappend res [list [catch p msg] $msg]
+    rename p {}
+    interp delete a
+    set res
+ 
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias {} p a p"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-9.3 FAILED
+
+---- interp-9.4 start
+---- interp-10.1 start
+
+
+==== interp-10.1 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_alias b b_alias 1 2 3
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 6)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.1 FAILED
+
+---- interp-10.2 start
+
+
+==== interp-10.2 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    b eval {proc b_alias {args} {return [list got $args]}}
+    interp alias a a_alias b b_alias 1 2 3
+    a eval a_alias a b c
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.2 FAILED
+
+---- interp-10.3 start
+
+
+==== interp-10.3 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_alias b b_alias 1 2 3
+    list [catch {a eval a_alias a b c} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_alias b b_alias 1 2 3"
+    ("uplevel" body line 6)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.3 FAILED
+
+---- interp-10.4 start
+---- interp-10.5 start
+
+
+==== interp-10.5 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    a alias a_alias puts
+    interp alias a a_del b b_del
+    interp delete b
+    a aliases
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_del b b_del"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.5 FAILED
+
+---- interp-10.6 start
+
+
+==== interp-10.6 testing aliasing between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    catch {interp delete b}
+    interp create a
+    interp create b
+    interp alias a a_command b b_command a1 a2 a3
+    b alias b_command in_parent b1 b2 b3
+    a eval a_command m1 m2 m3
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a a_command b b_command a1 a2 a3"
+    ("uplevel" body line 6)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.6 FAILED
+
+---- interp-10.7 start
+
+
+==== interp-10.7 testing aliases between interpreters FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias "" foo a zoppo
+    a eval {proc zoppo {x} {list $x $x $x}}
+    set x [foo 33]
+    a eval {rename zoppo {}}
+    interp alias "" foo a {}
+    return $x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias "" foo a zoppo"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-10.7 FAILED
+
+---- interp-11.1 start
+---- interp-11.2 start
+
+
+==== interp-11.2 testing interp target FAILED
+==== Contents of test case:
+
+    list [catch {interp target nosuchinterpreter foo} msg] $msg
+
+---- Result was:
+1 {alias "foo" in path "nosuchinterpreter" not found}
+---- Result should have been (exact matching):
+1 {could not find interpreter "nosuchinterpreter"}
+==== interp-11.2 FAILED
+
+---- interp-11.3 start
+---- interp-11.4 start
+
+
+==== interp-11.4 testing interp target FAILED
+==== Contents of test case:
+
+    catch {interp delete x1}
+    interp create x1
+    x1 eval interp create x2
+    x1 eval x2 eval interp create x3
+    catch {interp delete y1}
+    interp create y1
+    y1 eval interp create y2
+    y1 eval y2 eval interp create y3
+    interp alias {x1 x2 x3} xcommand {y1 y2 y3} ycommand
+    interp target {x1 x2 x3} xcommand
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "x1 x2 x3"
+    while executing
+"interp alias {x1 x2 x3} xcommand {y1 y2 y3} ycommand"
+    ("uplevel" body line 10)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-11.4 FAILED
+
+---- interp-11.5 start
+
+
+==== interp-11.5 testing interp target FAILED
+==== Contents of test case:
+
+    catch {interp delete x1}
+    interp create x1
+    interp create {x1 x2}
+    interp create {x1 x2 x3}
+    catch {interp delete y1}
+    interp create y1
+    interp create {y1 y2}
+    interp create {y1 y2 y3}
+    interp alias {x1 x2 x3} xcommand {y1 y2 y3} ycommand
+    list [catch {x1 eval {interp target {x2 x3} xcommand}} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "x1 x2 x3"
+    while executing
+"interp alias {x1 x2 x3} xcommand {y1 y2 y3} ycommand"
+    ("uplevel" body line 10)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-11.5 FAILED
+
+---- interp-11.6 start
+---- interp-11.7 start
+---- interp-12.1 start
+---- interp-12.2 start
+---- interp-12.3 start
+---- interp-12.4 start
+
+
+==== interp-12.4 testing interp issafe FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp create {a x3} -safe
+    interp create {a x3 foo}
+    interp issafe {a x3 foo}
+
+---- Result was:
+0
+---- Result should have been (exact matching):
+1
+==== interp-12.4 FAILED
+
+---- interp-13.1 start
+---- interp-13.2 start
+---- interp-13.3 start
+
+
+==== interp-13.3 testing foo issafe FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp create {a x3} -safe
+    interp create {a x3 foo}
+    a eval x3 eval foo issafe
+
+---- Result was:
+0
+---- Result should have been (exact matching):
+1
+==== interp-13.3 FAILED
+
+---- interp-13.4 start
+---- interp-14.1 start
+---- interp-14.2 start
+---- interp-14.3 start
+
+
+==== interp-14.3 testing interp aliases FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp create {a x3}
+    interp alias {a x3} froboz "" puts
+    interp aliases {a x3}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "a x3"
+    while executing
+"interp alias {a x3} froboz "" puts"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-14.3 FAILED
+
+---- interp-14.4 start
+
+
+==== interp-14.4 testing interp alias - alias over parent FAILED
+==== Contents of test case:
+
+    # SF Bug 641195
+    catch {interp delete a}
+    interp create a
+    list [catch {interp alias "" a a eval} msg] $msg [info commands a]
+
+---- Result was:
+1 {only single-interp aliases (empty interpreter paths) are supported} a
+---- Result should have been (exact matching):
+1 {cannot define or rename alias "a": interpreter deleted} {}
+==== interp-14.4 FAILED
+
+---- interp-14.5 start
+
+
+==== interp-14.5 testing interp-alias: wrong # args FAILED
+==== Contents of test case:
+
+    proc setx x {set x}
+    interp alias {} a {} setx
+    catch {a 1 2}
+    set ::errorInfo
+
+---- Result was:
+wrong # args: should be "setx x"
+    while executing
+"a 1 2"
+---- Result should have been (exact matching):
+wrong # args: should be "a x"
+    while executing
+"a 1 2"
+==== interp-14.5 FAILED
+
+---- interp-14.6 start
+
+
+==== interp-14.6 testing interp-alias: wrong # args FAILED
+==== Contents of test case:
+
+    interp alias a a {} setx
+    catch {a eval a 1 2}
+    set ::errorInfo
+
+---- Result was:
+wrong # args: should be "setx x"
+    while executing
+"a eval a 1 2"
+---- Result should have been (exact matching):
+wrong # args: should be "a x"
+    invoked from within
+"a 1 2"
+    invoked from within
+"a eval a 1 2"
+==== interp-14.6 FAILED
+
+---- interp-14.7 start
+
+
+==== interp-14.7 testing interp-alias: wrong # args FAILED
+==== Contents of test case:
+
+    interp alias a a {} setx
+    a eval {
+	catch {a 1 2}
+	set ::errorInfo
+    }
+
+---- Result was:
+wrong # args: should be "setx x"
+    while executing
+"a 1 2"
+---- Result should have been (exact matching):
+wrong # args: should be "a x"
+    invoked from within
+"a 1 2"
+==== interp-14.7 FAILED
+
+---- interp-14.8 start
+---- interp-14.9 start
+
+
+==== interp-14.9 testing interp-alias: error messages FAILED
+==== Contents of test case:
+
+    interp alias a a {} setx
+    catch {a eval a 1}
+    set ::errorInfo
+
+---- Result was:
+x
+    while executing
+"a eval a 1"
+---- Result should have been (exact matching):
+x
+    invoked from within
+"a 1"
+    invoked from within
+"a eval a 1"
+==== interp-14.9 FAILED
+
+---- interp-14.10 start
+
+
+==== interp-14.10 testing interp-alias: error messages FAILED
+==== Contents of test case:
+
+    interp alias a a {} setx
+    a eval {
+	catch {a 1}
+	set ::errorInfo
+    }
+
+---- Result was:
+x
+    while executing
+"a 1"
+---- Result should have been (exact matching):
+x
+    invoked from within
+"a 1"
+==== interp-14.10 FAILED
+
+---- interp-14.11 start
+
+
+==== interp-14.11 {interp alias} {target named the empty string} {bug 2bf56185} FAILED
+==== Contents of test case:
+
+    interp alias {} p1 $interp {}
+    p1 one two three
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias {} p1 $interp {}"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-14.11 FAILED
+
+---- interp-15.1 start
+
+
+==== interp-15.1 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete z}
+    interp create z
+    z eval close stdout
+    list [catch {z eval puts hello} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can not find channel named "stdout"
+    while executing
+"z eval close stdout"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.1 FAILED
+
+---- interp-15.2 start
+
+
+==== interp-15.2 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete z}
+    interp create z
+    set f [open [makeFile {} file-15.2] w]
+    interp share "" $f z
+    z eval puts $f hello
+    z eval close $f
+    close $f
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "share": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp share "" $f z"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.2 FAILED
+
+---- interp-15.3 start
+hello
+
+
+==== interp-15.3 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    list [catch {xsafe eval puts hello} msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {can not find channel named "stdout"}
+==== interp-15.3 FAILED
+
+---- interp-15.4 start
+
+
+==== interp-15.4 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    set f [open [makeFile {} file-15.4] w]
+    interp share "" $f xsafe
+    xsafe eval puts $f hello
+    xsafe eval close $f
+    close $f
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "share": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp share "" $f xsafe"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.4 FAILED
+
+---- interp-15.5 start
+
+
+==== interp-15.5 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    interp share "" stdout xsafe
+    list [catch {xsafe eval gets stdout} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "share": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp share "" stdout xsafe"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.5 FAILED
+
+---- interp-15.6 start
+
+
+==== interp-15.6 testing file sharing FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    set f [open [makeFile {} file-15.6] w]
+    interp share "" $f xsafe
+    set x [list [catch [list xsafe eval gets $f] msg] $msg]
+    xsafe eval close $f
+    close $f
+    string compare [string tolower $x]  [list 1 [format "channel \"%s\" wasn't opened for reading" $f]]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "share": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp share "" $f xsafe"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.6 FAILED
+
+---- interp-15.7 start
+
+
+==== interp-15.7 testing file transferring FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    set f [open [makeFile {} file-15.7] w]
+    interp transfer "" $f xsafe
+    xsafe eval puts $f hello
+    xsafe eval close $f
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "transfer": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp transfer "" $f xsafe"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.7 FAILED
+
+---- interp-15.8 start
+
+
+==== interp-15.8 testing file transferring FAILED
+==== Contents of test case:
+
+    catch {interp delete xsafe}
+    interp create xsafe -safe
+    set f [open [makeFile {} file-15.8] w]
+    interp transfer "" $f xsafe
+    xsafe eval close $f
+    set x [list [catch {close $f} msg] $msg]
+    string compare [string tolower $x]  [list 1 [format "can not find channel named \"%s\"" $f]]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: bad option "transfer": must be alias, aliases, bgerror, children, create, debug, delete, eval, exists, expose, hide, hidden, issafe, invokehidden, limit, marktrusted, recursionlimit, or target
+    while executing
+"interp transfer "" $f xsafe"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-15.8 FAILED
+
+---- interp-16.0 start
+---- interp-16.1 start
+
+
+==== interp-16.1 testing deletion order FAILED
+==== Contents of test case:
+
+    catch {interp delete xxx}
+    interp create xxx
+    interp create {xxx yyy}
+    interp alias {xxx yyy} kill "" kill
+    list [catch {interp eval {xxx yyy} kill} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "xxx yyy"
+    while executing
+"interp alias {xxx yyy} kill "" kill"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-16.1 FAILED
+
+---- interp-16.2 start
+
+
+==== interp-16.2 testing deletion order FAILED
+==== Contents of test case:
+
+    catch {interp delete xxx}
+    interp create xxx
+    interp create {xxx yyy}
+    interp alias {xxx yyy} kill "" kill
+    list [catch {xxx eval yyy eval kill} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "xxx yyy"
+    while executing
+"interp alias {xxx yyy} kill "" kill"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-16.2 FAILED
+
+---- interp-16.3 start
+
+
+==== interp-16.3 testing deletion order FAILED
+==== Contents of test case:
+
+    catch {interp delete xxx}
+    interp create xxx
+    interp create ddd
+    xxx alias kill kill
+    interp alias ddd kill xxx kill
+    set x [ddd eval kill]
+    interp delete ddd
+    set x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias ddd kill xxx kill"
+    ("uplevel" body line 6)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-16.3 FAILED
+
+---- interp-16.4 start
+
+
+==== interp-16.4 testing deletion order FAILED
+==== Contents of test case:
+
+    catch {interp delete xxx}
+    interp create xxx
+    interp create {xxx yyy}
+    interp alias {xxx yyy} kill "" kill
+    interp create ddd
+    interp alias ddd kill {xxx yyy} kill
+    set x [ddd eval kill]
+    interp delete ddd
+    set x
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "xxx yyy"
+    while executing
+"interp alias {xxx yyy} kill "" kill"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-16.4 FAILED
+
+---- interp-16.5 start
+
+
+==== interp-16.5 testing deletion order, bgerror FAILED
+==== Contents of test case:
+
+    catch {interp delete xxx}
+    interp create xxx
+    xxx eval {proc bgerror {args} {exit}}
+    xxx alias exit kill xxx
+    proc kill {i} {interp delete $i}
+    xxx eval after 100 expr {a + b}
+    after 200
+    update
+    interp exists xxx
+
+---- Result was:
+1
+---- Result should have been (exact matching):
+0
+==== interp-16.5 FAILED
+
+---- interp-17.1 start
+---- interp-17.2 start
+
+
+==== interp-17.2 alias loop prevention FAILED
+==== Contents of test case:
+
+    catch {interp delete x}
+    interp create x
+    x alias a loop
+    list [catch {interp alias {} loop x a} msg] $msg
+
+---- Result was:
+1 {only single-interp aliases (empty interpreter paths) are supported}
+---- Result should have been (exact matching):
+1 {cannot define or rename alias "loop": would create a loop}
+==== interp-17.2 FAILED
+
+---- interp-17.3 start
+
+
+==== interp-17.3 alias loop prevention FAILED
+==== Contents of test case:
+
+    catch {interp delete x}
+    interp create x
+    interp alias x a x b
+    list [catch {interp alias x b x a} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias x a x b"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-17.3 FAILED
+
+---- interp-17.4 start
+
+
+==== interp-17.4 alias loop prevention FAILED
+==== Contents of test case:
+
+    catch {interp delete x}
+    interp create x
+    interp alias x b x a
+    list [catch {x eval rename b a} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias x b x a"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-17.4 FAILED
+
+---- interp-17.5 start
+
+
+==== interp-17.5 alias loop prevention FAILED
+==== Contents of test case:
+
+    catch {interp delete x}
+    interp create x
+    x alias z l1
+    interp alias {} l2 x z
+    list [catch {rename l2 l1} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias {} l2 x z"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-17.5 FAILED
+
+---- interp-17.6 start
+
+
+==== interp-17.6 alias loop prevention FAILED
+==== Contents of test case:
+
+    catch {interp delete x}
+    interp create x
+    interp alias x a x b
+    x eval rename a c
+    list [catch {x eval rename c b} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias x a x b"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-17.6 FAILED
+
+++++ interp-18.1 SKIPPED: testinterpdelete
+++++ interp-18.2 SKIPPED: testinterpdelete
+++++ interp-18.3 SKIPPED: testinterpdelete
+++++ interp-18.4 SKIPPED: testinterpdelete
+++++ interp-18.5 SKIPPED: testinterpdelete
+++++ interp-18.6 SKIPPED: testinterpdelete
+---- interp-18.7 start
+I should not have been called!!
+
+
+==== interp-18.7 eval in deleted interp FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    a eval {
+	proc dodel {} {
+	    delme
+	    dosomething else
+	}
+	proc dosomething args {
+	    puts "I should not have been called!!"
+	}
+    }
+    a alias delme dela
+    proc dela {} {interp delete a}
+    list [catch {a eval dodel} msg] $msg
+
+---- Result was:
+0 {}
+---- Result should have been (exact matching):
+1 {attempt to call eval in deleted interpreter}
+==== interp-18.7 FAILED
+
+---- interp-18.8 start
+
+
+==== interp-18.8 eval in deleted interp FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    a eval {
+	interp create b
+	b eval {
+	    proc dodel {} {
+		dela
+	    }
+	}
+	proc foo {} {
+	    b eval dela
+	    dosomething else
+	}
+	proc dosomething args {
+	    puts "I should not have been called!!"
+	}
+    }
+    interp alias {a b} dela {} dela
+    proc dela {} {interp delete a}
+    list [catch {a eval foo} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "a b"
+    while executing
+"interp alias {a b} dela {} dela"
+    ("uplevel" body line 19)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-18.8 FAILED
+
+---- interp-18.9 start
+
+
+==== interp-18.9 eval in deleted interp, bug 495830 FAILED
+==== Contents of test case:
+
+    interp create tst
+    interp alias tst suicide {} interp delete tst
+    list [catch {tst eval {suicide; set a 5}} msg] $msg
+
+---- Result was:
+0 5
+---- Result should have been (exact matching):
+1 {attempt to call eval in deleted interpreter}
+==== interp-18.9 FAILED
+
+---- interp-18.10 start
+
+
+==== interp-18.10 eval in deleted interp, bug 495830 FAILED
+==== Contents of test case:
+
+    interp create tst
+    interp alias tst suicide {} interp delete tst
+    list [catch {tst eval {set set set; suicide; $set a 5}} msg] $msg
+
+---- Result was:
+0 5
+---- Result should have been (exact matching):
+1 {attempt to call eval in deleted interpreter}
+==== interp-18.10 FAILED
+
+---- interp-19.1 start
+
+
+==== interp-19.1 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    set s [interp alias a foo {}]
+    interp delete a
+    set s
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.1 FAILED
+
+---- interp-19.2 start
+
+
+==== interp-19.2 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    catch {interp alias a foo {}} msg
+    interp delete a
+    set msg
+
+---- Result was:
+
+---- Result should have been (exact matching):
+alias "foo" not found
+==== interp-19.2 FAILED
+
+---- interp-19.3 start
+
+
+==== interp-19.3 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a {rename foo zop}
+    interp alias a foo a zop
+    catch {interp eval a foo} msg
+    interp delete a
+    set msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.3 FAILED
+
+---- interp-19.4 start
+
+
+==== interp-19.4 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a {rename foo zop}
+    catch {interp eval a foo} msg
+    interp delete a
+    set msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.4 FAILED
+
+---- interp-19.5 start
+
+
+==== interp-19.5 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp eval a {proc bar {} {return 1}}
+    interp alias a foo a bar
+    interp eval a {rename foo zop}
+    catch {interp eval a zop} msg
+    interp delete a
+    set msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 5)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.5 FAILED
+
+---- interp-19.6 start
+
+
+==== interp-19.6 alias deletion FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a {rename foo zop}
+    interp alias a foo a zop
+    set s [interp aliases a]
+    interp delete a
+    set s
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.6 FAILED
+
+---- interp-19.7 start
+
+
+==== interp-19.7 alias deletion, renaming FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a rename foo blotz
+    interp alias a foo {}
+    set s [interp aliases a]
+    interp delete a
+    set s
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.7 FAILED
+
+---- interp-19.8 start
+
+
+==== interp-19.8 alias deletion, renaming FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a rename foo blotz
+    set l ""
+    lappend l [interp aliases a]
+    interp alias a foo {}
+    lappend l [interp aliases a]
+    interp delete a
+    set l
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.8 FAILED
+
+---- interp-19.9 start
+
+
+==== interp-19.9 alias deletion, renaming FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    interp alias a foo a bar
+    interp eval a rename foo blotz
+    interp eval a {proc foo {} {expr {34 * 34}}}
+    interp alias a foo {}
+    set l [interp eval a foo]
+    interp delete a
+    set l
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias a foo a bar"
+    ("uplevel" body line 4)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-19.9 FAILED
+
+---- interp-20.1 start
+---- interp-20.2 start
+---- interp-20.3 start
+---- interp-20.4 start
+---- interp-20.5 start
+---- interp-20.6 start
+---- interp-20.7 start
+---- interp-20.8 start
+---- interp-20.9 start
+---- interp-20.10 start
+---- interp-20.11 start
+---- interp-20.12 start
+---- interp-20.13 start
+---- interp-20.14 start
+---- interp-20.15 start
+---- interp-20.16 start
+---- interp-20.17 start
+---- interp-20.18 start
+---- interp-20.19 start
+---- interp-20.20 start
+---- interp-20.21 start
+---- interp-20.22 start
+---- interp-20.23 start
+---- interp-20.24 start
+---- interp-20.25 start
+---- interp-20.26 start
+---- interp-20.27 start
+---- interp-20.28 start
+---- interp-20.29 start
+---- interp-20.30 start
+---- interp-20.31 start
+---- interp-20.32 start
+---- interp-20.33 start
+---- interp-20.34 start
+---- interp-20.35 start
+---- interp-20.36 start
+---- interp-20.37 start
+---- interp-20.38 start
+
+
+==== interp-20.38 invokehidden at global level FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    a eval {
+	proc p1 {} {
+	    a1
+	    set z
+	}
+	proc h1 {} {
+	    upvar z z
+	    set z 91
+	}
+    }
+    a hide h1
+    a alias a1 a1
+    proc a1 {} {
+	interp invokehidden a -global h1
+    }
+    set r [catch {interp eval a p1} msg]
+    interp delete a
+    list $r $msg
+
+---- Result was:
+0 91
+---- Result should have been (exact matching):
+1 {can't read "z": no such variable}
+==== interp-20.38 FAILED
+
+---- interp-20.39 start
+---- interp-20.40 start
+---- interp-20.41 start
+---- interp-20.42 start
+---- interp-20.43 start
+
+
+==== interp-20.43 invokehidden at global level FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a
+    a eval {
+	proc p1 {} {
+	    a1
+	    set z
+	}
+	proc h1 {} {
+	    upvar z z
+	    set z 91
+	}
+    }
+    a hide h1
+    a alias a1 a1
+    proc a1 {} {
+	interp invokehidden a -global h1
+    }
+    set r [catch {interp eval a p1} msg]
+    interp delete a
+    list $r $msg
+
+---- Result was:
+0 91
+---- Result should have been (exact matching):
+1 {can't read "z": no such variable}
+==== interp-20.43 FAILED
+
+---- interp-20.44 start
+---- interp-20.45 start
+---- interp-20.46 start
+---- interp-20.47 start
+---- interp-20.48 start
+---- interp-20.49 start
+---- interp-20.50 start
+---- interp-20.50.1 start
+
+
+==== interp-20.50.1 Bug 2486550 FAILED
+==== Contents of test case:
+
+    child hide coroutine
+    catch {child invokehidden coroutine} m o
+    dict get $o -errorinfo
+
+---- Result was:
+wrong # args: should be "coroutine name cmd ?arg ...?"
+    while executing
+"child invokehidden coroutine"
+---- Result should have been (exact matching):
+wrong # args: should be "coroutine name cmd ?arg ...?"
+    while executing
+"coroutine"
+    invoked from within
+"child invokehidden coroutine"
+==== interp-20.50.1 FAILED
+
+---- interp-21.1 start
+---- interp-21.2 start
+---- interp-21.3 start
+---- interp-21.4 start
+---- interp-21.5 start
+
+
+==== interp-21.5 interp hidden FAILED
+==== Contents of test case:
+
+    interp create -safe a
+    lsort [interp hidden a]
+
+---- Result was:
+cd encoding exec exit fconfigure file glob load open pwd socket source
+---- Result should have been (exact matching):
+cd encoding exec exit fconfigure file glob load open pwd socket source tcl:encoding:dirs tcl:encoding:system tcl:file:atime tcl:file:attributes tcl:file:copy tcl:file:delete tcl:file:dirname tcl:file:executable tcl:file:exists tcl:file:extension tcl:file:home tcl:file:isdirectory tcl:file:isfile tcl:file:link tcl:file:lstat tcl:file:mkdir tcl:file:mtime tcl:file:nativename tcl:file:normalize tcl:file:owned tcl:file:readable tcl:file:readlink tcl:file:rename tcl:file:rootname tcl:file:size tcl:fi(long output elided)mdtype tcl:info:nameofexecutable tcl:process:autopurge tcl:process:list tcl:process:purge tcl:process:status tcl:unsupported:assemble tcl:unsupported:corotype tcl:unsupported:disassemble tcl:unsupported:getbytecode tcl:unsupported:loadIcu tcl:unsupported:representation tcl:zipfs:canonical tcl:zipfs:exists tcl:zipfs:info tcl:zipfs:list tcl:zipfs:lmkimg tcl:zipfs:lmkzip tcl:zipfs:mkimg tcl:zipfs:mkkey tcl:zipfs:mkzip tcl:zipfs:mount tcl:zipfs:mountdata tcl:zipfs:root tcl:zipfs:unmount unload zipfs
+==== interp-21.5 FAILED
+
+---- interp-21.6 start
+---- interp-21.7 start
+---- interp-21.8 start
+
+
+==== interp-21.8 interp hidden FAILED
+==== Contents of test case:
+
+    interp create a -safe
+    lsort [a hidden]
+
+---- Result was:
+cd encoding exec exit fconfigure file glob load open pwd socket source
+---- Result should have been (exact matching):
+cd encoding exec exit fconfigure file glob load open pwd socket source tcl:encoding:dirs tcl:encoding:system tcl:file:atime tcl:file:attributes tcl:file:copy tcl:file:delete tcl:file:dirname tcl:file:executable tcl:file:exists tcl:file:extension tcl:file:home tcl:file:isdirectory tcl:file:isfile tcl:file:link tcl:file:lstat tcl:file:mkdir tcl:file:mtime tcl:file:nativename tcl:file:normalize tcl:file:owned tcl:file:readable tcl:file:readlink tcl:file:rename tcl:file:rootname tcl:file:size tcl:fi(long output elided)mdtype tcl:info:nameofexecutable tcl:process:autopurge tcl:process:list tcl:process:purge tcl:process:status tcl:unsupported:assemble tcl:unsupported:corotype tcl:unsupported:disassemble tcl:unsupported:getbytecode tcl:unsupported:loadIcu tcl:unsupported:representation tcl:zipfs:canonical tcl:zipfs:exists tcl:zipfs:info tcl:zipfs:list tcl:zipfs:lmkimg tcl:zipfs:lmkzip tcl:zipfs:mkimg tcl:zipfs:mkkey tcl:zipfs:mkzip tcl:zipfs:mount tcl:zipfs:mountdata tcl:zipfs:root tcl:zipfs:unmount unload zipfs
+==== interp-21.8 FAILED
+
+---- interp-21.9 start
+---- interp-22.1 start
+---- interp-22.2 start
+---- interp-22.3 start
+---- interp-22.4 start
+---- interp-22.5 start
+---- interp-22.6 start
+---- interp-22.7 start
+---- interp-22.8 start
+
+
+==== interp-22.8 testing interp marktrusted FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a -safe
+    set l ""
+    lappend l [interp issafe a]
+    interp create {a b}
+    lappend l [interp issafe {a b}]
+    interp marktrusted a
+    interp create {a c}
+    lappend l [interp issafe a]
+    lappend l [interp issafe {a c}]
+    interp delete a
+    set l
+
+---- Result was:
+1 0 0 0
+---- Result should have been (exact matching):
+1 1 0 0
+==== interp-22.8 FAILED
+
+---- interp-22.9 start
+
+
+==== interp-22.9 testing interp marktrusted FAILED
+==== Contents of test case:
+
+    catch {interp delete a}
+    interp create a -safe
+    set l ""
+    lappend l [interp issafe a]
+    interp create {a b}
+    lappend l [interp issafe {a b}]
+    interp marktrusted {a b}
+    lappend l [interp issafe a]
+    lappend l [interp issafe {a b}]
+    interp create {a b c}
+    lappend l [interp issafe {a b c}]
+    interp delete a
+    set l
+
+---- Result was:
+1 0 1 0 0
+---- Result should have been (exact matching):
+1 1 1 0 0
+==== interp-22.9 FAILED
+
+---- interp-23.1 start
+
+
+==== interp-23.1 testing hiding vs aliases: unsafe interp FAILED
+==== Contents of test case:
+
+    interp create a
+    lappend l [interp hidden a]
+    a alias bar bar
+    lappend l [interp aliases a] [interp hidden a]
+    a hide bar
+    lappend l [interp aliases a] [interp hidden a]
+    a alias bar {}
+    lappend l [interp aliases a] [interp hidden a]
+
+---- Result was:
+{} bar {} {} bar bar bar
+---- Result should have been (exact matching):
+{} bar {} bar bar {} {}
+==== interp-23.1 FAILED
+
+++++ interp-23.2 SKIPPED: unixOrWin
+---- interp-24.1 start
+---- interp-24.2 start
+---- interp-24.3 start
+
+
+==== interp-24.3 result resetting on error FAILED
+==== Contents of test case:
+
+    interp create a
+    interp create {a b}
+    interp eval a {
+	proc foo args {error $args}
+    }
+    interp alias {a b} foo a foo
+    interp eval {a b} {
+	lappend l [catch {foo 1 2 3} msg] $msg
+	lappend l [catch {foo 3 4 5} msg] $msg
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "a b"
+    while executing
+"interp alias {a b} foo a foo"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-24.3 FAILED
+
+---- interp-24.4 start
+
+
+==== interp-24.4 result resetting on error FAILED
+==== Contents of test case:
+
+    interp create a -safe
+    interp create {a b}
+    interp eval a {
+	proc foo args {error $args}
+    }
+    interp alias {a b} foo a foo
+    interp eval {a b} {
+	lappend l [catch {foo 1 2 3} msg]
+	lappend l $msg
+	lappend l [catch {foo 3 4 5} msg]
+	lappend l $msg
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: could not find interpreter "a b"
+    while executing
+"interp alias {a b} foo a foo"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-24.4 FAILED
+
+---- interp-24.5 start
+
+
+==== interp-24.5 result resetting on error FAILED
+==== Contents of test case:
+
+    interp create a
+    interp create b
+    interp eval a {
+	proc foo args {error $args}
+    }
+    interp alias b foo a foo
+    interp eval b {
+	lappend l [catch {foo 1 2 3} msg] $msg
+	lappend l [catch {foo 3 4 5} msg] $msg
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias b foo a foo"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-24.5 FAILED
+
+---- interp-24.6 start
+
+
+==== interp-24.6 result resetting on error FAILED
+==== Contents of test case:
+
+    interp create a -safe
+    interp create b -safe
+    interp eval a {
+	proc foo args {error $args}
+    }
+    interp alias b foo a foo
+    interp eval b {
+	lappend l [catch {foo 1 2 3} msg] $msg
+	lappend l [catch {foo 3 4 5} msg] $msg
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: only single-interp aliases (empty interpreter paths) are supported
+    while executing
+"interp alias b foo a foo"
+    ("uplevel" body line 7)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== interp-24.6 FAILED
+
+---- interp-24.7 start
+---- interp-24.8 start
+---- interp-24.9 start
+---- interp-24.10 start
+---- interp-24.11 start
+---- interp-24.12 start
+---- interp-25.1 start
+---- interp-25.2 start
+---- interp-26.1 start
+
+
+==== interp-26.1 result code transmission : interp eval direct FAILED
+==== Contents of test case:
+
+    # Test that all the possibles error codes from Tcl get passed up
+    # from the child interp's context to the parent, even though the
+    # child nominally thinks the command is running at the root level.
+    catch {interp delete a}
+    interp create a
+    set res {}
+    # use a for so if a return -code break 'escapes' we would notice
+    for {set code -1} {$code<=5} {incr code} {
+	lappend res [catch {interp eval a return -code $code} msg]
+    }
+    interp delete a
+    set res
+
+---- Result was:
+2 2 2 2 2 2 2
+---- Result should have been (exact matching):
+-1 0 1 2 3 4 5
+==== interp-26.1 FAILED
+
+---- interp-26.2 start
+
+
+==== interp-26.2 result code transmission : interp eval indirect FAILED
+==== Contents of test case:
+
+    # retcode == 2 == return is special
+    catch {interp delete a}
+    interp create a
+    interp eval a {proc retcode {code} {return -code $code ret$code}}
+    set res {}
+    # use a for so if a return -code break 'escapes' we would notice
+    for {set code -1} {$code<=5} {incr code} {
+	lappend res [catch {interp eval a retcode $code} msg] $msg
+    }
+    interp delete a
+    set res
+
+---- Result was:
+-1 ret-1 0 ret0 1 ret1 2 ret2 3 ret3 4 ret4 5 ret5
+---- Result should have been (exact matching):
+-1 ret-1 0 ret0 1 ret1 0 ret2 3 ret3 4 ret4 5 ret5
+==== interp-26.2 FAILED
+
+---- interp-26.3 start
+++++ interp-26.4 SKIPPED: knownBug
+---- interp-26.5 start
+++++ interp-26.6 SKIPPED: knownBug
+---- interp-26.7 start
+
+
+==== interp-26.7 errorInfo transmission: regular interps FAILED
+==== Contents of test case:
+
+    proc MyError {secret} {
+	return -code error "msg"
+    }
+    proc MyTestAlias {interp args} {
+	MyError "some secret"
+    }
+    interp alias $interp test {} MyTestAlias $interp
+    interp eval $interp {catch test;set ::errorInfo}
+
+---- Result was:
+msg
+    while executing
+"test"
+---- Result should have been (exact matching):
+msg
+    while executing
+"MyError "some secret""
+    (procedure "MyTestAlias" line 2)
+    invoked from within
+"test"
+==== interp-26.7 FAILED
+
+++++ interp-26.8 SKIPPED: knownBug
+---- interp-26.9 start
+
+
+==== interp-26.9 error transmission: body line number in info similar to eval-cmd, bug [ba68d1e9484a3a92] FAILED
+==== Contents of test case:
+
+    # eval body with multiline code (error in line 3):
+    catch {
+	$interp eval "#1st line\n#2nd line\nexpr {1/0}"
+    } msg res
+    dict get $res -errorinfo
+
+---- Result was:
+msg
+    while executing
+"MyError "some secret""
+    (procedure "MyTestAlias" line 2)
+    invoked from within
+"$interp eval "#1st line\n#2nd line\nexpr {1/0}""
+---- Result should have been (exact matching):
+divide by zero
+    invoked from within
+"expr {1/0}"
+    ("interp eval" body line 3)
+    invoked from within
+"$interp eval "#1st line\n#2nd line\nexpr {1/0}""
+==== interp-26.9 FAILED
+
+---- interp-27.1 start
+---- interp-27.2 start
+---- interp-27.3 start
+---- interp-27.4 start
+++++ interp-27.5 SKIPPED: knownBug
+++++ interp-27.6 SKIPPED: knownBug
+++++ interp-27.7 SKIPPED: knownBug
+++++ interp-27.8 SKIPPED: knownBug
+---- interp-28.1 start
+---- interp-28.2 start
+---- interp-29.1.1 start
+---- interp-29.1.2 start
+---- interp-29.1.3 start
+---- interp-29.1.4 start
+---- interp-29.1.5 start
+---- interp-29.1.6 start
+---- interp-29.1.7 start
+---- interp-29.1.8 start
+---- interp-29.1.9 start
+---- interp-29.1.10 start
+---- interp-29.1.11 start
+---- interp-29.1.12 start
+---- interp-29.2.1 start
+---- interp-29.2.2 start
+---- interp-29.2.3 start
+---- interp-29.2.4 start
+---- interp-29.2.5 start
+---- interp-29.2.6 start
+---- interp-29.2.7 start
+---- interp-29.2.8 start
+---- interp-29.3.1 start
+
+
+==== interp-29.3.1 recursion limit FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    set r [interp eval $i {
+	interp recursionlimit {} 50
+	proc p {} {incr ::i; p}
+	set i 0
+	list [catch p msg] $msg $i
+    }]
+    interp delete $i
+    set r
+
+---- Result was:
+1 {too many nested evaluations (infinite loop?)} 50
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)} 49
+==== interp-29.3.1 FAILED
+
+---- interp-29.3.2 start
+
+
+==== interp-29.3.2 recursion limit FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    interp recursionlimit $i 50
+    set r [interp eval $i {
+	proc p {} {incr ::i; p}
+	set i 0
+	list [catch p msg] $msg $i
+    }]
+   interp delete $i
+   set r
+
+---- Result was:
+1 {too many nested evaluations (infinite loop?)} 50
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)} 49
+==== interp-29.3.2 FAILED
+
+---- interp-29.3.3 start
+
+
+==== interp-29.3.3 recursion limit FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    $i recursionlimit 50
+    set r [interp eval $i {
+	proc p {} {incr ::i; p}
+	set i 0
+	list [catch p msg] $msg $i
+    }]
+   interp delete $i
+   set r
+
+---- Result was:
+1 {too many nested evaluations (infinite loop?)} 50
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)} 49
+==== interp-29.3.3 FAILED
+
+---- interp-29.3.4 start
+
+
+==== interp-29.3.4 recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			eval {	# 5
+			     interp recursionlimit {} 5
+			     set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {falling back due to new recursion limit}
+==== interp-29.3.4 FAILED
+
+---- interp-29.3.5 start
+
+
+==== interp-29.3.5 recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			eval {	# 5
+			    interp recursionlimit {} 4
+			    set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {falling back due to new recursion limit}
+==== interp-29.3.5 FAILED
+
+---- interp-29.3.6 start
+---- interp-29.3.7a start
+---- interp-29.3.7b start
+---- interp-29.3.7c start
+
+
+==== interp-29.3.7c recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    after 0 {interp recursionlimit child 5}
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			eval {	# 5
+			    update
+			    set set set
+			    $set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)}
+==== interp-29.3.7c FAILED
+
+---- interp-29.3.8a start
+---- interp-29.3.8b start
+
+
+==== interp-29.3.8b recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    after 0 {interp recursionlimit child 4}
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			update
+			eval {	# 5
+			    set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)}
+==== interp-29.3.8b FAILED
+
+---- interp-29.3.9a start
+---- interp-29.3.9b start
+---- interp-29.3.10a start
+---- interp-29.3.10b start
+
+
+==== interp-29.3.10b recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    after 0 {child recursionlimit 4}
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			update
+			eval {	# 5
+			    set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)}
+==== interp-29.3.10b FAILED
+
+---- interp-29.3.11a start
+---- interp-29.3.11b start
+
+
+==== interp-29.3.11b recursion limit error reporting FAILED
+==== Contents of test case:
+
+    interp create child
+    after 0 {child recursionlimit 5}
+    set r1 [child eval {
+	catch {			# nesting level 1
+	    eval {		# 2
+		eval {		# 3
+		    eval {	# 4
+			eval {	# 5
+			    update
+			    set set set
+			    $set x ok
+			}
+		    }
+		}
+	    }
+	} msg
+    }]
+    set r2 [child eval { set msg }]
+    interp delete child
+    list $r1 $r2
+
+---- Result was:
+0 ok
+---- Result should have been (exact matching):
+1 {too many nested evaluations (infinite loop?)}
+==== interp-29.3.11b FAILED
+
+---- interp-29.3.12a start
+---- interp-29.3.12b start
+---- interp-29.4.1 start
+
+
+==== interp-29.4.1 recursion limit inheritance FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    set ii [interp eval $i {
+	interp recursionlimit {} 50
+	interp create
+    }]
+    set r [interp eval [list $i $ii] {
+	proc p {} {incr ::i; p}
+	set i 0
+	catch p
+	set i
+    }]
+   interp delete $i
+   set r
+
+---- Result was:
+126
+---- Result should have been (exact matching):
+50
+==== interp-29.4.1 FAILED
+
+---- interp-29.4.2 start
+
+
+==== interp-29.4.2 recursion limit inheritance FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    $i recursionlimit 50
+    set ii [interp eval $i {interp create}]
+    set r [interp eval [list $i $ii] {
+	proc p {} {incr ::i; p}
+	set i 0
+	catch p
+	set i
+    }]
+   interp delete $i
+   set r
+
+---- Result was:
+126
+---- Result should have been (exact matching):
+50
+==== interp-29.4.2 FAILED
+
+---- interp-29.5.1 start
+---- interp-29.5.2 start
+---- interp-29.5.3 start
+---- interp-29.5.4 start
+---- interp-29.6.1 start
+---- interp-29.6.2 start
+---- interp-29.6.3 start
+---- interp-29.6.4 start
+---- interp-29.6.5 start
+---- interp-29.6.6 start
+---- interp-29.6.7 start
+---- interp-29.6.8 start
+
+
+==== interp-29.6.8 safe interpreter recursion limit FAILED
+==== Contents of test case:
+
+    interp create child -safe
+    set n [catch {child eval {interp recursionlimit {} 42}} msg]
+    interp delete child
+    list $n $msg
+
+---- Result was:
+0 42
+---- Result should have been (exact matching):
+1 {permission denied: safe interpreters cannot change recursion limit}
+==== interp-29.6.8 FAILED
+
+---- interp-29.6.9 start
+
+
+==== interp-29.6.9 safe interpreter recursion limit FAILED
+==== Contents of test case:
+
+    interp create child -safe
+    set result [
+	child eval {
+	    interp create child2 -safe
+	    set n [catch {
+		interp recursionlimit child2 42
+	    } msg]
+	    list $n $msg
+	}
+    ]
+    interp delete child
+    set result
+
+---- Result was:
+0 42
+---- Result should have been (exact matching):
+1 {permission denied: safe interpreters cannot change recursion limit}
+==== interp-29.6.9 FAILED
+
+---- interp-29.6.10 start
+
+
+==== interp-29.6.10 safe interpreter recursion limit FAILED
+==== Contents of test case:
+
+    interp create child -safe
+    set result [
+	child eval {
+	    interp create child2 -safe
+	    set n [catch {
+		child2 recursionlimit 42
+	    } msg]
+	    list $n $msg
+	}
+    ]
+    interp delete child
+    set result
+
+---- Result was:
+0 42
+---- Result should have been (exact matching):
+1 {permission denied: safe interpreters cannot change recursion limit}
+==== interp-29.6.10 FAILED
+
+---- interp-30.1 start
+
+
+==== interp-30.1 deletion of aliases inside namespaces FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    $i alias ns::cmd list
+    $i alias ns::cmd {}
+
+---- Result was:
+ns::cmd
+---- Result should have been (exact matching):
+
+==== interp-30.1 FAILED
+
+---- interp-31.1 start
+---- interp-32.1 start
+---- interp-33.1 start
+---- interp-34.1 start
+
+
+==== interp-34.1 basic test of limits - calling commands FAILED
+==== Contents of test case:
+
+    set i [interp create]
+    $i eval {
+	proc foobar {} {
+	    for {set x 0} {$x<1000000} {incr x} {
+		# Calls to this are not bytecoded away
+		pid
+	    }
+	}
+    }
+    $i limit command -value 1000
+    $i eval foobar
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== interp-34.1 FAILED
+
+---- interp-34.2 start

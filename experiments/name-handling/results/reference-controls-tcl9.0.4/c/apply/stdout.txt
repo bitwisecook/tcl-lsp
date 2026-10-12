@@ -1,0 +1,47 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- apply-1.1 start
+---- apply-2.0 start
+---- apply-2.1 start
+---- apply-2.2 start
+---- apply-2.3 start
+---- apply-2.4 start
+---- apply-2.5 start
+---- apply-3.1 start
+---- apply-3.2 start
+---- apply-3.3 start
+---- apply-3.4 start
+---- apply-4.1 start
+---- apply-4.2 start
+---- apply-4.3 start
+---- apply-4.4 start
+---- apply-4.5 start
+---- apply-5.1 start
+---- apply-6.1 start
+---- apply-6.2 start
+---- apply-6.3 start
+---- apply-7.1 start
+---- apply-7.2 start
+---- apply-7.3 start
+---- apply-7.4 start
+---- apply-7.5 start
+---- apply-7.6 start
+---- apply-7.7 start
+---- apply-7.8 start
+---- apply-8.1 start
+---- apply-8.2 start
+---- apply-8.3 start
+---- apply-8.4 start
+---- apply-8.5 start
+---- apply-8.6 start
+---- apply-8.7 start
+---- apply-8.8 start
+---- apply-8.9 start
+---- apply-8.10 start
+++++ apply-9.1 SKIPPED: memory
+++++ apply-9.2 SKIPPED: memory
+++++ apply-9.3 SKIPPED: memory
+++++ apply-10.1 SKIPPED: applylambda
+apply.test:	Total	42	Passed	38	Skipped	4	Failed	0
+Number of tests skipped for each constraint:
+	1	applylambda
+	3	memory

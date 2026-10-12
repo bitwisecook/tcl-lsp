@@ -1,0 +1,5 @@
+cmdInfo.test:	Total	12	Passed	0	Skipped	12	Failed	0
+Number of tests skipped for each constraint:
+	10	${constraint}
+	1	testcmdinfo
+	1	testcmdtoken

@@ -1,2 +1,6 @@
 rust/tcl-sslictcl/data/raw/** -whitespace
 rust/tcl-sslictcl/tests/fixtures/*.tsv -whitespace
+# Preserve whitespace in byte-exact oracle transcripts.
+experiments/name-handling/results/**/stdout.txt -whitespace
+experiments/name-handling/results/**/stderr.txt -whitespace
+experiments/name-handling/results/focused-regressions/*.txt -whitespace

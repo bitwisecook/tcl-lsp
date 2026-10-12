@@ -1,0 +1,31 @@
+{
+  "subject_commit": "b7ad30f1fcc1911f8e8744485d809f5348b9b850",
+  "source_root": "/workspace/tcl-lsp/tmp/tcl8.5.19",
+  "version": "8.5",
+  "init_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+  "tcltest_sha256": "db4e5898291e7fd3cf522e9c9c5b714d81d6d148ba53ed2052073d12327f8d8d",
+  "overlay_sha256": "b966abe9d580ba8d180926ddc1b301d30aba642f32bba9a150df5ffc8d0a1e54",
+  "runner_sha256": "d3dfffc164c73182e3e5eb6a9e219a58be6c636be7486c47d177616216402a67",
+  "method": "C/runtime stdin configure+source; VM run_test original file",
+  "engines": {
+    "c": [
+      "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh"
+    ],
+    "runtime": [
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "8.5"
+    ]
+  },
+  "binary_sha256": {
+    "c": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+    "runtime": "ae1ff4280b2f706657538ba1227c2a27ec62a6992deb6c99b54115ffccbe25e8"
+  },
+  "timeout_seconds": 60,
+  "match": null,
+  "backend_constraints_applied": true,
+  "runner_source_snapshot": "runner-source.txt",
+  "started_utc": "2026-10-12T10:41:01Z"
+}

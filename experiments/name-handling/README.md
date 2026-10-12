@@ -13,6 +13,8 @@ Existing command/variable/namespace vectors live in
 | --- | --- |
 | [cases.tcl](cases.tcl) | Portable C Tcl 8.4-compatible observation suite; executable measurements, no manufactured expected answers |
 | [case-catalogue.md](case-catalogue.md) | Exact case IDs, semantic questions and consumer coverage |
+| [results/RESULTS.md](results/RESULTS.md) | Current VM/runtime original-suite comparison and measured gaps |
+| [run_suites.py](run_suites.py) | Reusable original-suite capture across real C/VM/runtime; retains outputs and provenance |
 | [results/README.md](results/README.md) | Provenance and record format; records distinguish measured, pending and unsupported |
 | [f5/REQUEST.md](f5/REQUEST.md) | Appliance-chat questions, execution contexts and return protocol |
 | [f5/ANSWER-TEMPLATE.md](f5/ANSWER-TEMPLATE.md) | Answer document template |
@@ -140,3 +142,27 @@ Keep executable scripts, controls, machine-readable observations, explanations
 of experimental method, provenance and returned appliance answers. These
 assets describe experiments and measured facts. They contain no development
 phase diary, agent chronology or narrative of abandoned implementations.
+
+## Run original naming suites
+
+Build the VM `run_test` and runtime `run_script` examples into separate Cargo
+targets. For the runtime, set `TCL_TOMMATH_DIR` to the matching provisioned
+libtommath source before building. Use the source-built C executable directly;
+the installer convenience wrapper deliberately unsets `TCL_LIBRARY`.
+
+```sh
+python3 experiments/name-handling/run_suites.py \
+  --tcl-root tmp/tcl9.0.4 --tclsh tmp/tcl9.0.4/unix/tclsh \
+  --vm /absolute/vm-target/debug/examples/run_test \
+  --runtime /absolute/runtime-target/debug/examples/run_script \
+  --output /absolute/new-capture-directory
+```
+
+The VM driver is currently fixed to Tcl 9.0. Runtime-only matrices may use
+`--version` with a matching source tree/reference. Add `--no-overlay` for Tcl
+8.4 because the shared backend overlay requires 8.5+ syntax. Use repeated
+`--stem` options and `--match` for exact original-case isolation. Capture exits
+indicate recording completion; inspect the records and actual Tcltest counts
+before making a conformance claim. The tool enables frame debugging on C/runtime
+and records it; absolute-frame-depth/default-debug upstream expectations still
+need launch-context interpretation. Use a new output directory for each run.

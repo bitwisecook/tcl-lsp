@@ -1,0 +1,74 @@
+[
+  {
+    "engine": "c",
+    "stem": "rename",
+    "exit_code": 0,
+    "seconds": 0.021,
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh"
+    ],
+    "input_sha256": "c81868550d50b64898e6a694439083cca5715809816d1ebe622a5b20e72caf36",
+    "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+    "bootstrap_seen": true,
+    "bootstrap_record": "stdout NH_HARNESS",
+    "failed_ids": [],
+    "last_started_id": "rename-6.1",
+    "total": 19,
+    "passed": 1,
+    "skipped": 18,
+    "failed": 0,
+    "status": "pass"
+  },
+  {
+    "engine": "runtime",
+    "stem": "rename",
+    "exit_code": 0,
+    "seconds": 0.541,
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+      "--init",
+      "--quiet",
+      "--tcl-version",
+      "9.0"
+    ],
+    "input_sha256": "c81868550d50b64898e6a694439083cca5715809816d1ebe622a5b20e72caf36",
+    "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+    "bootstrap_seen": true,
+    "bootstrap_record": "stdout NH_HARNESS",
+    "failed_ids": [],
+    "last_started_id": "rename-6.1",
+    "total": 19,
+    "passed": 1,
+    "skipped": 18,
+    "failed": 0,
+    "status": "pass"
+  },
+  {
+    "engine": "vm",
+    "stem": "rename",
+    "exit_code": 1,
+    "seconds": 8.851,
+    "command": [
+      "timeout",
+      "--kill-after=5",
+      "60",
+      "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+      "/workspace/tcl-lsp/tmp/tcl9.0.4/tests/rename.test",
+      "--match",
+      "rename-6.1"
+    ],
+    "input_sha256": "c81868550d50b64898e6a694439083cca5715809816d1ebe622a5b20e72caf36",
+    "test_sha256": "013432012255b06e47a31b0630546280736cec20560a66ad6b6318d49d8f10f8",
+    "bootstrap_seen": false,
+    "bootstrap_record": "separate VM startup probe",
+    "failed_ids": [],
+    "last_started_id": "rename-6.1",
+    "status": "process-error"
+  }
+]

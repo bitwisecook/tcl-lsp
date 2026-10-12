@@ -1,0 +1,31 @@
+{
+  "engine": "vm",
+  "stem": "trace",
+  "exit_code": 1,
+  "seconds": 26.728,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-vm/debug/examples/run_test",
+    "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/vm/trace/input.tcl"
+  ],
+  "input_sha256": "43ad6b6910fcb42d581efedfa132874f57b03af5e17c58aba79274f5f07ac4a2",
+  "test_sha256": "985967578f3b1ff4086427423e0968539fa6493123d8861f53925e291b6b3645",
+  "bootstrap_seen": true,
+  "failed_ids": [
+    "trace-1.8",
+    "trace-15.3",
+    "trace-2.7",
+    "trace-21.12",
+    "trace-23.2",
+    "trace-23.3",
+    "trace-4.4",
+    "trace-4.5",
+    "trace-4.8",
+    "trace-6.2",
+    "trace-6.3"
+  ],
+  "last_started_id": "trace-34.1",
+  "status": "process-error"
+}

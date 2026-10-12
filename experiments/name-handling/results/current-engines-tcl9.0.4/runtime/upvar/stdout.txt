@@ -1,0 +1,176 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- upvar-1.1 start
+---- upvar-1.2 start
+---- upvar-1.3 start
+---- upvar-1.4 start
+---- upvar-1.5 start
+---- upvar-2.1 start
+---- upvar-2.2 start
+---- upvar-2.3 start
+---- upvar-2.4 start
+---- upvar-3.1 start
+---- upvar-3.2 start
+---- upvar-3.3 start
+---- upvar-3.4 start
+---- upvar-3.5 start
+---- upvar-3.6 start
+---- upvar-4.1 start
+---- upvar-4.2 start
+---- upvar-5.1 start
+---- upvar-5.2 start
+---- upvar-5.3 start
+---- upvar-5.4 start
+---- upvar-5.5 start
+---- upvar-5.6 start
+---- upvar-5.7 start
+---- upvar-6.1 start
+---- upvar-6.2 start
+---- upvar-6.3 start
+---- upvar-6.4 start
+
+
+==== upvar-6.4 retargeting a variable created by upvar to itself is allowed FAILED
+==== Contents of test case:
+
+	catch {
+		unset x
+	}
+	catch {
+		unset y
+	}
+	set res {}
+    set x abcde
+	set res [catch {
+		upvar 0 x x
+	} cres copts]
+	lappend res [dict get $copts -errorcode]
+	upvar 0 x y
+	lappend res $y
+	upvar 0 y y
+	lappend res $y
+	return $res
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: key "-errorcode" not known in dictionary
+    while executing
+"dict get $copts -errorcode"
+    ("uplevel" body line 13)
+    invoked from within
+"uplevel 1 $script"
+---- errorCode: NONE
+==== upvar-6.4 FAILED
+
+---- upvar-7.1 start
+---- upvar-7.2 start
+---- upvar-7.3 start
+---- upvar-7.4 start
+---- upvar-7.5 start
+---- upvar-8.1 start
+---- upvar-8.2 start
+---- upvar-8.2.1 start
+---- upvar-8.3 start
+---- upvar-8.3.1 start
+---- upvar-8.3.2 start
+---- upvar-8.4 start
+
+
+==== upvar-8.4 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar 0 b b}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.4 FAILED
+
+---- upvar-8.5 start
+
+
+==== upvar-8.5 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar 0 a b; upvar 0 b a}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.5 FAILED
+
+---- upvar-8.6 start
+
+
+==== upvar-8.6 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {set a 33; upvar b a}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.6 FAILED
+
+---- upvar-8.7 start
+
+
+==== upvar-8.7 errors in upvar command FAILED
+==== Contents of test case:
+
+    proc p1 {} {trace add variable a write foo; upvar b a}
+    p1
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== upvar-8.7 FAILED
+
+---- upvar-8.8 start
+
+
+==== upvar-8.8 create nested array with upvar FAILED
+==== Contents of test case:
+
+    proc p1 {} {upvar x(a) b; set b(2) 44}
+    catch {unset x}
+    p1
+
+---- Test cleanup failed:
+can't unset "x": no such variable
+---- errorInfo(cleanup): can't unset "x": no such variable
+    while executing
+"unset x"
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 $cleanup"
+---- errorCode(cleanup): NONE
+==== upvar-8.8 FAILED
+
+---- upvar-8.9 start
+---- upvar-8.10 start
+---- upvar-8.11 start
+++++ upvar-9.1 SKIPPED: testupvar
+++++ upvar-9.1.1 SKIPPED: testupvar
+++++ upvar-9.2 SKIPPED: testupvar
+++++ upvar-9.3 SKIPPED: testupvar
+++++ upvar-9.4 SKIPPED: testupvar
+++++ upvar-9.5 SKIPPED: testupvar
+++++ upvar-9.6 SKIPPED: testupvar
+++++ upvar-9.7 SKIPPED: testupvar
+---- upvar-10.1 start
+---- upvar-NS-1.1 start
+---- upvar-NS-1.2 start
+---- upvar-NS-1.3 start
+---- upvar-NS-1.4 start
+---- upvar-NS-1.5 start
+---- upvar-NS-1.6 start
+---- upvar-NS-1.7 start
+---- upvar-NS-1.8 start
+---- upvar-NS-1.9 start
+---- upvar-NS-2.1 start
+---- upvar-NS-2.2 start
+---- upvar-NS-3.1 start
+---- upvar-NS-3.2 start
+---- upvar-NS-3.3 start
+upvar.test:	Total	70	Passed	56	Skipped	8	Failed	6
+Number of tests skipped for each constraint:
+	8	testupvar

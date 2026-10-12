@@ -1,0 +1,29 @@
+---- ooUtil-1.7 start
+
+
+==== ooUtil-1.7  FAILED
+==== Contents of test case:
+
+    oo::class create Foo {
+	superclass parent
+	classmethod bar {} {
+	    puts "This is in the class; self is [self]"
+	    my meee
+	}
+	classmethod meee {} {
+	    puts "This is meee"
+	}
+    }
+    oo::class create Grill {
+	superclass Foo
+	classmethod meee {} {
+	    puts "This is meee 2"
+	}
+    }
+    list [Foo bar] [Grill bar] [[Foo new] bar] [[Grill new] bar]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+==== ooUtil-1.7 FAILED
+
+ooUtil.test:	Total	33	Passed	0	Skipped	32	Failed	1

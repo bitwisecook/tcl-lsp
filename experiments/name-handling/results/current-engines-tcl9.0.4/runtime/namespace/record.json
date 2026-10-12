@@ -1,0 +1,43 @@
+{
+  "engine": "runtime",
+  "stem": "namespace",
+  "exit_code": 1,
+  "seconds": 7.061,
+  "command": [
+    "timeout",
+    "--kill-after=5",
+    "90",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--init",
+    "--quiet",
+    "--tcl-version",
+    "9.0",
+    "/workspace/tcl-lsp/experiments/name-handling/results/current-engines-tcl9.0.4/runtime/namespace/input.tcl"
+  ],
+  "input_sha256": "90ac0f69475a55c57e82573248982a629d817c7e447514fcc5c9b364bb6db42e",
+  "test_sha256": "7a4bc600f9e1c03052e685377addb564e0854127af926a57f9bd1692c3543e7f",
+  "bootstrap_seen": true,
+  "failed_ids": [
+    "namespace-10.6",
+    "namespace-10.7",
+    "namespace-14.13",
+    "namespace-22.7",
+    "namespace-25.9",
+    "namespace-29.3",
+    "namespace-29.6",
+    "namespace-50.2",
+    "namespace-50.6",
+    "namespace-50.7",
+    "namespace-51.13",
+    "namespace-51.14",
+    "namespace-52.11",
+    "namespace-55.2",
+    "namespace-7.7",
+    "namespace-7.9",
+    "namespace-8.5",
+    "namespace-8.6",
+    "namespace-8.7"
+  ],
+  "last_started_id": "namespace-56.2",
+  "status": "process-error"
+}

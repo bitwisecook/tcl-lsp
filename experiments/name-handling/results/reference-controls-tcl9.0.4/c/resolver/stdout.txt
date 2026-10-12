@@ -1,0 +1,14 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+++++ resolver-1.1 SKIPPED: testinterpresolver
+++++ resolver-1.2 SKIPPED: testinterpresolver
+++++ resolver-1.3 SKIPPED: testinterpresolver
+++++ resolver-1.4 SKIPPED: testinterpresolver
+++++ resolver-1.5 SKIPPED: testinterpresolver
+++++ resolver-1.6 SKIPPED: testinterpresolver
+++++ resolver-2.1 SKIPPED: testinterpresolver
+++++ resolver-3.1a SKIPPED: testinterpresolver
+++++ resolver-3.1b SKIPPED: testinterpresolver
+++++ resolver-3.1c SKIPPED: testinterpresolver
+resolver.test:	Total	10	Passed	0	Skipped	10	Failed	0
+Number of tests skipped for each constraint:
+	10	testinterpresolver

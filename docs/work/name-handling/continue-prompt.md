@@ -27,6 +27,7 @@ branch documents first:
 - `docs/design/contracts/compiled-scope-and-name-lowering.md`
 - `docs/work/name-handling/{current-state,issues,plan}.md`
 - `experiments/name-handling/README.md`
+- `experiments/name-handling/results/RESULTS.md`
 - `experiments/name-handling/f5/REQUEST.md`
 
 The user's `work` instruction overrides the stale AGENTS statement that only

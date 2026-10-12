@@ -1,0 +1,1318 @@
+NH_HARNESS library /workspace/tcl-lsp/tmp/tcl9.0.4/library tcl 9.0.4 tcltest 2.5.11 loader {source -encoding utf-8 /workspace/tcl-lsp/tmp/tcl9.0.4/library/tcltest/tcltest.tcl}
+---- oo-0.1 start
+---- oo-0.2 start
+++++ oo-0.3 SKIPPED: memory
+++++ oo-0.4 SKIPPED: memory
+++++ oo-0.5.1 SKIPPED: memory
+++++ oo-0.5.2 SKIPPED: memory
+---- oo-0.6 start
+---- oo-0.7 start
+++++ oo-0.8 SKIPPED: memory
+---- oo-0.9 start
+---- oo-1.1 start
+---- oo-1.2 start
+
+
+==== oo-1.2 basic test of OO functionality: no classes FAILED
+==== Contents of test case:
+
+    oo::define oo::object method missingArgs
+
+---- Result was:
+wrong # args: should be "method name ?option? args body"
+---- Result should have been (exact matching):
+wrong # args: should be "oo::define oo::object method name ?option? args body"
+==== oo-1.2 FAILED
+
+---- oo-1.3 start
+
+
+==== oo-1.3 basic test of OO functionality: no classes FAILED
+==== Contents of test case:
+
+    catch {oo::define oo::object method missingArgs}
+    set errorInfo
+
+---- Result was:
+wrong # args: should be "method name ?option? args body"
+    while executing
+"oo::define oo::object method missingArgs"
+---- Result should have been (exact matching):
+wrong # args: should be "oo::define oo::object method name ?option? args body"
+    while executing
+"oo::define oo::object method missingArgs"
+==== oo-1.3 FAILED
+
+---- oo-1.4 start
+---- oo-1.4.1 start
+---- oo-1.4.2 start
+---- oo-1.5 start
+---- oo-1.5.1 start
+---- oo-1.6 start
+
+
+==== oo-1.6 basic test of OO functionality FAILED
+==== Contents of test case:
+
+    oo::objdefine aninstance unexport destroy
+    aninstance doesnotexist
+
+---- Result was:
+unknown method "doesnotexist": must be destroy
+---- Result should have been (exact matching):
+object "::aninstance" has no visible methods
+==== oo-1.6 FAILED
+
+---- oo-1.7 start
+
+
+==== oo-1.7 basic test of OO functionality FAILED
+==== Contents of test case:
+
+    oo::objdefine aninstance {
+	# Do not do this in real code! Ever! This is *not* supported!
+	::oo::define::method ha ha ha
+    }
+
+---- Result was:
+invalid command name "::oo::define::method"
+---- Result should have been (exact matching):
+attempt to misuse API
+==== oo-1.7 FAILED
+
+---- oo-1.8 start
+---- oo-1.9 start
+---- oo-1.10 start
+---- oo-1.11 start
+
+
+==== oo-1.11 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::define c super oo::class
+    info class super c
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "super"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::define c super oo::class"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND super
+==== oo-1.11 FAILED
+
+---- oo-1.12 start
+
+
+==== oo-1.12 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::define c {super oo::class}
+    info class super c
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "super"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"super oo::class"
+    (in definition script for class "::c" line 1)
+    invoked from within
+"oo::define c {super oo::class}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND super
+==== oo-1.12 FAILED
+
+---- oo-1.13 start
+
+
+==== oo-1.13 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::define c self {forw a b}
+    info object forw c a
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"oo::define c self {forw a b}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.13 FAILED
+
+---- oo-1.14 start
+
+
+==== oo-1.14 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::define c self forw a b
+    info object forw c a
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"oo::define c self forw a b"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.14 FAILED
+
+---- oo-1.15 start
+
+
+==== oo-1.15 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::objdefine o {forw a b}
+    info object forw o a
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "forw"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"forw a b"
+    (in definition script for object "::o" line 1)
+    invoked from within
+"oo::objdefine o {forw a b}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND forw
+==== oo-1.15 FAILED
+
+---- oo-1.16 start
+
+
+==== oo-1.16 basic test of OO functionality: abbreviating FAILED
+==== Contents of test case:
+
+    oo::objdefine o forw a b
+    info object forw o a
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "forw"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine o forw a b"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND forw
+==== oo-1.16 FAILED
+
+---- oo-1.17 start
+
+
+==== oo-1.17 basic test of OO functionality: Bug 2481109 FAILED
+==== Contents of test case:
+
+    namespace eval ::foo {oo::object create lreplace}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::lreplace": command already exists with that name
+    while executing
+"oo::object create lreplace"
+    invoked from within
+"namespace eval ::foo {oo::object create lreplace}"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.17 FAILED
+
+---- oo-1.18 start
+
+
+==== oo-1.18 OO: create object in NS with same name as global cmd FAILED
+==== Contents of test case:
+
+    oo::define B constructor {} {A create test-oo-1.18}
+    B create C
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::test-oo-1.18": command already exists with that name
+    while executing
+"A create test-oo-1.18"
+    (procedure "" line 1)
+    invoked from within
+"B create C"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.18 FAILED
+
+++++ oo-1.18.1 SKIPPED: memory
+++++ oo-1.18.2 SKIPPED: memory
+---- oo-1.18.3 start
+---- oo-1.18.4 start
+
+
+==== oo-1.18.4 correct handling of cleanup in superclass set error FAILED
+==== Contents of test case:
+
+    child eval {
+	oo::class create A
+	oo::class create B {
+	    superclass oo::class
+	    constructor {} {
+		next {superclass A}
+		next {superclass -append A}
+	    }
+	}
+	[B create C] create d
+    }
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== oo-1.18.4 FAILED
+
+---- oo-1.18.5 start
+
+
+==== oo-1.18.5 correct handling of cleanup in superclass set error FAILED
+==== Contents of test case:
+
+    child eval {
+	oo::class create A
+	oo::class create B {
+	    superclass oo::class
+	    constructor {c} {
+		next {superclass A}
+		next [list superclass -append {*}$c]
+	    }
+	}
+	[B create C {B C}] create d
+    }
+
+---- Result was:
+unknown method "C": must be create, destroy or new
+---- Result should have been (exact matching):
+attempt to form circular dependency graph
+==== oo-1.18.5 FAILED
+
+---- oo-1.19 start
+
+
+==== oo-1.19 basic test of OO functionality: teardown order FAILED
+==== Contents of test case:
+
+    oo::object create o
+    namespace delete [info object namespace o]
+    o destroy
+    # Crashes on error
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== oo-1.19 FAILED
+
+---- oo-1.20 start
+
+
+==== oo-1.20 basic test of OO functionality: my teardown post rename FAILED
+==== Contents of test case:
+
+    oo::object create obj
+    rename [info object namespace obj]::my ::AGlobalName
+    obj destroy
+    info commands ::AGlobalName
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't rename "::oo::Obj39::my": command doesn't exist
+    while executing
+"rename [info object namespace obj]::my ::AGlobalName"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.20 FAILED
+
+---- oo-1.21 start
+
+
+==== oo-1.21 basic test of OO functionality: default relations FAILED
+==== Contents of test case:
+
+    lmap x [$fresh eval {
+	set initials {::oo::object ::oo::class ::oo::Slot}
+	foreach initial $initials {
+	    lappend x [info class instances $initial]
+	}
+	foreach initial $initials {
+	    lappend x [info class subclasses $initial]
+	}
+	foreach initial $initials {
+	    lappend x [info class mixins $initial]
+	}
+	foreach initial $initials {
+	    lappend x [info class superclasses $initial]
+	}
+	foreach initial $initials {
+	    lappend x [info object class $initial]
+	}
+	return $x
+    }] {lsort [lsearch -all -not -inline $x *::delegate]}
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: ::oo::Slot does not refer to an object
+    while executing
+"lappend x [info class instances $initial]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.21 FAILED
+
+---- oo-1.22 start
+
+
+==== oo-1.22 basic test of OO functionality: nested ownership destruction order FAILED
+==== Contents of test case:
+
+    oo::class create abc {
+	superclass parent
+	variable n
+	constructor {} {set n 0}
+	method make {i} {set n $i; [self class] create xyz}
+	destructor {lappend ::deathOrder $n}
+    }
+    apply {n {
+	set ::deathOrder {}
+	# Make some "nested" objects
+	set base [abc new]
+	for {set i 1; set obj $base} {$i < $n} {incr i} {
+	     set obj [$obj make $i]
+	}
+	# Kill them all in one go; should come apart in right order!
+	$base destroy
+	return $::deathOrder
+    }} 5
+
+---- Result was:
+1
+---- Result should have been (exact matching):
+1 2 3 4 0
+==== oo-1.22 FAILED
+
+++++ oo-1.23 SKIPPED: knownBug
+++++ oo-1.24 SKIPPED: knownBug
+---- oo-1.25 start
+
+
+==== oo-1.25 basic test of OO functionality: touch method after instance deletion, bug [0b809cd3fc8b6e5e] FAILED
+==== Contents of test case:
+
+    set ::result {}
+    # test for eval and deletion of coro, in both cases the coroutine shall be deleted
+    foreach v {"eval" "del"} {
+	# 1st (deleted class)
+	oo::class create A
+	oo::define A method retard-it {} {yield}
+	coroutine tcoro [A new] retard-it
+	trace add command tcoro delete {apply {{args} {lappend ::result D}}}
+	A destroy
+	if {$v eq "eval"} { tcoro } else { rename tcoro {} }
+	# 2nd (deleted object of class)
+	oo::class create A
+	oo::define A method retard-it {} {yield}
+	set obj [A new]
+	coroutine tcoro $obj retard-it
+	trace add command tcoro delete {apply {{args} {lappend ::result D}}}
+	$obj destroy
+	if {$v eq "eval"} { tcoro } else { rename tcoro {} }
+	A destroy
+	# 3rd  (deleted object)
+	set obj [oo::object new]
+	oo::objdefine $obj method retard-it {} {yield}
+	coroutine tcoro $obj retard-it
+	trace add command tcoro delete {apply {{args} {lappend ::result D}}}
+	$obj destroy
+	if {$v eq "eval"} { tcoro } else { rename tcoro {} }
+    }
+    set ::result
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: cannot yield: C stack busy
+    while executing
+"coroutine tcoro [A new] retard-it"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-1.25 FAILED
+
+---- oo-2.1 start
+---- oo-2.2 start
+---- oo-2.4 start
+---- oo-2.5 start
+---- oo-2.6 start
+---- oo-2.7 start
+
+
+==== oo-2.7 construction, method calls and ensembles - Bug 3514761 FAILED
+==== Contents of test case:
+
+    namespace eval k {
+	oo::class create s {
+	    constructor {j} {
+		# nothing
+	    }
+	}
+	namespace export s
+	namespace ensemble create
+    }
+    k s create X
+
+---- Result was:
+wrong # args: should be "::k::s create X j"
+---- Result should have been (exact matching):
+wrong # args: should be "k s create X j"
+==== oo-2.7 FAILED
+
+---- oo-2.8 start
+
+
+==== oo-2.8 construction, method calls and ensembles - Bug 3514761 FAILED
+==== Contents of test case:
+
+    namespace eval k {
+	oo::class create s {
+	    constructor {j} {
+		# nothing
+	    }
+	}
+	oo::class create t {
+	    superclass s
+	    constructor args {
+		k next {*}$args
+	    }
+	}
+	interp alias {} ::k::next {} ::oo::Helpers::next
+	namespace export t next
+	namespace ensemble create
+    }
+    k t create X
+
+---- Result was:
+invalid command name "::oo::Helpers::next"
+---- Result should have been (exact matching):
+wrong # args: should be "k next j"
+==== oo-2.8 FAILED
+
+---- oo-2.9 start
+
+
+==== oo-2.9 construction failures and self creation FAILED
+==== Contents of test case:
+
+    oo::class create A {
+	superclass Root
+	constructor {} {
+	    lappend ::result "in A"
+	    error "failure in A"
+	}
+	destructor {lappend ::result [self]}
+    }
+    oo::class create B {
+	superclass Root
+	constructor {} {
+	    lappend ::result "in B [self]"
+	    error "failure in B"
+	}
+	destructor {lappend ::result [self]}
+    }
+    lappend ::result [catch {A create a} msg] $msg
+    lappend ::result [catch {B create b} msg] $msg
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "A": command already exists with that name
+    while executing
+"oo::class create A {
+	superclass Root
+	constructor {} {
+	    lappend ::result "in A"
+	    error "failure in A"
+	}
+	destructor {lappend ::result [self]..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-2.9 FAILED
+
+---- oo-3.1 start
+---- oo-3.2 start
+---- oo-3.3 start
+
+
+==== oo-3.3 basic test of OO functionality: destructor FAILED
+==== Contents of test case:
+
+    oo::define foo {
+	constructor {} {lappend ::result made}
+	destructor {lappend ::result died}
+    }
+    namespace delete [info object namespace [foo new]]
+    return $result
+
+---- Result was:
+made
+---- Result should have been (exact matching):
+made died
+==== oo-3.3 FAILED
+
+---- oo-3.4 start
+
+
+==== oo-3.4 basic test of OO functionality: my exists in destructor FAILED
+==== Contents of test case:
+
+    oo::define cls {
+	variable state
+	constructor {} {
+	    proc localcmdexists {} {}
+	    set state ok
+	}
+	forward Report lappend ::result
+	destructor {
+	    objmy Report [catch {set state} msg] $msg
+	    objmy Report [namespace which -var state]
+	    objmy Report [info commands localcmdexists]
+	}
+    }
+    cls create obj
+    rename [info object namespace obj]::my ::objmy
+    obj destroy
+    lappend result [info commands ::objmy]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"cls create obj"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.4 FAILED
+
+---- oo-3.4a start
+
+
+==== oo-3.4a basic test of OO functionality: my exists in destructor FAILED
+==== Contents of test case:
+
+    oo::define cls {
+	variable state
+	constructor {} {
+	    proc localcmdexists {} {}
+	    set state ok
+	}
+	forward Report lappend ::result
+	destructor {
+	    objmy Report [catch {set state} msg] $msg
+	    objmy Report [namespace which -var state]
+	    objmy Report [info commands localcmdexists]
+	}
+    }
+    cls create obj
+    rename [info object namespace obj]::my ::objmy
+    rename obj {}
+    lappend result [info commands ::objmy]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"cls create obj"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.4a FAILED
+
+---- oo-3.5 start
+
+
+==== oo-3.5 basic test of OO functionality: destructor: evil case for Itcl FAILED
+==== Contents of test case:
+
+    oo::define cls {
+	variable state
+	constructor {} {
+	    proc localcmdexists {} {}
+	    set state ok
+	}
+	forward Report lappend ::result
+	destructor {
+	    objmy Report [catch {set state} msg] $msg
+	    objmy Report [namespace which -var state]
+	    objmy Report [info commands localcmdexists]
+	}
+    }
+    cls create obj
+    rename [info object namespace obj]::my ::objmy
+    namespace delete [info object namespace obj]
+    lappend result [info commands ::objmy]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"cls create obj"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.5 FAILED
+
+---- oo-3.5a start
+
+
+==== oo-3.5a basic test of OO functionality: destructor: evil case for Itcl FAILED
+==== Contents of test case:
+
+    oo::define cls {
+	variable state result
+	constructor {} {
+	    proc localcmdexists {} {}
+	    set state ok
+	    my eval {upvar 0 ::result result}
+	}
+	method nuke {} {
+	    namespace delete [namespace current]
+	    return $result
+	}
+	destructor {
+	    lappend result [self] $state [info commands localcmdexists]
+	}
+    }
+    cls create obj
+    namespace delete [info object namespace obj]
+    [cls create obj2] nuke
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"cls create obj"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.5a FAILED
+
+---- oo-3.6 start
+
+
+==== oo-3.6 basic test of OO functionality: errors in destructor FAILED
+==== Contents of test case:
+
+    oo::define cls destructor {error foo}
+    list [catch {[cls create obj] destroy} msg] $msg [info commands obj]
+
+---- Result was:
+1 {can't create object "::obj": command already exists with that name} obj
+---- Result should have been (exact matching):
+1 foo {}
+==== oo-3.6 FAILED
+
+---- oo-3.7 start
+
+
+==== oo-3.7 basic test of OO functionality: errors in destructor FAILED
+==== Contents of test case:
+
+    oo::define cls destructor {error foo}
+    bgerrorIntercept result {
+	set result [cls create obj]
+	lappend result [rename obj {}]
+	update idletasks
+	lappend result [info commands obj]
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"set result [cls create obj]"
+    invoked from within
+"uplevel 1 $body"
+    (procedure "bgerrorIntercept" line 1)
+    invoked from within
+"bgerrorIntercept result {
+	set result [cls create obj]
+	lappend result [rename obj {}]
+	update idletasks
+	lappend result [info commands obj]
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.7 FAILED
+
+---- oo-3.8 start
+
+
+==== oo-3.8 basic test of OO functionality: errors in destructor FAILED
+==== Contents of test case:
+
+    oo::define cls destructor {error foo}
+    bgerrorIntercept result {
+	set result [cls create obj]
+	lappend result [namespace delete [info object namespace obj]]
+	update idletasks
+	lappend result [info commands obj]
+    }
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: can't create object "::obj": command already exists with that name
+    while executing
+"set result [cls create obj]"
+    invoked from within
+"uplevel 1 $body"
+    (procedure "bgerrorIntercept" line 1)
+    invoked from within
+"bgerrorIntercept result {
+	set result [cls create obj]
+	lappend result [namespace delete [info object namespace obj]]
+	update idletasks
+	lappend resul..."
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-3.8 FAILED
+
+---- oo-3.9 start
+---- oo-3.10 start
+---- oo-3.11 start
+
+
+==== oo-3.11 Bug 3d96b7076e: killing the object's class in a method call FAILED
+==== Contents of test case:
+
+    # Only reliably failed in a memdebug build
+    oo::class create Cls {
+	superclass Super
+	method mthd {} {
+	    oo::objdefine [self] class Sub
+	    Cls destroy
+	    return ok
+	}
+    }
+    [Cls new] mthd
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "class"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine [self] class Sub"
+    (procedure "mthd" line 2)
+    invoked from within
+"[Cls new] mthd"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL LOOKUP COMMAND class
+==== oo-3.11 FAILED
+
+---- oo-3.12 start
+---- oo-4.1 start
+---- oo-4.2 start
+---- oo-4.3 start
+
+
+==== oo-4.3 exporting and error messages, Bug 1824958 FAILED
+==== Contents of test case:
+
+    oo::define testClass self export Bad
+    testClass Bad
+
+---- Result was:
+invalid command name "self"
+---- Result should have been (exact matching):
+unknown method "Bad": must be create, destroy or new
+==== oo-4.3 FAILED
+
+---- oo-4.4 start
+
+
+==== oo-4.4 exporting a class method from an object FAILED
+==== Contents of test case:
+
+    oo::define testClass method Good {} { return ok }
+    oo::objdefine testObject export Good
+    testObject Good
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unknown method "Good": must be destroy
+    while executing
+"testObject Good"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-4.4 FAILED
+
+---- oo-4.5 start
+---- oo-4.6 start
+
+
+==== oo-4.6 export creates proper method entries FAILED
+==== Contents of test case:
+
+    oo::define testClass {
+	unexport foo
+	method foo {} {return ok}
+    }
+    [testClass new] foo
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unknown method "foo": must be destroy
+    while executing
+"[testClass new] foo"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-4.6 FAILED
+
+---- oo-4.7 start
+
+
+==== oo-4.7 basic test of OO functionality: method -export flag FAILED
+==== Contents of test case:
+
+    oo::objdefine $o {
+	method Foo {} {
+	    lappend ::result Foo
+	    return foo
+	}
+	method Bar -export {} {
+	    lappend ::result Bar
+	    return bar
+	}
+    }
+    lappend result [catch {$o Foo} msg] $msg
+    lappend result [$o Bar]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: unknown method "Bar": must be destroy
+    while executing
+"lappend result [$o Bar]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+==== oo-4.7 FAILED
+
+---- oo-4.8 start
+
+
+==== oo-4.8 basic test of OO functionality: method -unexport flag FAILED
+==== Contents of test case:
+
+    oo::objdefine $o {
+	method foo {} {
+	    lappend ::result foo
+	    return Foo
+	}
+	method bar -unexport {} {
+	    lappend ::result bar
+	    return Bar
+	}
+    }
+    lappend result [$o foo]
+    lappend result [catch {$o bar} msg] $msg
+
+---- Result was:
+foo Foo 1 {wrong # args: should be "::oo::Obj129 bar -unexport"}
+---- Result should have been (exact matching):
+foo Foo 1 {unknown method "bar": must be destroy or foo}
+==== oo-4.8 FAILED
+
+---- oo-4.9 start
+
+
+==== oo-4.9 basic test of OO functionality: method -private flag FAILED
+==== Contents of test case:
+
+    oo::objdefine $o {
+	method foo {} {
+	    lappend ::result foo
+	    return Foo
+	}
+	method bar -private {} {
+	    lappend ::result bar
+	    return Bar
+	}
+	export eval
+	method gorp {} {
+	    my bar
+	}
+    }
+    lappend result [$o foo]
+    lappend result [catch {$o bar} msg] $msg
+    lappend result [catch {$o eval my bar} msg] $msg
+    lappend result [$o gorp]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: wrong # args: should be "::oo::Obj131 bar -private"
+    while executing
+"my bar"
+    (procedure "gorp" line 2)
+    invoked from within
+"lappend result [$o gorp]"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: TCL WRONGARGS
+==== oo-4.9 FAILED
+
+---- oo-4.10 start
+
+
+==== oo-4.10 basic test of OO functionality: method flag parsing FAILED
+==== Contents of test case:
+
+    oo::objdefine $o method foo -gorp xyz {return Foo}
+
+---- Test completed normally; Return code was: 0
+---- Return code should have been one of: 1
+==== oo-4.10 FAILED
+
+---- oo-5.1 start
+
+
+==== oo-5.1 OO: manipulation of classes as objects FAILED
+==== Contents of test case:
+
+    oo::objdefine oo::object method foo {} { return "in object" }
+    catch {$obj foo} result
+    list [catch {$obj foo} result] $result [oo::object foo]
+
+---- Test cleanup failed:
+invalid command name "deletemethod"
+---- errorInfo(cleanup): invalid command name "deletemethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine oo::object deletemethod foo"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): TCL LOOKUP COMMAND deletemethod
+==== oo-5.1 FAILED
+
+---- oo-5.2 start
+
+
+==== oo-5.2 OO: manipulation of classes as objects FAILED
+==== Contents of test case:
+
+    oo::define oo::object self method foo {} { return "in object" }
+    catch {$obj foo} result
+    list [catch {$obj foo} result] $result [oo::object foo]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"oo::define oo::object self method foo {} { return "in object" }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+---- Test cleanup failed:
+invalid command name "deletemethod"
+---- errorInfo(cleanup): invalid command name "deletemethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine oo::object deletemethod foo"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): TCL LOOKUP COMMAND deletemethod
+==== oo-5.2 FAILED
+
+---- oo-5.3 start
+
+
+==== oo-5.3 OO: manipulation of classes as objects FAILED
+==== Contents of test case:
+
+    oo::objdefine oo::object {
+	method foo {} { return "in object" }
+    }
+    catch {$obj foo} result
+    list [catch {$obj foo} result] $result [oo::object foo]
+
+---- Test cleanup failed:
+invalid command name "deletemethod"
+---- errorInfo(cleanup): invalid command name "deletemethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine oo::object deletemethod foo"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): TCL LOOKUP COMMAND deletemethod
+==== oo-5.3 FAILED
+
+---- oo-5.4 start
+
+
+==== oo-5.4 OO: manipulation of classes as objects FAILED
+==== Contents of test case:
+
+    oo::define oo::object {
+	self method foo {} { return "in object" }
+    }
+    catch {$obj foo} result
+    list [catch {$obj foo} result] $result [oo::object foo]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"self method foo {} { return "in object" }"
+    (in definition script for class "::oo::object" line 2)
+    invoked from within
+"oo::define oo::object {
+	self method foo {} { return "in object" }
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+---- Test cleanup failed:
+invalid command name "deletemethod"
+---- errorInfo(cleanup): invalid command name "deletemethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine oo::object deletemethod foo"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): TCL LOOKUP COMMAND deletemethod
+==== oo-5.4 FAILED
+
+---- oo-5.5 start
+
+
+==== oo-5.5 OO: manipulation of classes as objects FAILED
+==== Contents of test case:
+
+    oo::define oo::object {
+	self {
+	    method foo {} { return "in object" }
+	}
+    }
+    catch {$obj foo} result
+    list [catch {$obj foo} result] $result [oo::object foo]
+
+---- Test generated error; Return code was: 1
+---- Return code should have been one of: 0 2
+---- errorInfo: invalid command name "self"
+    while executing
+"self {
+	    method foo {} { return "in object" }
+	}"
+    (in definition script for class "::oo::object" line 2)
+    invoked from within
+"oo::define oo::object {
+	self {
+	    method foo {} { return "in object" }
+	}
+    }"
+    invoked from within
+"set code [catch {uplevel 1 $script} actualAnswer]"
+---- errorCode: NONE
+---- Test cleanup failed:
+invalid command name "deletemethod"
+---- errorInfo(cleanup): invalid command name "deletemethod"
+    while executing
+"return -code error -errorcode [list TCL LOOKUP COMMAND $name]  "invalid command name \"$name\"""
+    invoked from within
+"oo::objdefine oo::object deletemethod foo"
+    invoked from within
+"set code [catch {uplevel 1 $cleanup} cleanupMsg]"
+---- errorCode(cleanup): TCL LOOKUP COMMAND deletemethod
+==== oo-5.5 FAILED
+
+---- oo-6.1 start
+---- oo-6.2 start
+---- oo-6.3 start
+---- oo-6.4 start
+---- oo-6.5 start
+---- oo-6.6 start
+---- oo-6.7 start
+---- oo-6.8 start
+
+
+==== oo-6.8 Bug 3400658: forwarding and wrongargs rewriting FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward test my handler
+	method handler {a b c} {}
+    }
+    fooClass create ::foo
+    foo test
+
+---- Result was:
+wrong # args: should be "foo handler a b c"
+---- Result should have been (exact matching):
+wrong # args: should be "foo test a b c"
+==== oo-6.8 FAILED
+
+---- oo-6.9 start
+---- oo-6.10 start
+
+
+==== oo-6.10 Bug 3400658: forwarding and wrongargs rewriting FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward test my handler
+	method handler {a b c} {list $a,$b,$c}
+    }
+    fooClass create ::foo
+    foo test 1 2
+
+---- Result was:
+wrong # args: should be "foo handler a b c"
+---- Result should have been (exact matching):
+wrong # args: should be "foo test a b c"
+==== oo-6.10 FAILED
+
+---- oo-6.11 start
+
+
+==== oo-6.11 Bug 3400658: forwarding and wrongargs rewriting FAILED
+==== Contents of test case:
+
+    oo::objdefine foo {
+	forward test my handler
+	method handler {a b c} {}
+    }
+    foo test
+
+---- Result was:
+wrong # args: should be "foo handler a b c"
+---- Result should have been (exact matching):
+wrong # args: should be "foo test a b c"
+==== oo-6.11 FAILED
+
+---- oo-6.12 start
+---- oo-6.13 start
+
+
+==== oo-6.13 Bug 3400658: forwarding and wrongargs rewriting FAILED
+==== Contents of test case:
+
+    oo::objdefine foo {
+	forward test my handler
+	method handler {a b c} {list $a,$b,$c}
+    }
+    foo test 1 2
+
+---- Result was:
+wrong # args: should be "foo handler a b c"
+---- Result should have been (exact matching):
+wrong # args: should be "foo test a b c"
+==== oo-6.13 FAILED
+
+---- oo-6.14 start
+
+
+==== oo-6.14 Bug 3400658: forwarding and wrongargs rewriting - multistep FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward test my handler1 p
+	forward handler1 my handler q
+	method handler {a b c} {}
+    }
+    fooClass create ::foo
+    foo test
+
+---- Result was:
+wrong # args: should be "foo handler a b c"
+---- Result should have been (exact matching):
+wrong # args: should be "foo test c"
+==== oo-6.14 FAILED
+
+---- oo-6.15 start
+---- oo-6.16 start
+
+
+==== oo-6.16 Bug 3400658: forwarding and wrongargs rewriting - via alias FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward test handler1 foo bar
+	forward handler2 my handler x
+	method handler {a b c d} {list $a,$b,$c,$d}
+	export eval
+    }
+    fooClass create ::foo
+    foo eval {
+	interp alias {} [namespace current]::handler1  {} [namespace current]::my handler2
+    }
+    foo test 1 2 3
+
+---- Result was:
+unknown method "eval": must be destroy, handler, handler2 or test
+---- Result should have been (exact matching):
+wrong # args: should be "foo test d"
+==== oo-6.16 FAILED
+
+---- oo-6.17 start
+
+
+==== oo-6.17 Bug 3400658: forwarding and wrongargs rewriting - via ensemble FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward test handler1 foo bar boo
+	forward handler2 my handler
+	method handler {a b c d} {list $a,$b,$c,$d}
+	export eval
+    }
+    fooClass create ::foo
+    foo eval {
+	namespace ensemble create  -command [namespace current]::handler1 -parameters {p q}  -map [list boo [list [namespace current]::my handler2]]
+    }
+    foo test 1 2 3
+
+---- Result was:
+unknown method "eval": must be destroy, handler, handler2 or test
+---- Result should have been (exact matching):
+wrong # args: should be "foo test c d"
+==== oo-6.17 FAILED
+
+---- oo-6.18 start
+
+
+==== oo-6.18 Bug 3408830: more forwarding cases FAILED
+==== Contents of test case:
+
+    oo::define fooClass {
+	forward len  string length
+    }
+    [fooClass create foo] len a b
+
+---- Result was:
+wrong # args: should be "string length string"
+---- Result should have been (exact matching):
+wrong # args: should be "::foo len string"
+==== oo-6.18 FAILED
+
+---- oo-6.19 start

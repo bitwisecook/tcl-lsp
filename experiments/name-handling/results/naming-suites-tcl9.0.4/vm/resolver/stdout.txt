@@ -1,0 +1,4 @@
+resolver.test:	Total	10	Passed	0	Skipped	10	Failed	0
+Number of tests skipped for each constraint:
+	9	${constraint}
+	1	testinterpresolver
