@@ -178,56 +178,104 @@ impl Interp {
     ) -> Result<Code, Code> {
         let variable_original = super::native_list_conversion::BodyObjectOperation::capture(self)
             .map_err(|error| self.report_cmd_error(error))?;
+        let actual = self.clone();
+        let current = || variable_original.check(&actual);
+        let index_current = |actual: &Interp| variable_original.check(actual);
         let protocol = NativeStringProtocol::C(artifact.stamp.physical);
-        let result = match &recipe.operation {
-            ListOperation::Range { list, range } => {
-                let original = self.body_namespace_operand(artifact, command, list, execution)?;
-                if execution.done {
-                    return Ok(Code::Ok);
-                }
-                crate::list::native_list_range(original.as_ptr(), *range, protocol)
-                    .map_err(|error| self.report_cmd_error(error.into()))?
-            }
-            ListOperation::Assign { list, targets } => {
-                let original = self.body_namespace_operand(artifact, command, list, execution)?;
-                if execution.done {
-                    return Ok(Code::Ok);
-                }
-                for (index, target) in targets.iter().enumerate() {
-                    let evaluated = self.body_list_target(artifact, command, target, execution)?;
+        let reached = (|| -> Result<Option<obj::Owned>, Code> {
+            let result = match &recipe.operation {
+                ListOperation::Range { list, range } => {
+                    let original =
+                        self.body_namespace_operand(artifact, command, list, execution)?;
+                    current()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
                     if execution.done {
-                        return Ok(Code::Ok);
+                        return Ok(None);
                     }
-                    // Genuine DUP/OVER stack role precedes the original List getter.
-                    let duplicate = obj::Owned::retain(original.as_ptr());
-                    let member = tcl_cmd_core::native_list_index::immediate(
-                        self,
-                        &duplicate.as_ptr(),
-                        Index::from_encoded(i32::try_from(index).expect("native target count")),
+                    crate::list::native_list_range_using(
+                        original.as_ptr(),
+                        *range,
+                        protocol,
+                        &current,
+                        &|error| variable_original.refuse(error),
                     )
-                    .map_err(|error| self.report_cmd_error(error))?;
-                    drop(duplicate);
-                    drop(self.body_store_value_using(
-                        &evaluated,
-                        target.slot(),
-                        member.owned(),
-                        &variable_original,
-                    )?);
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?
                 }
-                crate::list::native_list_range(
-                    original.as_ptr(),
-                    NativeCompiledListRange {
-                        first: Index::from_encoded(
-                            i32::try_from(targets.len()).expect("native target count"),
-                        ),
-                        last: Index::from_encoded(-2),
-                    },
-                    protocol,
-                )
-                .map_err(|error| self.report_cmd_error(error.into()))?
-            }
+                ListOperation::Assign { list, targets } => {
+                    let original =
+                        self.body_namespace_operand(artifact, command, list, execution)?;
+                    current()
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    if execution.done {
+                        return Ok(None);
+                    }
+                    for (index, target) in targets.iter().enumerate() {
+                        let evaluated =
+                            self.body_list_target(artifact, command, target, execution)?;
+                        current()
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                        if execution.done {
+                            return Ok(None);
+                        }
+                        // Genuine DUP/OVER stack role stays before the original getter.
+                        let duplicate = obj::Owned::retain(original.as_ptr());
+                        let member = tcl_cmd_core::native_list_index::immediate_using(
+                            self,
+                            &duplicate.as_ptr(),
+                            Index::from_encoded(i32::try_from(index).expect("native target count")),
+                            Some(&index_current),
+                        )
+                        .map_err(|error| self.report_cmd_error_using(error, Some(&current)));
+                        drop(duplicate);
+                        current()
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                        let member = member?;
+                        drop(self.body_store_value_using(
+                            &evaluated,
+                            target.slot(),
+                            member.owned(),
+                            &variable_original,
+                        )?);
+                        current()
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                        drop(member);
+                        current()
+                            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                    }
+                    crate::list::native_list_range_using(
+                        original.as_ptr(),
+                        NativeCompiledListRange {
+                            first: Index::from_encoded(
+                                i32::try_from(targets.len()).expect("native target count"),
+                            ),
+                            last: Index::from_encoded(-2),
+                        },
+                        protocol,
+                        &current,
+                        &|error| variable_original.refuse(error),
+                    )
+                    .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?
+                }
+            };
+            Ok(Some(result))
+        })();
+        // All actual operand/target/DUP roles retire before result publication.
+        if let Err(first) = current() {
+            let first = variable_original.retain(first);
+            drop(reached);
+            let _ = current();
+            return Err(self.report_cmd_error_using(first, Some(&current)));
+        }
+        let Some(result) = reached? else {
+            return Ok(Code::Ok);
         };
         self.set_result(result.as_ptr());
+        let first = current().map_err(|error| variable_original.retain(error));
+        drop(result);
+        let settled = current();
+        first
+            .and(settled)
+            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
         Ok(Code::Ok)
     }
 }
@@ -341,3 +389,7 @@ mod tests {
         assert_eq!(windows, 84);
     }
 }
+
+#[cfg(test)]
+#[path = "native_list_operations/original_boundary_tests.rs"]
+mod original_boundary_tests;

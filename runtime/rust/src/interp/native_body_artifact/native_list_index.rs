@@ -57,32 +57,58 @@ impl Interp {
         index: &ListIndexOperation,
         execution: &mut BodyExecution,
     ) -> Result<Code, Code> {
+        let original = super::native_list_conversion::BodyObjectOperation::capture(self)
+            .map_err(|error| self.report_cmd_error(error))?;
+        let actual = self.clone();
+        let current = || original.check(&actual);
+        let index_current = |actual: &Interp| original.check(actual);
+        // These genuine PUSH owners remain through the old result/publication
+        // stage. The checked path adds only allocation/operation observations.
         let mut values = Vec::with_capacity(index.operands.len());
-        for operand in &index.operands {
-            values.push(self.body_namespace_operand(artifact, command, operand, execution)?);
-            if execution.done {
-                return Ok(Code::Ok);
+        let reached = (|| -> Result<Option<Result<crate::value_ops::native_list_index::RuntimeIndexOwner, tcl_cmd_core::CmdError>>, Code> {
+            for operand in &index.operands {
+                values.push(self.body_namespace_operand(artifact, command, operand, execution)?);
+                current().map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                if execution.done { return Ok(None); }
             }
+            let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
+            let result = match index.operation {
+                NativeListIndexOperation::Single => self.original_list_index_using(pointers[0], &pointers[1..], true, Some(&index_current)),
+                NativeListIndexOperation::Multi(_) => self.original_list_index_using(pointers[0], &pointers[1..], false, Some(&index_current)),
+                NativeListIndexOperation::Immediate(coordinate) => tcl_cmd_core::native_list_index::immediate_using(self, &pointers[0], coordinate, Some(&index_current)),
+            }.map_err(|error| original.retain(error));
+            Ok(Some(result))
+        })();
+        if let Err(first) = current() {
+            let first = original.retain(first);
+            drop(reached);
+            drop(values);
+            let _ = current();
+            return Err(self.report_cmd_error_using(first, Some(&current)));
         }
-        let pointers = values.iter().map(obj::Owned::as_ptr).collect::<Vec<_>>();
-        let result = match index.operation {
-            NativeListIndexOperation::Single => {
-                self.original_list_index(pointers[0], &pointers[1..], true)
+        let code = match reached {
+            Ok(Some(Ok(value))) => {
+                self.set_result(value.owned().as_ptr());
+                let first = current().map_err(|error| original.retain(error));
+                drop(value);
+                let settled = current();
+                first.and(settled).map(|()| Code::Ok)
             }
-            NativeListIndexOperation::Multi(_) => {
-                self.original_list_index(pointers[0], &pointers[1..], false)
-            }
-            NativeListIndexOperation::Immediate(coordinate) => {
-                tcl_cmd_core::native_list_index::immediate(self, &pointers[0], coordinate)
+            Ok(Some(Err(error))) => Ok(self.report_cmd_error_using(error, Some(&current))),
+            Ok(None) => Ok(Code::Ok),
+            Err(code) => {
+                drop(values);
+                current().map_err(|error| self.report_cmd_error_using(error, Some(&current)))?;
+                return Err(code);
             }
         };
-        match result {
-            Ok(value) => {
-                self.set_result(value.owned().as_ptr());
-                Ok(Code::Ok)
-            }
-            Err(error) => Ok(self.report_cmd_error(error)),
+        if let Err(first) = &code {
+            original.retain(first.clone());
         }
+        drop(values);
+        let settled = current();
+        code.and_then(|code| settled.map(|()| code))
+            .map_err(|error| self.report_cmd_error_using(error, Some(&current)))
     }
 }
 

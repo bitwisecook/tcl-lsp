@@ -26,6 +26,40 @@ use tcl_syntax::{
     value::{ValueError, ValueOps},
 };
 
+/// Independent original consumer guard threaded through the existing selected
+/// getter and mandatory owner-retirement stages. It grants no native role.
+pub type NativeListIndexCheck<'a, O> = Option<&'a dyn Fn(&O) -> Result<(), CmdError>>;
+
+fn check_stage<O: NativeListIndexOps>(
+    ops: &mut O,
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<(), CmdError> {
+    let reached = check.map_or(Ok(()), |check| check(ops));
+    if let Err(first) = &reached {
+        ops.retain_index_failure(first);
+    }
+    reached
+}
+
+fn finish_using<O: NativeListIndexOps>(
+    ops: &mut O,
+    reached: Result<O::Owner, CmdError>,
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<O::Owner, CmdError> {
+    if check.is_none() {
+        return reached;
+    }
+    if let Err(error) = &reached {
+        ops.retain_index_failure(error);
+    }
+    if let Err(first) = check_stage(ops, check) {
+        drop(reached);
+        let _ = check_stage(ops, check);
+        return Err(first);
+    }
+    reached
+}
+
 /// Checked borrowed members of an actual native List header.
 pub trait NativeIndexMembers<V> {
     /// Reject a stale original backing instead of reviving its retired children.
@@ -150,6 +184,134 @@ pub trait NativeListIndexOps: crate::index::NativeIndexOps {
         Self::index_clear_arithmetic_primary(value);
         Ok(())
     }
+    /// Same member converter under an independent original consumer guard.
+    /// # Errors
+    /// Original conversion or the complete first consumer refusal.
+    fn index_members_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<Self::Members, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_members_checked(value);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same ordinary converter under an independent original consumer guard.
+    /// # Errors
+    /// Original conversion or the complete first consumer refusal.
+    fn index_ordinary_members_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<Self::Members, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_ordinary_members_checked(value);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same selected Copy worker under an original consumer guard.
+    /// # Errors
+    /// Original copy/conversion or the complete first consumer refusal.
+    fn index_list_copy_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<Self::Owner, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_list_copy_checked(value);
+        finish_using(self, reached, check)
+    }
+    /// Same scalar probe under an original consumer guard.
+    /// # Errors
+    /// Original scalar/cache access or the complete first consumer refusal.
+    fn index_number_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<Option<Number>, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_number_checked(value);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same String worker under an original consumer guard.
+    /// # Errors
+    /// Original String access or the complete first consumer refusal.
+    fn index_bytes_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_operand_bytes(value);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same lazy Length worker under an original consumer guard.
+    /// # Errors
+    /// Original length/conversion or the complete first consumer refusal.
+    fn index_length_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<usize, CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_list_length(value);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same offset publication under an original consumer guard.
+    /// # Errors
+    /// Original primary/cache access or the complete first consumer refusal.
+    fn index_install_offset_using(
+        &mut self,
+        value: &Self::Value,
+        offset: NativeEndOffset,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<(), CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_install_offset_checked(value, offset);
+        check_stage(self, check)?;
+        reached
+    }
+    /// Same arithmetic primary retirement under an original consumer guard.
+    /// # Errors
+    /// Original primary access or the complete first consumer refusal.
+    fn index_clear_arithmetic_primary_using(
+        &mut self,
+        value: &Self::Value,
+        check: NativeListIndexCheck<'_, Self>,
+    ) -> Result<(), CmdError>
+    where
+        Self: Sized,
+    {
+        check_stage(self, check)?;
+        let reached = self.index_clear_arithmetic_primary_checked(value);
+        check_stage(self, check)?;
+        reached
+    }
     /// Existing original end-offset cache.
     fn index_offset(value: &Self::Value) -> Option<NativeEndOffset>;
     /// Install the conversion on the original resident object.
@@ -235,21 +397,36 @@ pub fn immediate<O: NativeListIndexOps>(
     original: &O::Value,
     coordinate: tcl_syntax::native_compiled_index::NativeCompiledListIndex,
 ) -> Result<O::Owner, CmdError> {
-    crate::index::run_index_output(
+    immediate_using(ops, original, coordinate, None)
+}
+
+/// Same selected worker with the captured original consumer guard.
+/// # Errors
+/// Original getter/cache access or the complete first consumer refusal.
+pub fn immediate_using<O: NativeListIndexOps>(
+    ops: &mut O,
+    original: &O::Value,
+    coordinate: tcl_syntax::native_compiled_index::NativeCompiledListIndex,
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<O::Owner, CmdError> {
+    check_stage(ops, check)?;
+    let reached = crate::index::run_index_output(
         ops,
-        |ops| immediate_inner(ops, original, coordinate),
+        |ops| immediate_inner(ops, original, coordinate, check),
         |_, owner| drop(owner),
         std::convert::identity,
-    )
+    );
+    finish_using(ops, reached, check)
 }
 
 fn immediate_inner<O: NativeListIndexOps>(
     ops: &mut O,
     original: &O::Value,
     coordinate: tcl_syntax::native_compiled_index::NativeCompiledListIndex,
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<O::Owner, CmdError> {
     if ops.index_version()? >= TclVersion::V9_0 && O::index_is_abstract(original) {
-        let length = ops.index_list_length(original)?;
+        let length = ops.index_length_using(original, check)?;
         return match coordinate.resolve(length) {
             Some(index) => Ok(ops
                 .list_index(original, index)?
@@ -258,7 +435,7 @@ fn immediate_inner<O: NativeListIndexOps>(
             None => Ok(ops.index_empty()),
         };
     }
-    let members = ops.index_members_checked(original)?;
+    let members = ops.index_members_using(original, check)?;
     let members = members.index_elements()?;
     Ok(coordinate.resolve(members.len()).map_or_else(
         || ops.index_empty(),
@@ -276,16 +453,40 @@ pub fn original_index<O: NativeListIndexOps>(
     end: i64,
     report: bool,
 ) -> Result<Option<i64>, CmdError> {
-    crate::index::run_index_metadata(ops, |ops| original_index_inner(ops, value, end, report))
+    original_index_using(ops, value, end, report, None)
+}
+
+/// Same selected worker with the captured original consumer guard.
+/// # Errors
+/// Original getter/cache access or the complete first consumer refusal.
+pub fn original_index_using<O: NativeListIndexOps>(
+    ops: &mut O,
+    value: &O::Value,
+    end: i64,
+    report: bool,
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<Option<i64>, CmdError> {
+    check_stage(ops, check)?;
+    let reached = crate::index::run_index_metadata(ops, |ops| {
+        original_index_inner(ops, value, end, report, check)
+    });
+    if check.is_some() {
+        if let Err(first) = &reached {
+            ops.retain_index_failure(first);
+        }
+    }
+    check_stage(ops, check)?;
+    reached
 }
 fn original_index_inner<O: NativeListIndexOps>(
     ops: &mut O,
     value: &O::Value,
     end: i64,
     report: bool,
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<Option<i64>, CmdError> {
     let version = ops.index_version()?;
-    match ops.index_number_checked(value)? {
+    match ops.index_number_using(value, check)? {
         Some(Number::Int(integer)) => {
             return Ok(Some(if version >= TclVersion::V9_0 && integer < 0 {
                 if end == -1 { i64::MIN } else { -1 }
@@ -306,7 +507,7 @@ fn original_index_inner<O: NativeListIndexOps>(
         }
         return Ok(Some(offset.resolve(end)));
     }
-    let bytes = ops.index_operand_bytes(value)?;
+    let bytes = ops.index_bytes_using(value, check)?;
     let Ok(spelling) = std::str::from_utf8(&bytes) else {
         return if report {
             Err(crate::index::bad_index_for_ops(
@@ -318,7 +519,7 @@ fn original_index_inner<O: NativeListIndexOps>(
             Ok(None)
         };
     };
-    convert_spelling(ops, value, version, spelling, end, report)
+    convert_spelling(ops, value, version, spelling, end, report, check)
 }
 
 fn convert_spelling<O: NativeListIndexOps>(
@@ -328,6 +529,7 @@ fn convert_spelling<O: NativeListIndexOps>(
     spelling: &str,
     end: i64,
     report: bool,
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<Option<i64>, CmdError> {
     let syntax = tcl_dialect::IndexSyntax::for_version(version);
     let spelling = if version < TclVersion::V9_0 && spelling.starts_with('e') {
@@ -338,13 +540,13 @@ fn convert_spelling<O: NativeListIndexOps>(
     };
     if version >= TclVersion::V9_0 && !spelling.starts_with('e') {
         if tcl_syntax::list::split_list(spelling).is_ok_and(|parts| parts.len() > 1) {
-            drop(ops.index_members_checked(original)?);
+            drop(ops.index_members_using(original, check)?);
             return failed_spelling(ops, spelling, syntax, report);
         }
         let mut flags = tcl_syntax::number::ParseFlags::for_syntax(syntax.numbers);
         flags.integer_only = true;
         if tcl_syntax::number::parse(spelling.trim_start(), flags).is_some() {
-            ops.index_clear_arithmetic_primary_checked(original)?;
+            ops.index_clear_arithmetic_primary_using(original, check)?;
         }
     }
     let length = usize::try_from(end.saturating_add(1)).unwrap_or(0);
@@ -358,7 +560,7 @@ fn convert_spelling<O: NativeListIndexOps>(
                 value
             };
             let offset = NativeEndOffset::new(version, encoded);
-            ops.index_install_offset_checked(original, offset)?;
+            ops.index_install_offset_using(original, offset, check)?;
             return Ok(Some(offset.resolve(end)));
         }
         return Ok(Some(result));
@@ -368,7 +570,7 @@ fn convert_spelling<O: NativeListIndexOps>(
             Ok(result) => {
                 let offset =
                     NativeEndOffset::new(version, wide_offset_encoding(spelling, result, syntax));
-                ops.index_install_offset_checked(original, offset)?;
+                ops.index_install_offset_using(original, offset, check)?;
                 return Ok(Some(offset.resolve(end)));
             }
             Err(error) if report || error.native_execution_refusal().is_some() => {
@@ -431,18 +633,33 @@ pub fn single<O: NativeListIndexOps>(
     list: &O::Value,
     index: &O::Value,
 ) -> Result<O::Owner, CmdError> {
-    crate::index::run_index_output(
+    single_using(ops, list, index, None)
+}
+
+/// Same selected worker with the captured original consumer guard.
+/// # Errors
+/// Original getter/cache access or the complete first consumer refusal.
+pub fn single_using<O: NativeListIndexOps>(
+    ops: &mut O,
+    list: &O::Value,
+    index: &O::Value,
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<O::Owner, CmdError> {
+    check_stage(ops, check)?;
+    let reached = crate::index::run_index_output(
         ops,
-        |ops| single_inner(ops, list, index),
+        |ops| single_inner(ops, list, index, check),
         |_, owner| drop(owner),
         std::convert::identity,
-    )
+    );
+    finish_using(ops, reached, check)
 }
 
 fn single_inner<O: NativeListIndexOps>(
     ops: &mut O,
     list: &O::Value,
     index: &O::Value,
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<O::Owner, CmdError> {
     let version = ops.index_version()?;
     let initial_end = if version >= TclVersion::V9_0 {
@@ -450,46 +667,50 @@ fn single_inner<O: NativeListIndexOps>(
     } else {
         0
     };
-    if !O::index_is_list(index) && original_index(ops, index, initial_end, false)?.is_some() {
-        return flat(ops, list, std::slice::from_ref(index));
+    if !O::index_is_list(index)
+        && original_index_using(ops, index, initial_end, false, check)?.is_some()
+    {
+        return flat_using(ops, list, std::slice::from_ref(index), check);
     }
     if version == TclVersion::V8_4 {
-        return match ops.index_members_checked(index) {
-            Ok(_) => path84(ops, list, index),
+        return match ops.index_members_using(index, check) {
+            Ok(_) => path84(ops, list, index, check),
             Err(error) if error.native_execution_refusal().is_some() => Err(error.into()),
-            Err(_) => flat(ops, list, std::slice::from_ref(index)),
+            Err(_) => flat_using(ops, list, std::slice::from_ref(index), check),
         };
     }
-    let private = match ops.index_list_copy_checked(index) {
+    let private = match ops.index_list_copy_using(index, check) {
         Ok(copy) => copy,
         Err(error) if error.native_execution_refusal().is_some() => return Err(error.into()),
-        Err(_) => return flat(ops, list, std::slice::from_ref(index)),
+        Err(_) => return flat_using(ops, list, std::slice::from_ref(index), check),
     };
-    let members = ops.index_members_checked(O::index_original(&private))?;
-    flat(ops, list, members.index_elements()?)
+    let members = ops.index_members_using(O::index_original(&private), check)?;
+    flat_using(ops, list, members.index_elements()?, check)
 }
 
 fn path84<O: NativeListIndexOps>(
     ops: &mut O,
     list: &O::Value,
     path: &O::Value,
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<O::Owner, CmdError> {
     let mut current = O::index_retain(list);
     let mut step = 0;
     loop {
-        let indices = ops.index_members_checked(path)?;
+        let indices = ops.index_members_using(path, check)?;
         let Some(index) = indices.index_elements()?.get(step) else {
             return Ok(current);
         };
         let length = ops
-            .index_members_checked(O::index_original(&current))?
+            .index_members_using(O::index_original(&current), check)?
             .index_elements()?
             .len();
-        let selected = original_index(
+        let selected = original_index_using(
             ops,
             index,
             i64::try_from(length).unwrap_or(i64::MAX) - 1,
             true,
+            check,
         )?
         .expect("reported original index");
         let Some(selected) = usize::try_from(selected)
@@ -497,11 +718,13 @@ fn path84<O: NativeListIndexOps>(
             .filter(|&index| index < length)
         else {
             drop(current);
+            check_stage(ops, check)?;
             return Ok(ops.index_empty());
         };
-        let members = ops.index_members_checked(O::index_original(&current))?;
+        let members = ops.index_members_using(O::index_original(&current), check)?;
         let next = O::index_retain(&members.index_elements()?[selected]);
         drop(current);
+        check_stage(ops, check)?;
         current = next;
         step += 1;
     }
@@ -516,27 +739,43 @@ pub fn flat<O: NativeListIndexOps>(
     list: &O::Value,
     indices: &[O::Value],
 ) -> Result<O::Owner, CmdError> {
-    crate::index::run_index_output(
+    flat_using(ops, list, indices, None)
+}
+
+/// Same selected worker with the captured original consumer guard.
+/// # Errors
+/// Original getter/cache access or the complete first consumer refusal.
+pub fn flat_using<O: NativeListIndexOps>(
+    ops: &mut O,
+    list: &O::Value,
+    indices: &[O::Value],
+    check: NativeListIndexCheck<'_, O>,
+) -> Result<O::Owner, CmdError> {
+    check_stage(ops, check)?;
+    let reached = crate::index::run_index_output(
         ops,
-        |ops| flat_inner(ops, list, indices),
+        |ops| flat_inner(ops, list, indices, check),
         |_, owner| drop(owner),
         std::convert::identity,
-    )
+    );
+    finish_using(ops, reached, check)
 }
 
 fn flat_inner<O: NativeListIndexOps>(
     ops: &mut O,
     list: &O::Value,
     indices: &[O::Value],
+    check: NativeListIndexCheck<'_, O>,
 ) -> Result<O::Owner, CmdError> {
     let version = ops.index_version()?;
     if version >= TclVersion::V9_0 && indices.len() == 1 && O::index_is_abstract(list) {
-        let length = ops.index_list_length(list)?;
-        let index = original_index(
+        let length = ops.index_length_using(list, check)?;
+        let index = original_index_using(
             ops,
             &indices[0],
             i64::try_from(length).unwrap_or(i64::MAX) - 1,
             true,
+            check,
         )?
         .expect("reported original index");
         return match usize::try_from(index).ok().filter(|&index| index < length) {
@@ -550,22 +789,24 @@ fn flat_inner<O: NativeListIndexOps>(
     let mut current = O::index_retain(list);
     for (position, index) in indices.iter().enumerate() {
         if matches!(version, TclVersion::V8_5 | TclVersion::V8_6) {
-            let copy = ops.index_list_copy_checked(O::index_original(&current));
+            let copy = ops.index_list_copy_using(O::index_original(&current), check);
             drop(current);
+            check_stage(ops, check)?;
             current = copy?;
         }
         let length = if version >= TclVersion::V9_0 {
-            ops.index_list_length(O::index_original(&current))?
+            ops.index_length_using(O::index_original(&current), check)?
         } else {
-            ops.index_members_checked(O::index_original(&current))?
+            ops.index_members_using(O::index_original(&current), check)?
                 .index_elements()?
                 .len()
         };
-        let selected = original_index(
+        let selected = original_index_using(
             ops,
             index,
             i64::try_from(length).unwrap_or(i64::MAX) - 1,
             true,
+            check,
         )?
         .expect("reported original index");
         let Some(selected) = usize::try_from(selected)
@@ -579,15 +820,17 @@ fn flat_inner<O: NativeListIndexOps>(
                     -1
                 };
                 for rest in &indices[position + 1..] {
-                    original_index(ops, rest, end, true)?;
+                    original_index_using(ops, rest, end, true, check)?;
                 }
             }
             drop(current);
+            check_stage(ops, check)?;
             return Ok(ops.index_empty());
         };
-        let members = ops.index_ordinary_members_checked(O::index_original(&current))?;
+        let members = ops.index_ordinary_members_using(O::index_original(&current), check)?;
         let next = O::index_retain(&members.index_elements()?[selected]);
         drop(current);
+        check_stage(ops, check)?;
         current = next;
     }
     Ok(current)

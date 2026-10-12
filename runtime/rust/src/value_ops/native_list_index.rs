@@ -23,8 +23,8 @@ use crate::{
     obj::{self, TclObj},
 };
 use tcl_cmd_core::{
-    CmdError,
     native_list_index::{self, NativeIndexMembers, NativeListIndexOps},
+    CmdError,
 };
 use tcl_dialect::TclVersion;
 use tcl_syntax::{
@@ -256,6 +256,192 @@ impl NativeListIndexOps for Interp {
         )
         .map(RuntimeIndexOwner::from_owned)
     }
+    fn index_members_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<Vec<*mut TclObj>, CmdError> {
+        let Some(check) = check else {
+            return self.index_members_checked(original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        list::list_elements_native_using(
+            *original,
+            protocol,
+            &|| {
+                check(self).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(self, 0, *original)
+            },
+            &|error| arguments.retain_refusal(error.into()),
+        )
+    }
+    fn index_ordinary_members_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<Vec<*mut TclObj>, CmdError> {
+        let Some(check) = check else {
+            return self.index_ordinary_members_checked(original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        list::ordinary_list_elements_native_using(
+            *original,
+            protocol,
+            &|| {
+                check(self).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(self, 0, *original)
+            },
+            &|error| arguments.retain_refusal(error.into()),
+        )
+    }
+    fn index_list_copy_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<RuntimeIndexOwner, CmdError> {
+        let Some(check) = check else {
+            return self.index_list_copy_checked(original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let protocol = tcl_syntax::native_string::NativeStringProtocol::C(self.index_version()?);
+        list::native_list_copy_using(
+            *original,
+            protocol,
+            &|| {
+                check(self).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(self, 0, *original)
+            },
+            &|error| arguments.retain_refusal(error.into()),
+        )
+        .map(RuntimeIndexOwner::from_owned)
+    }
+    fn index_number_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<Option<Number>, CmdError> {
+        let Some(check) = check else {
+            return self.index_number_checked(original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let current = || {
+            check(self).map_err(|first| arguments.retain_refusal(first))?;
+            arguments.check_original_for(self, 0, *original)
+        };
+        current()?;
+        let dialect = self.native_invocation_dialect();
+        let stage = || current().map_err(|_| ValueError::ScalarNumericInputUnavailable);
+        let reached = if self.index_version()? >= TclVersion::V9_0 {
+            crate::typed_value::native_number_probe_with_stage_check(
+                *original,
+                dialect,
+                NativeNumberGetterKind::Number,
+                Some(arguments.currency()),
+                Some(&stage),
+            )
+            .map(Result::ok)
+        } else {
+            let host = self.host();
+            let environment = host.numeric_environment();
+            current()?;
+            crate::typed_value::native_scalar_probe_with_stage_check(
+                *original,
+                dialect,
+                NativeScalarGetterKind::Int,
+                environment,
+                Some(arguments.currency()),
+                Some(&stage),
+            )
+            .map(|outcome| match outcome {
+                Ok(NativeScalarGetterValue::Wide(integer)) => Some(Number::Int(integer)),
+                _ => None,
+            })
+        }
+        .map_err(|error| arguments.retain_refusal(error.into()));
+        current()?;
+        reached
+    }
+    fn index_bytes_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<std::rc::Rc<[u8]>, CmdError> {
+        let Some(check) = check else {
+            return tcl_cmd_core::index::NativeIndexOps::index_operand_bytes(self, original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        self.native_object_string_bytes_using(
+            *original,
+            &|| {
+                check(self).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(self, 0, *original)
+            },
+            &|error| arguments.retain_refusal(error.into()),
+        )
+    }
+    fn index_length_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<usize, CmdError> {
+        let Some(check) = check else {
+            return tcl_cmd_core::index::NativeIndexOps::index_list_length(self, original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        crate::value_ops::list_length_using(
+            self,
+            original,
+            &mut |actual, pointer| {
+                check(actual).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(actual, 0, *pointer)
+            },
+            |actual, pointer| actual.index_members_using(pointer, Some(check)),
+        )
+    }
+    fn index_install_offset_using(
+        &mut self,
+        original: &*mut TclObj,
+        offset: NativeEndOffset,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<(), CmdError> {
+        let Some(check) = check else {
+            return self.index_install_offset_checked(original, offset);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        obj::native_end_offset::install_checked(*original, offset, &mut || {
+            check(self).map_err(|first| arguments.retain_refusal(first))?;
+            arguments.check_original_for(self, 0, *original)
+        })
+    }
+    fn index_clear_arithmetic_primary_using(
+        &mut self,
+        original: &*mut TclObj,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<(), CmdError> {
+        let Some(check) = check else {
+            return self.index_clear_arithmetic_primary_checked(original);
+        };
+        let arguments =
+            crate::interp::native_arguments::OriginalArguments::enter(self, &[*original])?;
+        let reached =
+            obj::change_type_with_stage_check(*original, core::ptr::null(), 0, &mut || {
+                check(self).map_err(|first| arguments.retain_refusal(first))?;
+                arguments.check_original_for(self, 0, *original)
+            })
+            .map_err(|first| arguments.retain_refusal(first));
+        check(self).map_err(|first| arguments.retain_refusal(first))?;
+        arguments.check_original_for(self, 0, *original)?;
+        reached
+    }
     fn index_number(&mut self, original: &*mut TclObj) -> Result<Option<Number>, ValueError> {
         let dialect = self.native_invocation_dialect();
         if self.index_version()? >= TclVersion::V9_0 {
@@ -405,15 +591,25 @@ impl Interp {
         indices: &[*mut TclObj],
         path: bool,
     ) -> Result<RuntimeIndexOwner, CmdError> {
+        self.original_list_index_using(list, indices, path, None)
+    }
+
+    pub(crate) fn original_list_index_using(
+        &mut self,
+        list: *mut TclObj,
+        indices: &[*mut TclObj],
+        path: bool,
+        check: native_list_index::NativeListIndexCheck<'_, Self>,
+    ) -> Result<RuntimeIndexOwner, CmdError> {
         if self
             .native_invocation_dialect()
             .native_string_protocol()
             .is_some_and(|protocol| protocol.tcl_version().is_some())
         {
             return if path && indices.len() == 1 {
-                native_list_index::single(self, &list, &indices[0])
+                native_list_index::single_using(self, &list, &indices[0], check)
             } else {
-                native_list_index::flat(self, &list, indices)
+                native_list_index::flat_using(self, &list, indices, check)
             };
         }
         let value = if path {

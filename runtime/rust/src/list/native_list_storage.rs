@@ -24,6 +24,7 @@ use tcl_cmd_core::native_list_storage::{
 use tcl_dialect::TclVersion;
 use tcl_syntax::{native_compiled_index::NativeCompiledListRange, value::ValueError};
 
+#[cfg(test)]
 pub(crate) fn native_list_range(
     original: *mut TclObj,
     coordinates: NativeCompiledListRange,
@@ -33,6 +34,24 @@ pub(crate) fn native_list_range(
         original,
         NativeListRangeSelection::Immediate(coordinates),
         protocol,
+    )
+}
+
+/// Immediate range under the same entered consumer/frame check; this delegates
+/// the selected converter and replacement owner without acquiring a role.
+pub(crate) fn native_list_range_using<E>(
+    original: *mut TclObj,
+    coordinates: NativeCompiledListRange,
+    protocol: NativeStringProtocol,
+    check: &impl Fn() -> Result<(), E>,
+    refuse: &impl Fn(ValueError) -> E,
+) -> Result<obj::Owned, E> {
+    native_list_selected_range_using(
+        original,
+        NativeListRangeSelection::Immediate(coordinates),
+        protocol,
+        Some(check),
+        refuse,
     )
 }
 
@@ -439,7 +458,7 @@ fn replace_selected_native_storage<E>(
     refuse: &impl Fn(ValueError) -> E,
 ) -> Result<bool, E> {
     use tcl_cmd_core::native_list_storage::{
-        NativeListReplaceStorage, range_storage_action, replace_layout,
+        range_storage_action, replace_layout, NativeListReplaceStorage,
     };
     unsafe { list_ref(original) }
         .elems
@@ -734,7 +753,7 @@ mod tests {
 #[cfg(all(test, have_tommath))]
 mod original_range_retirement_controls {
     use super::*;
-    use crate::interp::{Interp, native_arguments::OriginalArguments};
+    use crate::interp::{native_arguments::OriginalArguments, Interp};
     use std::cell::{Cell, RefCell};
     thread_local! {
         static MODE: Cell<u8> = const { Cell::new(0) };
