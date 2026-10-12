@@ -27,10 +27,10 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | VM mathfunc bootstrap | Shared C8.6 roster consumed; genuine Native constructor/header/cached-body regression passes1/1 | Real VM init and legacy9.1 control refuse NativePreflightRequired; 26 outside-owner lib-test compile errors, baseline unmeasured |
 | Native compiled foreach | Exact C8.6 crash input now completes; one lifetime regression passes; original stock C/Jim controls retained | C8.5/9.x command-entry refusals; broader iterator conformance |
 | Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Post-offset packaged checks pass2/2; #2287 closed against published `c7b94e8fb`; broader consumer census |
-| Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Retained binding repair passes1/1 but full filter remains6/3. Trace proves factory request has full input while proc point retains Standalone metadata; native header/formals unreached. Genuine provider input producer and two owner controls pass; full filter remains6/3: direct/alias2 warnings (absent plus erroneous prepared cleanup) vs1; original program0vs2. Packaged regression check running; #2286 open |
+| Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Retained binding repair passes1/1 but full filter remains6/3. Trace proves factory request has full input while proc point retains Standalone metadata; native header/formals unreached. Genuine provider input producer and two owner controls pass; full filter remains6/3: direct/alias2 warnings (absent plus erroneous prepared cleanup) vs1; original program0vs2. Packaged regression passes2/2; #2286 open |
 | Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
 | Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
-| Naming proof bindings | Merged checker: 2,327 records, zero pending candidates/unlinked tests | 315 implementation-digest errors across 154 paths; no other error class; scoped review required |
+| Naming proof bindings | Merged checker: 2,327 baseline records plus279 distinct native records; final coverage checker running | Last pre-census-correction checker:315 implementation-digest errors plus902 census errors. Exact902 retained-byte hashes/current sizes corrected; final merged checker running; no blanket implementation renewals |
 
 Exact raw results and limits:
 
@@ -62,7 +62,11 @@ The pushed [F5 bundle](../../../experiments/name-handling/patterns/f5/README.md)
 has50 questions/eight contexts:93 observed,244 unreached,63 unavailable.
 [Returned coverage](../../../experiments/name-handling/patterns/f5/answers/nh20261012coverage2/answers.md)
 and [numbered-question answers](../../../experiments/name-handling/f5/answers/nh20261012coverage2/answers.md)
-are integrated from `755f78207`. Review verified 30 seals/26,097 entries and 93
+are integrated from `755f78207`. Incoming `db9950eb3` finish documents add
+279 separate native proof records and a supplement of40 derived variants/307
+investigation references. No new original execution was claimed; original400
+coverage remains93/244/63. Source substitutions are not original observations.
+F5Tcl in TMM/MCPD cannot run Tcltest; use supported host-native probes. Review verified 30 seals/26,097 entries and 93
 matching input/context pointers with no missing files or hash mismatches. General
 [requests](../../../experiments/name-handling/f5/REQUEST.md) and prior BIG-IP
 controls remain separate. Admit only exact release/input/channel/reached-event

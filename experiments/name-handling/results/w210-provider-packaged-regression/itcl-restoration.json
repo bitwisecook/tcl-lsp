@@ -1,0 +1,18 @@
+{
+  "path": "rust/tcl-compiler/src/provider_fixtures/itcl.rs",
+  "accidental_sha256": "77d14700943ee6b60745e3cb64d71e56d8de3bafcc923ddcc21da39923765be7",
+  "head_restored_sha256": "9fe49abee3731b359316dc1f545e411a1dda87a984ecb4115e609f6d4a13f2f9",
+  "normalised_rustfmt_equal": true,
+  "normalised_sha256": "77d14700943ee6b60745e3cb64d71e56d8de3bafcc923ddcc21da39923765be7",
+  "normalisation_command": [
+    "rustfmt",
+    "--edition",
+    "2021",
+    "--emit",
+    "stdout",
+    "--config",
+    "skip_children=true"
+  ],
+  "restored_byte_exact_head": true,
+  "scope_note": "Provider source-input receipts froze only eight named files; itcl child was outside that scope. Recursive rustfmt changed only assertion formatting here; this receipt corrects ownership/restoration without claiming whole-workspace freeze."
+}

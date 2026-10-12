@@ -9,15 +9,19 @@ Every accepted pointer carries the sealed records file SHA-256 and exact JSON
 pointer. `attempt_record` supplies measured boundary evidence with a null
 `answer_record` when final-operation authority is absent.
 
-The [current investigation coverage](nh20261012finish1/ANSWERS.md) supplies a
-readable conclusion for all 307 previously outstanding rows. Its
-[JSON resolutions](nh20261012finish1/resolutions.json) retain exact receipt
-selectors and hashes. All investigations are complete: 108 matrix rows are
-observed, 25 have an unsupported native-call surface, and 267 original final
-operations remain unreached. The previous 93 accepted original pointers are
-preserved. Unreached portable rows keep `answer_record` null and retain their
-original attempts; separate resolution records explain the measured boundary.
-Adapted collision controls do not fill original-input rows.
+The [supplemental investigation index](finish-admission-supplement.json) links
+307 completed investigation classifications and separately identifies 15 native
+composites and 25 context-only native `call`-absence controls. The maintained
+[original matrix](../questions.json) remains 93 observed, 244 unreached and 63
+unavailable rows. The sealed [upstream conclusions](nh20261012finish1/ANSWERS.md)
+and [resolutions](nh20261012finish1/resolutions.json) retain their derived claims;
+their proposed 108/267/25 coverage is not admitted as original-input execution.
+
+F5 TMM/MCPD hosts cannot run `tcltest`; use native probes in the actual host,
+event or rule context. Standalone C Tcl uses real initialisation/`tcltest`,
+and Jim uses equivalent controls. Stock C evidence and F5 host evidence remain
+separate. Historical failed harness/helper attempts establish no underlying
+Tcl feature-absence result.
 
 [Historical coverage snapshot 2](nh20261012coverage2/answers.md) and its
 [receipt inventory](nh20261012coverage2/coverage.json) remain unchanged, as does
@@ -27,7 +31,7 @@ sequences are not joined into one activated provider identity.
 
 | Retained run | Scope and current limitations |
 | --- | --- |
-| [nh20261012finish1](nh20261012finish1/ANSWERS.md) | All 307 completed investigations; 93 prior accepted pointers preserved, original final-operation boundaries explicit. |
+| [nh20261012finish1](nh20261012finish1/ANSWERS.md) | Derived investigation conclusions; original 400-row coverage stays 93/244/63; separate native variants are linked in the supplement. |
 | [nh20261012native1](nh20261012native1/README.md) / [native2](nh20261012native2/README.md) | Native routes, computed targets, arguments, provider phases and cells; actual context/event/unit retained and partial native1 captures preserved. |
 | [nh20261012nativecap1](nh20261012nativecap1/README.md) / [APL repair](nh20261012aplrepair1/README.md) | Own-version non-TMM native-call absence, real package and independent namespace/OO capability controls. |
 | [nh20261012repair2](nh20261012repair2/README.md) / [harness2](nh20261012harness2/README.md) | Native parent and fresh-child real-package boundaries; unchanged explicit TMM child module fails at pwd. |

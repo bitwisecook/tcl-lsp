@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "baseline_revision": "8b4c41ad6",
+  "incoming_revision": "db9950eb3",
+  "original_canonical_records_unchanged": 2327,
+  "bigip_records_unchanged": 19,
+  "independent_records_preserved": 279,
+  "tightened_call_absence_records": 25,
+  "changed_record_ids": [
+    "naming.bigip-pattern.corpus-f5-computed-target.iapp-implementation.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-computed-target.icall.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-computed-target.stock-8.4.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-computed-target.stock-8.5.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-computed-target.tmsh-cli-script.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-prefix-arguments.iapp-implementation.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-prefix-arguments.icall.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-prefix-arguments.stock-8.4.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-prefix-arguments.stock-8.5.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-prefix-arguments.tmsh-cli-script.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-lifetime.iapp-implementation.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-lifetime.icall.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-lifetime.stock-8.4.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-lifetime.stock-8.5.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-lifetime.tmsh-cli-script.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-path.iapp-implementation.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-path.icall.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-path.stock-8.4.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-path.stock-8.5.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-rule-path.tmsh-cli-script.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-storage-context.iapp-implementation.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-storage-context.icall.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-storage-context.stock-8.4.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-storage-context.stock-8.5.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once",
+    "naming.bigip-pattern.corpus-f5-storage-context.tmsh-cli-script.native-call-availability-and-dispatch-v1.nh20261012nativecap1.invocation-once"
+  ],
+  "by_run": {
+    "nh20261012collision1": 11,
+    "nh20261012native1": 145,
+    "nh20261012repair2": 36,
+    "nh20261012nativecap1": 30,
+    "nh20261012aplrepair1": 6,
+    "nh20261012native2": 48,
+    "nh20261012harness2": 3
+  },
+  "provider_statuses": {
+    "observed": 254,
+    "unsupported": 25
+  },
+  "checks": {
+    "evidence_descriptors": 20703,
+    "provider_descriptors": 1188,
+    "generated_pages": 279
+  },
+  "unique_evidence_files_verified": 2076,
+  "unique_json_pointers_verified": 486,
+  "measurement_original_input_null": 265,
+  "descriptor_source_counts": {
+    "original_input": 14,
+    "actual_input": 279,
+    "wrapper": 279,
+    "case_metadata": 265
+  },
+  "metadata_descriptions_and_local_ids_corrected": 265,
+  "added_record_schema_errors": 0,
+  "sealed_measurements_modified": false,
+  "source_implementation_digests_refreshed": false,
+  "existing_privacy_receipt_review_status": "no candidate leftovers detected",
+  "existing_privacy_receipt_findings_count": 0,
+  "full_checker_run": false,
+  "existing_privacy_receipt": {
+    "path": "experiments/name-handling/patterns/f5/answers/nh20261012sanitisation1/privacy-scan.json",
+    "sha256": "0bb945a0417645cfa60df72e41b1e1b62d0dbc244df33f53158910115f29984c",
+    "runs_reviewed": 8,
+    "text_files_reviewed": 4236,
+    "distinct_hex_values_checked_per_run_sum": 13489,
+    "vendor_source_descriptors_preserved": 3,
+    "fresh_privacy_scan_run": false
+  },
+  "canonical_records_and_pages_changed": 265,
+  "host_native_tcltest_limits_added": 13
+}

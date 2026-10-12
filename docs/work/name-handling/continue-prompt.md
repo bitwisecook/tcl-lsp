@@ -43,6 +43,11 @@ and historical execution hashes. All970
 original Tcl programs are byte-identical; cleanup/seal verification is recorded
 in `experiments/name-handling/results/f5-evidence-sanitisation/`.
 
+Incoming db995 finish documents are reviewed separately: original400coverage
+stays93/244/63;40 native variants/307investigation references and279 newcanonical
+records have distinct inputs/IDs. No originalobservations from source substitution.
+F5Tcl in TMM/MCPD cannot run Tcltest; supportednative/event probes only.
+
 Current independent checks and outstanding work:
 
 - VM/runtime variable-arity matrices and200 array oracle comparisons pass;
@@ -77,7 +82,7 @@ Current independent checks and outstanding work:
   first refusal; Native header/formals unreached. Trace owners restored.
   Genuine provider input producer passes2 owner controls; filterstill6/3
   (direct/alias2vs1 with preparedcleanup warning, original0vs2).
-  Packaged regression check running. See
+  Packaged regression passes2/2; #2287 remains closed. See
   `results/w210-source-purpose-join/` and its separate producer result.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:

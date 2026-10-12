@@ -1,0 +1,54 @@
+{
+  "question": "Does packaged imported Tcltest structure recognition regress after the current-source owner fixes?",
+  "answer": "No regression in the two selected packaged controls:2pass/0fail in one actual filter execution.",
+  "kind": "packaged-consumer-validation",
+  "test_status": {
+    "command": "command.sh",
+    "started_utc": "2026-10-12T20:09:42.497204+00:00",
+    "elapsed_seconds": 131.983,
+    "exit_code": 0,
+    "counts": {
+      "passed": 2,
+      "failed": 0
+    }
+  },
+  "executions": 1,
+  "itcl_restoration": {
+    "path": "rust/tcl-compiler/src/provider_fixtures/itcl.rs",
+    "accidental_sha256": "77d14700943ee6b60745e3cb64d71e56d8de3bafcc923ddcc21da39923765be7",
+    "head_restored_sha256": "9fe49abee3731b359316dc1f545e411a1dda87a984ecb4115e609f6d4a13f2f9",
+    "normalised_rustfmt_equal": true,
+    "normalised_sha256": "77d14700943ee6b60745e3cb64d71e56d8de3bafcc923ddcc21da39923765be7",
+    "normalisation_command": [
+      "rustfmt",
+      "--edition",
+      "2021",
+      "--emit",
+      "stdout",
+      "--config",
+      "skip_children=true"
+    ],
+    "restored_byte_exact_head": true,
+    "scope_note": "Provider source-input receipts froze only eight named files; itcl child was outside that scope. Recursive rustfmt changed only assertion formatting here; this receipt corrects ownership/restoration without claiming whole-workspace freeze."
+  },
+  "source_status": {
+    "six_scoped_hashes_after_equal_before": true,
+    "provider_tested_bytes_unchanged": true,
+    "itcl_restored_bytes_unchanged": true
+  },
+  "scope": "Two existing packaged imported_tcltest_test_structure_recognised controls only. No additional production change, trace or other build. Six named dependency hashes, not a whole-workspace freeze. Prior provider eight-file receipt omitted itcl; restoration is documented separately here.",
+  "issue_interpretation": "Scoped #2287 regression controls pass; no reason to reopen from this run. #2286 remains open with compiler cleanup false warning/original-program missing-read obligations. No full gate/native oracle/runtime conformance claim.",
+  "artifact_sha256": {
+    "itcl-head.rs.gz": "5f0acaa4e280470052d0002dd80b2ac6092839ea4ce35c41f9c22f5d5a512101",
+    "itcl-accidental.patch": "940b2772b41d6418c783054845d7b8a04ff4c0ab02d5458958638042bcf2bc39",
+    "question.md": "d8943f73a9594c00bbc6a424efb4a39778051376fbebca6369fb3ea5a1258110",
+    "test-status.json": "c917982964fd425a2ea8a114c9654bafbb18f746f900e26387e07b3e52d055d2",
+    "itcl-restoration.json": "9d368653ffe327d69addfdddb6a911e51737d4161e15f89407baaa1aaa7cdcfa",
+    "source-after.json": "6fbf6a83219df2c263f679c34e3a88375f0f111c5c8b44106c9def5881af3e0e",
+    "itcl-accidental.rs.gz": "4ae62a1989b1c6aaf1a3f4d31a40cc94f67d3b0f204c83159aa81665283a4a73",
+    "stderr.log": "60cb5012b32debf94d1269f82543f7a9ff13a81bfb4d4aa8f3cd69495c1d5591",
+    "command.sh": "87ec0e920edb9fef55f00f38c3326f77e47738c19cc048892a556472ac447a7b",
+    "source-before.json": "6fbf6a83219df2c263f679c34e3a88375f0f111c5c8b44106c9def5881af3e0e",
+    "stdout.log": "8ba192c2818631299140092fe02c3a01d7b393198269b469ce2ddd51b7487b85"
+  }
+}

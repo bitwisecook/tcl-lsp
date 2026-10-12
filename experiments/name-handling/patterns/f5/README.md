@@ -13,24 +13,32 @@ boundaries while `answer_record` remains null when the original final lookup
 is unreached or its reachability is unproved. Related adapted controls have
 independent variant scope.
 
-Returned controls and per-row conclusions are indexed in [the answer directory](answers/README.md) and the
-[current investigation coverage](answers/nh20261012finish1/ANSWERS.md).
-All 307 previously outstanding investigations are complete; none remains pending.
-The 400-row matrix has 108 observed answers, 25 unsupported native-call surfaces
-and 267 unreached original final operations. The 93 previous accepted original
-pointers are preserved. Completed investigation does not mean an unreached final
-lookup ran: portable boundary rows retain `answer_record: null` and their original
-`attempt_record`, with separate `resolution_record` conclusions. Adapted spelling
-controls remain independent variants.
+The [original 400-row matrix](questions.json) retains **93 observed, 244 unreached
+and 63 unavailable** question/context rows with their exact source, attempt and
+answer identities. The [answer directory](answers/README.md) indexes retained
+controls and reports. The [supplemental investigation index](answers/finish-admission-supplement.json)
+links 307 completed investigation classifications without changing original
+coverage or claiming new original-program execution.
 
-The [current JSON resolutions](answers/nh20261012finish1/resolutions.json)
-retain exact source/record selectors, while the
-[historical coverage snapshot 2](answers/nh20261012coverage2/answers.md) and its
+The supplement gives 15 native composite observations and 25 measured native
+`call`-absence controls distinct derived question IDs, exact source/record
+selectors and bounded context scope. The composite source/configuration/case
+hashes differ from the original materialisations. Absence controls establish
+only the required native dispatch prerequisite in the measured contexts.
+The 267 classifications whose final operations are unreached retain null
+final answers; diagnostic children and adapted controls remain separate.
+
+The sealed upstream [readable conclusions](answers/nh20261012finish1/ANSWERS.md),
+[resolutions](answers/nh20261012finish1/resolutions.json),
+[proposal](answers/nh20261012finish1/proposed-questions.json) and
+[validation](answers/nh20261012finish1/validation.json) are preserved as derived
+claims. Their proposed 108/267/25 matrix is not admitted as fixed original-input
+coverage. Follow original `answer_record` or `attempt_record` pointers in
+`questions.json`, and supplemental `resolution` pointers for investigation scope.
+The [historical coverage snapshot 2](answers/nh20261012coverage2/answers.md) and
 [JSON inventory](answers/nh20261012coverage2/coverage.json) remain unchanged.
 The [portable report index](../../f5/answers/README.md#portable-report-index)
-links retained input reports and raw records. Follow a matrix `answer_record`
-for a measured answer, `attempt_record` for the original measured boundary,
-and `resolution_record` for its completed investigation scope.
+links retained input reports and raw records.
 [Historical snapshot 1](answers/nh20261012coverage1/answers.md) predates these updates.
 
 At commit `755f78207b993cdfa4b0fd230abcafb1f3f606bc`, all 30 retained
@@ -67,6 +75,14 @@ retained provider/caller definitions and isolated object names; the public
 object names in the source links are evidence of an idiom, not deployment names.
 
 ## Context and execution boundaries
+
+`tcltest` cannot run in TMM or MCPD processes hosting F5 Tcl. F5 host evidence
+uses small native probes in the actual event, rule or hosted interpreter
+context; do not inject a compatibility harness. Standalone C Tcl controls use
+their real initialisation and `tcltest`; Jim uses equivalent independent
+controls. Appliance stock C interpreters remain distinct from F5 host Tcl.
+Historical harness/helper failures remain attempt evidence: an unreached
+generic helper is not proof that the underlying Tcl feature is absent.
 
 Probe each feature independently before materialising a context-specific
 case. Do not embed unsupported `interp`, TclOO or tcltest branches in a TMM

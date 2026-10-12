@@ -1,0 +1,32 @@
+--- itcl-head.rs
++++ itcl-accidental.rs
+@@ -250,21 +250,17 @@
+                 roster.iter().any(|name| name == "::itcl::build-info"),
+                 environment != "tcl8.6"
+             );
+-            assert!(
+-                bindings_for(source, false, environment)
+-                    .invocation_at_source("C", offset)
+-                    .nominal_definition_name_result(registry)
+-                    .is_none()
+-            );
++            assert!(bindings_for(source, false, environment)
++                .invocation_at_source("C", offset)
++                .nominal_definition_name_result(registry)
++                .is_none());
+         }
+         for environment in ["tcl8.4", "tcl8.5", "jim"] {
+             let registry = tcl_registry::model::ingress::static_context_for(environment).commands();
+-            assert!(
+-                !tcl_registry::definer::DefinitionDispatcher::ItclClass
+-                    .native_installation_is_audited(tcl_registry::InvocationDialect::of_profile(
+-                        registry.profile().unwrap()
+-                    ))
+-            );
++            assert!(!tcl_registry::definer::DefinitionDispatcher::ItclClass
++                .native_installation_is_audited(tcl_registry::InvocationDialect::of_profile(
++                    registry.profile().unwrap()
++                )));
+         }
+     }
+ 
