@@ -64,7 +64,7 @@ No native process receipt for this source-only document/workspace declaration im
 
 ## Exact evidence
 
-- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). SHA-256 `721b625a6f8d88ceb87f09022a33d4ca9c4618582a1f984917424158fe9607c0`. Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome.
+- `original-compiler-purpose-2dbda1a4b26a` (implementation): [rust/tcl-syntax/src/naming/authored_source.rs](../../../../rust/tcl-syntax/src/naming/authored_source.rs). SHA-256 `4f5051bd55271c2c04474edd7378c50f98f0b0b04a2a5aec2ecf074464f10594`. Registered original source/software controls retain exact full input, source/configuration/Registry/vector and independently selected source purpose. They grant no Native execution, entered frame, Handler/Normal receipt or current assertion outcome.
 
 ## Source inspection
 

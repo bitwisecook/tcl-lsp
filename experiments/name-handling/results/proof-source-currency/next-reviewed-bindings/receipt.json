@@ -1,0 +1,16 @@
+{
+  "scope": "Exactly 3 implementation evidence sha256 fields / 3 records / 3 source owners / 3 canonical pages",
+  "approval": "root explicit approval of exact transforms including statement-free Boolean closure block",
+  "manifest_before_sha256": "60568474ab00669ed4bf15f27ab06c59964e30d60437eb3ee65984c2fd8c08ed",
+  "manifest_after_sha256": "43448b1d0f28c5fea0b789b694d81ca128eac36a7dd2618e12770c871b1dbe6e",
+  "records_before_after": 2606,
+  "all_record_objects_identical_after_inverse_3_hash_fields": true,
+  "all_provider_oracle_native_variant_fields_and_original_f5_statuses_preserved": true,
+  "exact_original_snapshots_and_current_sources_verified": true,
+  "source_owner_digests_remain_frozen": true,
+  "canonical_pages": [{"record_id": "naming.editor.logical-written-component-geometry", "path": "docs/design/analysis/name-resolution-proofs/logical-written-component-geometry.md", "before_sha256": "e655d1481b3ee6d451c76d74bc02cc32ecd7f195e968f7cbfaf944b26d9c88ee", "after_sha256": "017afeb0598f9ab89b3325e4c430c964d0e2f3d2ed84f172497a1893a1354cf5"}, {"record_id": "naming.grammar.checked-expression-substitution-context", "path": "docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md", "before_sha256": "a0e9a23d86a64cb0f878b4f4ba9c32283d2771aafe9f92c8443e491b8c7dfc8d", "after_sha256": "ea9acc595865457f548b7b7fe20b67caf41544bee9473b061d959f5917caaf3b"}, {"record_id": "naming.source.original-declared-command-word-contract", "path": "docs/design/analysis/name-resolution-proofs/source-original-declared-command-word-contract.md", "before_sha256": "daec333127c5b228757fa3d193cc8b1da1e6b1345b7a28d26878642db18534ec", "after_sha256": "d3890b15deee44d9a87418d72f07e829507692f35d7ee5eaa6f7ca9005e601ac"}],
+  "page_changes_only_exact_allowed_digest_replacements": true,
+  "selected_record_schema_errors": [],
+  "renderer_sha256": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+  "execution": "No full checker, Cargo, Rust/native execution, source edit or Git mutation; exact bindings, object inverse, source hashes, selected schema and canonical renderer checks only."
+}
