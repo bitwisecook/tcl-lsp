@@ -51,7 +51,8 @@ Current independent checks and outstanding work:
   unit tests pass. Owner manifest has165 scope/gate obligations; strict public
   default was preserved. Results: `experiments/name-handling/results/gate-validation/`.
 - C8.6 real init now reaches marker after shared29-name constructor mathfunc
-  roster repair; ten fresh native/C controls pass. VM roster integration, seven
+  roster repair; ten fresh native/C controls pass. VM shared roster regression passes1/1; real VM startup refuses
+  NativePreflightRequired. Seven
   clock support workers, map/registration order remain open. Frozen-runner real
   naming suites measured C1182/85/0; Native proc/rename40/17/0, five refusals,
   ooNext2 error and34 prior failures. Actual all.tcl missing ParseFormatArgs

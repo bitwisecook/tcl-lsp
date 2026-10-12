@@ -478,25 +478,30 @@ fn m_integer_conversion_using(
     })
 }
 
-pub(crate) fn register(vm: &mut Vm) {
+pub(crate) fn register(
+    vm: &mut Vm,
+    native: Option<tcl_registry::special_vars::NativeBootstrapProtocol>,
+) {
     // `::tcl::mathfunc` is a real namespace in C Tcl, so a user
     // `proc tcl::mathfunc::square {x} {…}` (TIP 232's custom-function
     // mechanism) must find it existing — declare it alongside the builtin
     // registrations (which only create flat command-table keys).
     vm.declare_namespace("tcl::mathfunc");
-    // Derived from `tcl_syntax::expr::mathfunc::all()` rather than a
-    // hand-typed list, exactly as `runtime/rust/src/cmd_mathfunc.rs` does
-    // A hand-typed list would risk going stale, as it did for
-    // the whole TIP 745 (Tcl 9.1) C99 batch — 21 functions the shared
-    // dispatch table already implemented but that were never registered as
-    // commands, so `expr {cbrt(27)}` was an error under a 9.1 pin.
-    //
-    // Every name is registered at every pin; per-release availability is the
-    // command surface's job, and `RuntimeExprSurface`'s math-function gate
-    // already runs inside `builtin_command_visible_for_surface`, so a
-    // 9.1-only function is simply invisible under an 8.6 pin.
-    for spec in tcl_syntax::expr::mathfunc::all() {
-        vm.register_stock_builtin(&format!("tcl::mathfunc::{}", spec.name), m_mathfunc);
+    // A measured native constructor roster precedes library procedure births.
+    // Other constructors retain the shared implementation inventory.
+    let names = native
+        .and_then(tcl_registry::special_vars::NativeBootstrapProtocol::core_mathfunc_roster)
+        .map_or_else(
+            || {
+                tcl_syntax::expr::mathfunc::all()
+                    .into_iter()
+                    .map(|spec| spec.name)
+                    .collect::<Vec<_>>()
+            },
+            <[_]>::to_vec,
+        );
+    for name in names {
+        vm.register_stock_builtin(&format!("tcl::mathfunc::{name}"), m_mathfunc);
     }
     // `fpclassify` is a top-level command, not a math function.
     vm.register_stock_builtin("fpclassify", cmd_fpclassify);

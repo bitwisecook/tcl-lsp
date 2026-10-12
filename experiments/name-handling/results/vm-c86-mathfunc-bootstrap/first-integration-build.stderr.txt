@@ -1,0 +1,8 @@
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+    Finished `test` profile [unoptimized] target(s) in 13.96s
+     Running tests/native_mathfunc_bootstrap.rs (tmp/name-target-issues/debug/deps/native_mathfunc_bootstrap-a792828625d578de)
+
+thread 'native_constructor_mathfunc_roster_and_library_birth_currency' (194355) panicked at rust/tcl-vm/tests/native_mathfunc_bootstrap.rs:146:13:
+tcl8.4 abs
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p tcl-vm --test native_mathfunc_bootstrap`

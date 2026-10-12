@@ -351,7 +351,7 @@ pub(crate) fn register_builtins_with_native_core(
     crate::cmd_file::register(vm);
     crate::cmd_format::register(vm);
     crate::cmd_info::register(vm);
-    crate::cmd_math::register(vm);
+    crate::cmd_math::register(vm, native);
     if native.is_none_or(tcl_registry::special_vars::NativeBootstrapProtocol::registers_core_binary)
     {
         crate::cmd_binary::register(vm);

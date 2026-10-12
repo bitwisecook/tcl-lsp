@@ -1,0 +1,90 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "tcl-vm",
+        "--lib",
+        "mathfunc_bootstrap",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 101,
+      "executed_tests": 0,
+      "reason": "26 lib-test compile errors outside changed owners; historical baseline unmeasured",
+      "log": "focused-tests.log"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "native_mathfunc_bootstrap",
+        "--message-format=json",
+        "--",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "matched_tests": 1,
+      "passed_tests": 1,
+      "log": "integration-build.jsonl"
+    },
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-p",
+        "tcl-vm",
+        "--test",
+        "mathfunc_derivation_e2e",
+        "every_shared_mathfunc_name_is_registered",
+        "--",
+        "--exact"
+      ],
+      "exit": 101,
+      "matched_tests": 1,
+      "passed_tests": 0,
+      "reason": "NativePreflightRequired before VM execution",
+      "log": "derived-registration.log"
+    },
+    {
+      "argv": [
+        "rustfmt",
+        "--edition",
+        "2024",
+        "--check",
+        "rust/tcl-vm/src/cmd_math.rs",
+        "rust/tcl-vm/src/command.rs",
+        "rust/tcl-vm/tests/native_mathfunc_bootstrap.rs"
+      ],
+      "exit": 0
+    }
+  ],
+  "test_binaries": [
+    {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/native_mathfunc_bootstrap-a792828625d578de",
+      "sha256": "7ebe36dc96021070977ebf1d195eb03b6effd0d3ed0553c2dcb3119f93d561a1"
+    }
+  ],
+  "declared_frozen_sources": 3333,
+  "changed_declared_sources": [],
+  "unit_test_owner_restored": true,
+  "runner_dependencies_still_match": true,
+  "first_integration_failure": "tcl8.4 token API hides native mathfunc names; corrected preservation comparison to prior distribution admission",
+  "second_integration_failure": "recording wrapper did not implement document compile path; used original-byte public ingress for native evidence",
+  "third_and_final_integration_passed": true,
+  "gates_not_run": [
+    "command-backing",
+    "rust-check",
+    "prep-pr",
+    "broader suites"
+  ],
+  "source_inventory_excludes": "raw F5 inputs, external Cargo sources, other non-Rust build inputs; no whole-dependency identity claim"
+}

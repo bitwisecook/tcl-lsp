@@ -1,0 +1,357 @@
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+error[E0603]: function import `ok` is private
+   --> rust/tcl-vm/src/cmd_oo/native_context/definition_exit/tests.rs:21:46
+    |
+ 21 | use crate::command::{Command, NativeCommand, ok};
+    |                                              ^^ private function import
+    |
+note: the function import `ok` is defined here...
+   --> rust/tcl-vm/src/command.rs:34:46
+    |
+ 34 | use crate::interp::{Vm, err, err_wrong_args, ok};
+    |                                              ^^
+note: ...and refers to the function `ok` which is defined here
+   --> rust/tcl-vm/src/interp.rs:454:1
+    |
+454 | pub(crate) fn ok(result: Value) -> Completion<Value> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0603]: function import `ok` is private
+   --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:21:46
+    |
+ 21 | use crate::command::{Command, NativeCommand, ok};
+    |                                              ^^ private function import
+    |
+note: the function import `ok` is defined here...
+   --> rust/tcl-vm/src/command.rs:34:46
+    |
+ 34 | use crate::interp::{Vm, err, err_wrong_args, ok};
+    |                                              ^^
+note: ...and refers to the function `ok` which is defined here
+   --> rust/tcl-vm/src/interp.rs:454:1
+    |
+454 | pub(crate) fn ok(result: Value) -> Completion<Value> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0308]: mismatched types
+     --> rust/tcl-vm/src/value_ops/native_jim_index.rs:1075:32
+      |
+ 1075 |         vm.refuse_host_command("original Index full first cause");
+      |            ------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `String`, found `&str`
+      |            |
+      |            arguments to this method are incorrect
+      |
+note: method defined here
+     --> rust/tcl-vm/src/interp.rs:23339:12
+      |
+23339 |     pub fn refuse_host_command(&mut self, reason: String) -> Completion<Value> {
+      |            ^^^^^^^^^^^^^^^^^^^            --------------
+help: try using a conversion method
+      |
+ 1075 |         vm.refuse_host_command("original Index full first cause".to_string());
+      |                                                                 ++++++++++++
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 3]>` is not satisfied
+    --> rust/tcl-vm/src/value_ops/native_jim_index.rs:1371:54
+     |
+1371 |         let subject = Value::new_native_string_bytes(b"a\0b");
+     |                       ------------------------------ ^^^^^^^ the trait `From<&[u8; 3]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                       |
+     |                       required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 3]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+1371 |         let subject = Value::new_native_string_bytes(*b"a\0b");
+     |                                                      +
+
+error[E0277]: `LsearchError` doesn't implement `Debug`
+  --> rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs:57:6
+   |
+57 |     .unwrap();
+   |      ^^^^^^ the trait `Debug` is not implemented for `LsearchError`
+   |
+note: required by a bound in `std::result::Result::<T, E>::unwrap`
+  --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:1226:4
+
+error[E0277]: `LsearchError` doesn't implement `Debug`
+  --> rust/tcl-vm/src/value_ops/native_jim_index/c84_integer_result_tests.rs:76:6
+   |
+76 |     .unwrap();
+   |      ^^^^^^ the trait `Debug` is not implemented for `LsearchError`
+   |
+note: required by a bound in `std::result::Result::<T, E>::unwrap`
+  --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/core/src/result.rs:1226:4
+
+error[E0616]: field `native_operation_context` of struct `interp::InterpState` is private
+    --> rust/tcl-vm/src/cmd_binary.rs:1200:21
+     |
+1200 |         assert!(!vm.native_operation_context.has_entered_operation());
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^ private field
+
+error[E0616]: field `native_operation_context` of struct `interp::InterpState` is private
+    --> rust/tcl-vm/src/cmd_binary.rs:1207:21
+     |
+1207 |         assert!(!vm.native_operation_context.has_entered_operation());
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^ private field
+
+error[E0433]: cannot find type `Code` in this scope
+    --> rust/tcl-vm/src/cmd_binary.rs:1223:37
+     |
+1223 |         assert_eq!(completion.code, Code::Ok);
+     |                                     ^^^^ use of undeclared type `Code`
+
+error[E0616]: field `native_operation_context` of struct `interp::InterpState` is private
+    --> rust/tcl-vm/src/cmd_binary.rs:1455:21
+     |
+1455 |         assert!(!vm.native_operation_context.has_entered_operation());
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^ private field
+
+error[E0616]: field `native_operation_context` of struct `interp::InterpState` is private
+    --> rust/tcl-vm/src/cmd_binary.rs:1492:21
+     |
+1492 |         assert!(!vm.native_operation_context.has_entered_operation());
+     |                     ^^^^^^^^^^^^^^^^^^^^^^^^ private field
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 8]>` is not satisfied
+    --> rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs:101:61
+     |
+ 101 |         let command_member = Value::new_native_string_bytes(b"r2286cmp");
+     |                              ------------------------------ ^^^^^^^^^^^ the trait `From<&[u8; 8]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                              |
+     |                              required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 8]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+ 101 |         let command_member = Value::new_native_string_bytes(*b"r2286cmp");
+     |                                                             +
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 13]>` is not satisfied
+    --> rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs:234:59
+     |
+ 234 |                 let head = Value::new_native_string_bytes(b"r2286groupcmp");
+     |                            ------------------------------ ^^^^^^^^^^^^^^^^ the trait `From<&[u8; 13]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                            |
+     |                            required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 13]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+ 234 |                 let head = Value::new_native_string_bytes(*b"r2286groupcmp");
+     |                                                           +
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 8]>` is not satisfied
+    --> rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs:331:51
+     |
+ 331 |         let head = Value::new_native_string_bytes(b"r2286cmp");
+     |                    ------------------------------ ^^^^^^^^^^^ the trait `From<&[u8; 8]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                    |
+     |                    required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 8]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+ 331 |         let head = Value::new_native_string_bytes(*b"r2286cmp");
+     |                                                   +
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 1]>` is not satisfied
+    --> rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs:336:48
+     |
+ 336 |                 Value::new_native_string_bytes(b"B"),
+     |                 ------------------------------ ^^^^ the trait `From<&[u8; 1]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                 |
+     |                 required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 1]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+ 336 |                 Value::new_native_string_bytes(*b"B"),
+     |                                                +
+
+error[E0277]: the trait bound `std::rc::Rc<[u8]>: From<&[u8; 1]>` is not satisfied
+    --> rust/tcl-vm/src/cmd_list/native_original_group_command_controls.rs:337:48
+     |
+ 337 |                 Value::new_native_string_bytes(b"A"),
+     |                 ------------------------------ ^^^^ the trait `From<&[u8; 1]>` is not implemented for `std::rc::Rc<[u8]>`
+     |                 |
+     |                 required by a bound introduced by this call
+     |
+     = note: required for `&[u8; 1]` to implement `Into<std::rc::Rc<[u8]>>`
+note: required by a bound in `value::Value::new_native_string_bytes`
+    --> rust/tcl-vm/src/value.rs:5288:48
+     |
+5288 |     pub fn new_native_string_bytes(bytes: impl Into<Rc<[u8]>>) -> Self {
+     |                                                ^^^^^^^^^^^^^^ required by this bound in `Value::new_native_string_bytes`
+help: consider dereferencing here
+     |
+ 337 |                 Value::new_native_string_bytes(*b"A"),
+     |                                                +
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/cmd_package.rs:2130:13
+     |
+2129 |         let exact_loader = super::selected_loader(
+     |                            ---------------------- arguments to this function are incorrect
+2130 |             &exact_provider,
+     |             ^^^^^^^^^^^^^^^ expected `&OriginalPackage<'_>`, found `&Vm`
+     |
+     = note: expected reference `&OriginalPackage<'_>`
+                found reference `&interp::Vm`
+note: function defined here
+    --> rust/tcl-vm/src/cmd_package.rs:1133:4
+     |
+1133 | fn selected_loader(
+     |    ^^^^^^^^^^^^^^^
+1134 |     vm: &OriginalPackage<'_>,
+     |     ------------------------
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/cmd_package.rs:2158:17
+     |
+2157 |             super::selected_loader(
+     |             ---------------------- arguments to this function are incorrect
+2158 |                 &tcl9,
+     |                 ^^^^^ expected `&OriginalPackage<'_>`, found `&Vm`
+     |
+     = note: expected reference `&OriginalPackage<'_>`
+                found reference `&interp::Vm`
+note: function defined here
+    --> rust/tcl-vm/src/cmd_package.rs:1133:4
+     |
+1133 | fn selected_loader(
+     |    ^^^^^^^^^^^^^^^
+1134 |     vm: &OriginalPackage<'_>,
+     |     ------------------------
+
+error[E0624]: method `replace_observed_inputs` is private
+   --> rust/tcl-vm/src/interp/execution_name_policy/original_event_transition_tests.rs:215:18
+    |
+215 |                   .replace_observed_inputs(vm, None, None, true)
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^ private method
+    |
+   ::: rust/tcl-vm/src/interp/native_operation_currency.rs:126:5
+    |
+126 | /     fn replace_observed_inputs(
+127 | |         &self,
+128 | |         vm: &mut Vm,
+129 | |         names: Option<super::execution_name_policy::ObservedNameSelection>,
+130 | |         storage: Option<super::execution_name_policy::ObservedFrameStorage>,
+131 | |         mandatory_retirement: bool,
+132 | |     ) -> Result<(), CmdError> {
+    | |_____________________________- private method defined here
+
+error[E0308]: mismatched types
+   --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:260:17
+    |
+260 |             let crate::TclError::Host(_) = reached.unwrap_err() else {
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^   -------------------- this expression has type `tcl_runtime_api::NativeExecutionError`
+    |                 |
+    |                 expected `NativeExecutionError`, found `TclError`
+
+error[E0308]: mismatched types
+    --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:324:73
+     |
+ 324 |             Err(error) => crate::command::completion_from_tcl_error(vm, error),
+     |                           -----------------------------------------     ^^^^^ expected `TclError`, found `NativeExecutionError`
+     |                           |
+     |                           arguments to this function are incorrect
+     |
+note: function defined here
+    --> rust/tcl-vm/src/command.rs:2340:15
+     |
+2340 | pub(crate) fn completion_from_tcl_error(vm: &mut Vm, error: TclError) -> Completion<Value> {
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^              ---------------
+
+error[E0308]: mismatched types
+   --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:341:9
+    |
+341 |       let crate::TclError::Host(_) = vm
+    |  _________^^^^^^^^^^^^^^^^^^^^^^^^___-
+    | |         |
+    | |         expected `NativeExecutionError`, found `TclError`
+342 | |         .try_invoke_command("samePositionObject", &[Value::string("fw")])
+343 | |         .unwrap_err()
+    | |_____________________- this expression has type `tcl_runtime_api::NativeExecutionError`
+
+error[E0308]: mismatched types
+     --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:367:41
+      |
+  367 |             1 => vm.refuse_host_command("first actual OO procedure body"),
+      |                     ------------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `String`, found `&str`
+      |                     |
+      |                     arguments to this method are incorrect
+      |
+note: method defined here
+     --> rust/tcl-vm/src/interp.rs:23339:12
+      |
+23339 |     pub fn refuse_host_command(&mut self, reason: String) -> Completion<Value> {
+      |            ^^^^^^^^^^^^^^^^^^^            --------------
+help: try using a conversion method
+      |
+  367 |             1 => vm.refuse_host_command("first actual OO procedure body".to_string()),
+      |                                                                         ++++++++++++
+
+error[E0308]: mismatched types
+   --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:431:42
+    |
+431 |             assert!(matches!(result, Err(crate::TclError::Host(_))));
+    |                              ------      ^^^^^^^^^^^^^^^^^^^^^^^^ expected `NativeExecutionError`, found `TclError`
+    |                              |
+    |                              this expression has type `Result<Completion<Value>, NativeExecutionError>`
+    |
+    = note: the full name for the type has been written to '/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/tcl_vm-48d40b80675d74df.long-type-4790231985778296701.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+error[E0609]: no field `activation_depth` on type `&interp::InterpState`
+   --> rust/tcl-vm/src/interp/oo_cleanup/active_frame/tests.rs:438:52
+    |
+438 |             assert_eq!(vm.st_of(original).unwrap().activation_depth, 0);
+    |                                                    ^^^^^^^^^^^^^^^^ unknown field
+    |
+    = note: available fields are: `runtime_version`, `command_surface_profile`, `framework_builtins`, `active_native_profile`, `actual_engine_profile` ... and 94 others
+
+error[E0308]: mismatched types
+   --> rust/tcl-vm/src/vars/retirement.rs:435:9
+    |
+434 |     pub(crate) fn cleanup_pin_count(&self, id: VarId) -> Option<usize> {
+    |                                                          ------------- expected `std::option::Option<usize>` because of return type
+435 |         self.cells.get(&id).map(|cell| cell.pins)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Option<usize>`, found `Option<u64>`
+    |
+    = note: expected enum `Option<usize>`
+               found enum `Option<u64>`
+
+Some errors have detailed explanations: E0277, E0308, E0433, E0603, E0609, E0616, E0624.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `tcl-vm` (lib test) due to 26 previous errors

@@ -23,6 +23,15 @@ missing clock worker `ParseFormatArgs`. Discrete questions retain exact files,
 streams, skips, failure IDs, original orchestration and two diagnostic harness
 attempts; only the final upstream-consistent attempt supplies conformance counts.
 
+## Actual VM C8.6 constructor
+
+The [shared-roster VM regression](vm-c86-mathfunc-bootstrap/README.md) passes
+through the actual Native constructor and real compiler adapter. It measures
+procedure birth headers and retained-body cache invalidation. Real VM init
+refuses `NativePreflightRequired`; no startup or suite result follows. The
+legacy C9.1 control also refuses before VM execution; 26 lib-test compilation
+errors outside changed owners have an unmeasured historical baseline.
+
 ## Actual native runtime: Tcl 8.5.19
 
 [Current six-suite report](runtime-current-tcl8.5.19/RESULTS.md),

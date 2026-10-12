@@ -1,0 +1,22 @@
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+    Finished `test` profile [unoptimized] target(s) in 0.98s
+     Running tests/mathfunc_derivation_e2e.rs (tmp/name-target-issues/debug/deps/mathfunc_derivation_e2e-7342d0663a84ee36)
+
+running 1 test
+test every_shared_mathfunc_name_is_registered ... FAILED
+
+failures:
+
+---- every_shared_mathfunc_name_is_registered stdout ----
+
+thread 'every_shared_mathfunc_name_is_registered' (194683) panicked at rust/tcl-vm/tests/mathfunc_derivation_e2e.rs:63:32:
+compile: NativeCompilationAdmission(NativePreflightRequired)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_shared_mathfunc_name_is_registered
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p tcl-vm --test mathfunc_derivation_e2e`

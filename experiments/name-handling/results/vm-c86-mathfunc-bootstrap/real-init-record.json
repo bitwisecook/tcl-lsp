@@ -1,0 +1,52 @@
+{
+  "build_argv": [
+    "rustc",
+    "--edition=2024",
+    "/workspace/tcl-lsp/experiments/name-handling/results/vm-c86-mathfunc-bootstrap/real-init-runner.rs",
+    "-L",
+    "dependency=/workspace/tcl-lsp/tmp/name-target-issues/debug/deps",
+    "-o",
+    "/tmp/name-vm-c86-mathfunc-bootstrap-runner",
+    "--extern",
+    "tcl_compiler=/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_compiler-bf7f034bd185f0ee.rlib",
+    "--extern",
+    "tcl_registry=/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_registry-ad8027834de88982.rlib",
+    "--extern",
+    "tcl_vm=/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_vm-aaaef38102523aa0.rlib"
+  ],
+  "build_exit": 0,
+  "dependencies": {
+    "tcl_registry": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_registry-ad8027834de88982.rlib",
+      "sha256": "43f6b4a639f2f0c26c5bcbb05cdaab2fb2eac599fed50ad129074580a9a1b2c4"
+    },
+    "tcl_compiler": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_compiler-bf7f034bd185f0ee.rlib",
+      "sha256": "fda6e5e83637e19225aee5fe3b930a211d9f25e4e0c962ac01536b944a113756"
+    },
+    "tcl_vm": {
+      "path": "/workspace/tcl-lsp/tmp/name-target-issues/debug/deps/libtcl_vm-aaaef38102523aa0.rlib",
+      "sha256": "3874c309efa863694b2f6011e920cd9725e5757dfd9b6126aabf872ed1986eaf"
+    }
+  },
+  "runner_source_sha256": "fc6996f19e349ca5918d7dd016044d235434a46614a95c23bdb35ed5cc11386e",
+  "library": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+    "init_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+  },
+  "binary": {
+    "path": "/tmp/name-vm-c86-mathfunc-bootstrap-runner",
+    "sha256": "da3456ee7e4a952dae5b8135e46f33d65e197ef6442282253d5c9e72b2c73360"
+  },
+  "run": {
+    "argv": [
+      "/tmp/name-vm-c86-mathfunc-bootstrap-runner"
+    ],
+    "cwd": "/workspace/tcl-lsp",
+    "exit": 2,
+    "timeout": false,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "4dd8ef60aca3524e9dd45cbaa435cb6c2b235bae1d9c131fea36c0c3b580b793",
+    "startup_reached": false
+  }
+}

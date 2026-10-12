@@ -1,0 +1,8 @@
+{
+  "source": "/workspace/tcl-lsp/tmp/tcl8.6.18/library/init.tcl",
+  "sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+  "first_line": 103,
+  "last_line": 118,
+  "fixture": "rust/tcl-vm/tests/data/native_c86_init_max.tcl",
+  "fixture_sha256": "4ee4778c24baa9f00b04d011f6fec9b3f31c776d1e1c3434611ca71588336d1e"
+}
