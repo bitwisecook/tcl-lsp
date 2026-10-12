@@ -40828,6 +40828,20 @@
           "path": "rust/tcl-compiler/src/command_binding/materialized_footprint.rs",
           "sha256": "93b6c55abc1aaed92ecdeb5292d5d11c99fe1ef6280caed785a606422d62d530",
           "description": "Original invocation and ArgumentEvaluation purposes retain full Module/input/owner/source/Registry/configuration joins. Dedicated positively Logical declaration layout supplies lexical Proc roles with public allocations removed; Native/formal allocation and reached layout remain independent."
+        },
+        {
+          "id": "original-restored-declaration-64aa956da6cf",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+          "sha256": "9afa5862afe68c6e51d362b7634da7ef4559a5826c8b58224aff1a00e4735f8f",
+          "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
+        },
+        {
+          "id": "original-restored-declaration-e66cef51bd36",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "sha256": "5ffa811a0367afec5496ff95eac21aa95ea738334a3a70c0b09c1ca83da32d49",
+          "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
         }
       ],
       "source_anchors": [],
@@ -40846,6 +40860,11 @@
           "path": "rust/tcl-compiler/src/interprocedural.rs",
           "symbol": "collect_positioned_opaque_callee_name_args",
           "purpose": "Pass each original IR invocation to the local-body resolver while retaining unresolved literal variable-name argument candidates separately from effects."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "SourceCommandBindings::restore_original_nested_bindings",
+          "purpose": "Restore only existing original nested source rows from an exact parent/input/configuration/complete vector and the existing declaration issuer. Readonly conditional Logical availability and correspondence supply no reached lookup, runtime handler, Native admission or allocation."
         }
       ],
       "tests": [
@@ -40932,6 +40951,18 @@
           "selector": "command_binding::declaration_layout::original_logical_declaration_receipt_tests::original_logical_declaration_receipt_keeps_reached_and_opaque_guards",
           "status": "linked",
           "assertion": "A present reached lookup keeps its independent unknown/absence/post-operand target guards and does not use the no-point receipt. Opaque callback/declaration worlds remain unavailable; source correspondence grants no runtime dispatch or execution."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+          "selector": "command_binding::original_restored_nested_declaration_tests::original_restored_nested_declaration_keeps_actual_child_vector_without_dispatch",
+          "status": "linked",
+          "assertion": "The genuine Lowerer procedure/body owner restores its existing nested row from the same original SourceCommandBindings and seals only the matched original child vector with the existing Logical declaration issuer. Raw lookup remains unknown and generic targets empty; no dispatch, handler, entered frame, Native allocation or compiler admission follows."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+          "selector": "command_binding::original_restored_nested_declaration_tests::original_restored_nested_declaration_requires_retained_inventory_input_config_and_rows",
+          "status": "linked",
+          "assertion": "Real Lowerer/ExecutableSource inputs test restoration refusal for changed full configuration, duplicate or unmatched retained offsets, changed original parent vector, withdrawn actual child declaration rows, foreign source/input and missing inventory. Restoration never inserts offsets or manufactures an invocation/body owner."
         }
       ],
       "replay": {
@@ -455119,8 +455150,8 @@
           "id": "retained-positioned-command-binding",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "56167f44dcfcb6418bc139e048a235468dc33bf675db4f5f5e1206c228173f25",
-          "description": "Actual original token stamping checks source geometry and preserves canonical full vectors. No-point Logical declaration receipts retain the exact raw original producer, closed unanimous rows/input/Registry/world and saved target correspondence; lookup-present dispatch guards, publication rows/driver source state, normal joins and Native/handler/compiler fields remain separate. Conditional source descendants retain analysis geometry without actual entered-frame observations."
+          "sha256": "5ffa811a0367afec5496ff95eac21aa95ea738334a3a70c0b09c1ca83da32d49",
+          "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
         },
         {
           "id": "retained-positioned-retained-source",
@@ -455200,6 +455231,13 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "original-restored-declaration-64aa956da6cf",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+          "sha256": "9afa5862afe68c6e51d362b7634da7ef4559a5826c8b58224aff1a00e4735f8f",
+          "description": "Existing exact parent/source/configuration and complete lifted-child inventory restore only genuine original nested rows through the same Logical declaration issuer; raw reached dispatch remains separate. Linked software/source controls do not assert executed outcomes or Native object/reference/callback chronology."
         }
       ],
       "source_anchors": [],
@@ -455275,6 +455313,12 @@
           "selector": "taint::original_taint_local_parser_purpose_tests::original_taint_callback_and_bracket_shapes_keep_actual_full_config",
           "status": "linked",
           "assertion": "Finite source-defined control: original taint callback and bracket shapes keep actual full config. Genuine full Module/FU input passes full selected lexerconfig into local callback/bracket shape projections; nested BOM, FirstClose/Nesting, stale and missing actual source metadata controls. Synthetic source cannot create execution receipts. This body has no attached matching current owned assertion result. Its source/API coverage stays within this question; existing external answers, original captures and independent Native/runtime authority are unchanged."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/original_restored_nested_declaration_tests.rs",
+          "selector": "command_binding::original_restored_nested_declaration_tests::original_script_restoration_keeps_reached_nested_statement_and_consumed_site_bindings",
+          "status": "linked",
+          "assertion": "A software Vm retains a genuine known Native compilation entry through actual Lowerer Module and public restore_script_bindings. Original nested reached rows in statements and consumed command sites remain the separate raw route, with no new Logical receipt or external Native callback/reference chronology claim."
         }
       ],
       "owners": [
@@ -455327,6 +455371,11 @@
           "path": "rust/tcl-compiler/src/inline_uplevel.rs",
           "symbol": "inline_uplevel_passthrough",
           "purpose": "Borrow actual positioned producer independently of Module mutations, and terminate before writes on original source-owner refusal."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding.rs",
+          "symbol": "SourceCommandBindings::restore_original_nested_bindings",
+          "purpose": "Restore only existing original nested source rows from an exact parent/input/configuration/complete vector and the existing declaration issuer. Readonly conditional Logical availability and correspondence supply no reached lookup, runtime handler, Native admission or allocation."
         }
       ],
       "replay": {
