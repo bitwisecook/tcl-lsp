@@ -1,0 +1,1033 @@
+{
+  "cases": [
+    {
+      "case": "ascii-default",
+      "current_count": [
+        "COUNT 4"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "cd47fcaa1cb5c7ff0ee1cd260ee192f46648c4ddb90f7508994b6bccfd4db4c8",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "3c63d5cb09cfdae9df30464d7fd0f8c6d9d4fff41b74ca35ea4c6450c716d08c",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "b0b0d76837d8809b8a4bfc66ea3ab42a5a364d0bb04d413ddf155494e1ffdb1e",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "3fab855727aec198e4cd8520475baaaee3ad0684168891f53a070cd46fccdcde",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "adabd03020c8b7232efcb0ebbae4100a4bc0739e6c3f16214fc80c2ca4d9a535",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "06ae3fccb5c646119078a8d3c63d679cb8465cc1691dcbf16ab6a0afcb037e57",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "55b3f103c7269e3c015813da49a4169b8999cdfe3264f1d253de9bd7994dd589",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "ascii-single",
+      "current_count": [
+        "COUNT 5"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "899e7131d674c3d4d6cb166b6fa344501bdfeb94574865387f4ceb9f49cb64ed",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "5323b35d3c85db6472f69f104dbb81a87611f24d6a4e94037779dd8842d6eb90",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "05ec2421b1bd9869154467964e7ff7f60d7b862da92e462cfc34b8578c6ce40c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "adf32090f048242b5890d3c2fa4d45b926aaa90636cd3508752eda7275d4014c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "bdafd69ec120a61de7a9003bcb7d1fa41b02f10eb5cc3c3bb071e6ccc6268e03",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "d004bb1b49f738443c8e5155c737eb2cbdece9308cbfdfedb0f68d70618640a0",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "ascii-duplicate",
+      "current_count": [
+        "COUNT 5"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "899e7131d674c3d4d6cb166b6fa344501bdfeb94574865387f4ceb9f49cb64ed",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "5323b35d3c85db6472f69f104dbb81a87611f24d6a4e94037779dd8842d6eb90",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "05ec2421b1bd9869154467964e7ff7f60d7b862da92e462cfc34b8578c6ce40c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "adf32090f048242b5890d3c2fa4d45b926aaa90636cd3508752eda7275d4014c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "bdafd69ec120a61de7a9003bcb7d1fa41b02f10eb5cc3c3bb071e6ccc6268e03",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "d004bb1b49f738443c8e5155c737eb2cbdece9308cbfdfedb0f68d70618640a0",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "empty-input",
+      "current_count": [
+        "COUNT 0"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "6719e8e45a36d3cc5802eba5b7c8c674ba9acef440d39a382f96ddc4ba6fa50f",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "65912f46df2254c3af3dfa48f0f31ab977775bf2a9fe71e31f61427234fd9ac3",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "099632ee89d6391db9a80fe5ce7a8f9c8bb28efef108169af59795197a39408e",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "85dc80415da3b683d2d668fd5118e8390c1b88a31d41075aeed01cf80d5ddecd",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "c0d9a429cdb90ec4cf469b50440841a1269106da9340a4577e35fa033ee6b30c",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "97deaa53c683372192aad29695c79fbfcfa9414ef152565b3d5dd53f77d7c821",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "7eb0117ba7e75a829c71d4a63cfbd5610ca3d55d7b4e3d43ec9fc382ad436e4e",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "empty-delimiter-reuse",
+      "current_count": [
+        "COUNT 5"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "5e3eb00b0f6a94293788f6908bf30eae3ad695710b6545c288ae6e08b2577d3e",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "a46570a8a2d7a95587085c09a357e57410ec735bd3b57655c12f28dd33af63c2",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "918b7986277f7834008aa414659daa418a51818be8ab8ec52429ca977b0c8a05",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "30e528c821f043d3817d431cff946ec698c621853c3cdd9243fa7aa0a5670e1c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "449ca492a42845cc15f144d0a6787a55b36c1c2640727e3b64b567e6e3801a3c",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "7c4b1d414249bee59e2100a49f2969f70f60d9fc75c9cb87c606d4a6bd40efc0",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "2ae694755a58e5cbd36e4e02ba74b19ba9acd6a2d34cffa52b17e51c8a21f26e",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "literal-nul-single",
+      "current_count": [
+        "COUNT 1"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "2dce68b58b5af41aea12d811bc16dc2f524582fefdcdbbe7dde3d12c33fcb330",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "bc0a5d57d9466adc387ab4cb1e6ae851b1f0428f733a1fac0a5151f1ae77f9ee",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "efe3793a4ac231275d9f1340c8fff87ecb4f184f959b904d20a4cfe9add5e389",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "bb846b6a823cc37baa698229c1f98367f9ba45e56a9692c7b8b1e2ebaafb5b24",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "e6bd9525e629c485ad7f4a23f9c1c329a10fbc62b25822dc1a9abde3f1965d3d",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "2ca3ba4dbb4e4095949b7d8d2c769c60c129a3ba62729fa4b6635def220f8b89",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "literal-nul-duplicate",
+      "current_count": [
+        "COUNT 2"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "1db9ce148de209a8b3bca6a60860944745c593b74e1dbdc97d887306848e606c",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "0f51f7bc82110f25365c703c24786aa79bafb30be57a9fa4808f7796920b022f",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "68dd0f778202d389ce26eed33ffd4534181a6e2ea33b1cdcad4c4f37bc9ae152",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "56ec8e7c144fe3886dc96fe42ffa9cb1c5212e48a86546468f6438df256b6e01",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "d61f40197c9b6d006171affe1abc530acae5597ec0c773d50c3c0c16693fbf89",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "2ca3ba4dbb4e4095949b7d8d2c769c60c129a3ba62729fa4b6635def220f8b89",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "encoded-nul-delimiter",
+      "current_count": [
+        "COUNT 2"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "846b6bf757814439d71010d2bb2a3c9d52ae542f788bb44aed34545474ac8709",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "90219903452bed02dde1f3b8d7aa79b1c79160d6f5260a0513368fbc952cc2ec",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "b628a0f362bf4e5a3f6ec35712bf1ef3742d906e0be9f586592f96e62f0417bd",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "b598ea66a53429d06505afe39e2942b0185b722b912090bf22504a236252999f",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "41c4b0cfc677c57e6e2398e636e6223a41691784b5247bd83f6f414499b2cb72",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "0414784d7363b4769291704ab93343c47970f1c83c72f27d26364d963278a592",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "binary-nul-delimiter",
+      "current_count": [
+        "COUNT 2"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "846b6bf757814439d71010d2bb2a3c9d52ae542f788bb44aed34545474ac8709",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "90219903452bed02dde1f3b8d7aa79b1c79160d6f5260a0513368fbc952cc2ec",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "b628a0f362bf4e5a3f6ec35712bf1ef3742d906e0be9f586592f96e62f0417bd",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "b598ea66a53429d06505afe39e2942b0185b722b912090bf22504a236252999f",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "41c4b0cfc677c57e6e2398e636e6223a41691784b5247bd83f6f414499b2cb72",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "7594d3f390454b1eeb7f8fe615998d16d0193a42fbd1583e7420e55203e0f610",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "nonbmp-empty",
+      "current_count": [
+        "COUNT 3"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "c3b9b97089c0c82f0a505a290e7ccc90ac2852cb3fcce5dadb3ccd5e30747921",
+          "count": [
+            "COUNT 6"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "0376abcc74b0be940ddfbd5ddbf3c49d3a02a86d654308a1aaeff9ee3844133f",
+          "count": [
+            "COUNT 6"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "5cda831d628f3d34553cbecbd3b7c2a01005728f37431a1d7f5ae1ba3239f812",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "33ba09b9a4e81e46739e8ed28c1ff3c9b9ad34e0d5be4bcfaa50029c483d5ff0",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "2e22672ca7586286193e7bf30191c17a11ad72af50993f253677e426c4c29bdd",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "b1d6721e81a1f1d2f96a9132f9466b6971b064bcfe27d56f4c7eff970306323b",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "24294dcb52265a821f3b83a8a9f9d7c3bf8bb78ee3fac7bf3eb45667b05fd46f",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "nonbmp-delimiter",
+      "current_count": [
+        "COUNT 5"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "e6618884a20f8e900828cb7ecbb66473eec363cb8462fd49ef2687a69a9ee1d9",
+          "count": [
+            "COUNT 9"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "9384ac7cfc7f6c001f19710537f9f19207ff5fd223416019c1d3c653cb0987df",
+          "count": [
+            "COUNT 9"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "876e441fd236736e41f39bd4a67536dd2be0a79c95e494de9afc39cd4fce11d0",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "aa16488cdcf5e1cd7a516e5812f9701f55f0d3becf92777fcb78672175d4018f",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "75cdba2abcf1e9db885f616d907831fa99f52c4aeb482f7c91022dc64e747203",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "9d17db6430a33909da714a11c17ccbc66bf38069ed33b734be943349079af96a",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "39c53443b3716017437a36dafb6e1581bed2af783c7a6e4a2f1ddd9a2e738a7d",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "surrogate-pair-empty",
+      "current_count": [
+        "COUNT 1"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "f26e568f13b12e0bc60ef3c7e5c437e79642af4ed83ff00b88df91474ac5ce65",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "e971efafe57738584ba06fb7000ae7b387617c246ce6b1bfbd5151da5fc18815",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "02572d0fa0e5ce0a0c9eeddf0e9b17f1cb592bae377484c2b7599498844edc49",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "455a08138b35436d0b1a265fe41147e034ce102c1dd192a070d7e26b99530ec9",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "55bd0b853f530e9a63483f17dff532ef476614ebc66be3b6dbb90f94120309f1",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "b76dae88e69a10aede4f37a2721d65949fb10f783786ef862556d54bdc55922a",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "lone-surrogate-delimiter",
+      "current_count": [
+        "COUNT 2"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "fca794df5addae2319d032f1b54c53432982f8b3e467a0ab0b9c220cb7563f06",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "e7d0061d875ec1e2975d73920409485c23e920e5fffaee4538f397992c6b3f9d",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "7903e04c22417e2a424ec615aed87da1e767a44d0c005494fa34df36850e9b65",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "6865ba0873c0864597c8ab5ba86ffe86e1b340a0b3e0c7e5a47a5f52b43c5d17",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "0504b7eb5e803c42e0c21b3ca3c56bf3fd7e23269a2127531bddaf1c660e1fe1",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "7142da04e7cab2df89091b308c168c1de14e5fe8adf7088c29141ce1128fddcf",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "invalid-ff-delimiter",
+      "current_count": [
+        "COUNT 2"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "fca794df5addae2319d032f1b54c53432982f8b3e467a0ab0b9c220cb7563f06",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "e7d0061d875ec1e2975d73920409485c23e920e5fffaee4538f397992c6b3f9d",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "7903e04c22417e2a424ec615aed87da1e767a44d0c005494fa34df36850e9b65",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "6865ba0873c0864597c8ab5ba86ffe86e1b340a0b3e0c7e5a47a5f52b43c5d17",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "0504b7eb5e803c42e0c21b3ca3c56bf3fd7e23269a2127531bddaf1c660e1fe1",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "7142da04e7cab2df89091b308c168c1de14e5fe8adf7088c29141ce1128fddcf",
+          "count": [
+            "COUNT 2"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "truncated-empty",
+      "current_count": [
+        "COUNT 3"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "5dc6e258d56f4c7c9bda11a611a6e254c979fa55c7a4c0ca81d21705bc5d2f14",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "9dfd2aa04295fb0f170ef1e0d7adbd0810aeb6f62af1051e7720a2fa9a902d69",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "e7ccaa4c0c0c6603b6a2262d926082d6eaf4ba9607d56e09c205014b7e217449",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "db1bc0aeb49791fd2fffb3d9aa87d197b8e7e56afcb641ded8be4eea8744033b",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "196ba2edd8ea0632bec2ba253bbc4254498b2ccbb3a30a45022d636e6a4dc79b",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "995b6593e47ca80b1bc0da3bdd573f2192efd658cb39c6dc374bc95519f0a5dd",
+          "count": [
+            "COUNT 3"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "encoded-nul-empty",
+      "current_count": [
+        "COUNT 4"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "4bc69c60044bbb2b1c1248d89502569616170c351675c954fd2ac0a0408323df",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "d943dbf0080d3b67891dddf324987acec1e27f9f2275a2a52ed3ace5423ca51e",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "346c70b302beca246c18270ad63b0f5655d91076f78ea0dafbbca7d1a17779c1",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "4ed97ada7360fca49aa6b59a3157dcadadebec30e052e554e756d57ce242a125",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "210ac313404ce3e7836296d2d65937e81a2b9ac1a185e9ebc987597f6a6fb817",
+          "count": [
+            "COUNT 4"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "86da93b46873e84dba15e3b22de815c8bab5cf42eec64f2b4089d3695dea3f39",
+          "count": [
+            "COUNT 5"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "invalid-delimiter-only",
+      "current_count": [
+        "COUNT 1"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "ea8f7b94870c2e568b5d7c9395469fe4826423d45d7769b7f3c64682ab725674",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "811498e3feb2ffec8987d38323aa693c8ee9ba89de2564a3d174816e01327df2",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "b0dd6450aa74ce6725244022f10ff93642884aff5d31b19228037bcdc1f1fdd0",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "96972944859e5a9e5374b55b3a5713143b6ff9bf1f2332254bbbd99399ecaabe",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "ada38d16bd39787d19a865db977c74c0731b039c1964053c1ad4e1212ed48ed3",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "c48f89cfc8875fadc07d0a4739b3ecb0a522d45ad8a5b2fa93be65dffca2046b",
+          "count": [
+            "COUNT 1"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    },
+    {
+      "case": "empty-input-invalid-delimiter",
+      "current_count": [
+        "COUNT 0"
+      ],
+      "same_c86_guest_stdout": true,
+      "retained_axes": {
+        "8.4.20": {
+          "retained_stdout_sha256": "6719e8e45a36d3cc5802eba5b7c8c674ba9acef440d39a382f96ddc4ba6fa50f",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.5.19": {
+          "retained_stdout_sha256": "65912f46df2254c3af3dfa48f0f31ab977775bf2a9fe71e31f61427234fd9ac3",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "8.6.18": {
+          "retained_stdout_sha256": "099632ee89d6391db9a80fe5ce7a8f9c8bb28efef108169af59795197a39408e",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.0.4": {
+          "retained_stdout_sha256": "85dc80415da3b683d2d668fd5118e8390c1b88a31d41075aeed01cf80d5ddecd",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "9.1.0": {
+          "retained_stdout_sha256": "c0d9a429cdb90ec4cf469b50440841a1269106da9340a4577e35fa033ee6b30c",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "jim-pinned": {
+          "retained_stdout_sha256": "97deaa53c683372192aad29695c79fbfcfa9414ef152565b3d5dd53f77d7c821",
+          "count": [
+            "COUNT 0"
+          ],
+          "status": "retained reference, not rerun"
+        },
+        "native-c86": {
+          "retained_stdout_sha256": "4cfa727f250feccc8a8fabfe7f1507e8f5cf37f871ab13fef418d7c7e7c5029a",
+          "count": [],
+          "status": "retained reference, not rerun"
+        }
+      }
+    }
+  ],
+  "retained_reference_provenance_sha256": "0556681c0b7b96616f1b17b7d8c3eea17604b60beb21b15d5e4d815080510005",
+  "old_native_binary_sha256": "936dcc4a1d3c89456a215d06f948901a277bb2f55d7e96d7f75de3bb2a5e676f",
+  "note": "Fresh Native only. C raw element/object identity channels are independently validated by focused tests; guest stdout comparison excludes C_* control reports. C5/Jim are retained actual reference receipts with their old source/binary provenance."
+}

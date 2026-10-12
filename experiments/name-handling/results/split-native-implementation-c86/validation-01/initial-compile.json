@@ -1,0 +1,19 @@
+{
+  "exit_code": 101,
+  "errors": 7,
+  "scope": "First runtime/lib test compilation; Rust2021 let chain and existing private-field accesses. Failed source snapshot is v2; v3 fixes only runtime interp/cmd_list.",
+  "subset": "Filtered from retained broad before inventory, using previous source-only package inventory + current Rust source/own fixture paths; package experiment outputs excluded. Optional/target Rust source remains conservative, not a claim every file compiled.",
+  "subset_files": 2968,
+  "argv": [
+    "cargo",
+    "test",
+    "--offline",
+    "-j2",
+    "--manifest-path",
+    "runtime/rust/Cargo.toml",
+    "--lib",
+    "c86_split_tests",
+    "--",
+    "--test-threads=1"
+  ]
+}

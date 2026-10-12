@@ -702,6 +702,9 @@ pub fn split<O: ValueOps>(
     value: &O::Value,
     chars: Option<&O::Value>,
 ) -> Result<O::Value, CmdError> {
+    if let Some(result) = ops.native_split(value, chars)? {
+        return Ok(result);
+    }
     let string = ops.try_as_str(value)?.to_string();
     let set = chars.map(|c| ops.try_as_str(c)).transpose()?;
     let pieces: Vec<String> = if string.is_empty() {
@@ -722,6 +725,110 @@ pub fn split<O: ValueOps>(
         values.push(ops.new_string(p));
     }
     Ok(ops.new_list(values))
+}
+
+/// An original byte slice and the empty-set character's actual reuse key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct C86SplitPart {
+    pub bytes: std::ops::Range<usize>,
+    pub reuse: Option<u32>,
+}
+
+/// Counted C86 split branches, without object, cache or execution authority.
+pub fn plan_c86_split(
+    source: &[u8],
+    characters: &[u8],
+) -> Result<Vec<C86SplitPart>, tcl_syntax::value::ValueError> {
+    use tcl_syntax::{native_tcl_utf::NativeTclUtf, value::ValueError};
+    let unavailable = || ValueError::CommandProtocolUnavailable("original C86 split extent");
+    let mut parts = Vec::new();
+    if source.is_empty() {
+        return Ok(parts);
+    }
+    let policy = NativeTclUtf::for_version(TclVersion::V8_6);
+    if characters.is_empty() {
+        let mut at = 0;
+        while at < source.len() {
+            let unit = policy
+                .decode_c86_ucs4(&source[at..])
+                .ok_or_else(unavailable)?;
+            let end = at
+                .checked_add(unit.width)
+                .filter(|&end| end <= source.len())
+                .ok_or_else(unavailable)?;
+            parts.push(C86SplitPart {
+                bytes: at..end,
+                reuse: Some(unit.value),
+            });
+            at = end;
+        }
+        return Ok(parts);
+    }
+    let mut start = 0;
+    if characters.len() == 1 {
+        // Counted raw zero as a one-byte delimiter would reach C's terminator
+        // pointer beyond the owned extent; it is not an admitted input here.
+        if characters[0] == 0 {
+            return Err(unavailable());
+        }
+        while start < source.len() && source[start] != 0 {
+            let end = source[start..]
+                .iter()
+                .position(|&byte| byte == 0)
+                .map_or(source.len(), |at| start + at);
+            let Some(at) = source[start..end]
+                .iter()
+                .position(|&byte| byte == characters[0])
+            else {
+                break;
+            };
+            let at = start + at;
+            parts.push(C86SplitPart {
+                bytes: start..at,
+                reuse: None,
+            });
+            start = at + 1;
+        }
+    } else {
+        let mut at = 0;
+        let mut previous = None;
+        let mut previous_character = None;
+        while at < source.len() {
+            let unit = policy
+                .decode_unit(&source[at..], previous)
+                .ok_or_else(unavailable)?;
+            previous = Some(unit.value);
+            let end = at
+                .checked_add(unit.width)
+                .filter(|&end| end <= source.len())
+                .ok_or_else(unavailable)?;
+            let mut character_at = 0;
+            while character_at < characters.len() {
+                let character = policy
+                    .decode_unit(&characters[character_at..], previous_character)
+                    .ok_or_else(unavailable)?;
+                previous_character = Some(character.value);
+                if unit.value == character.value {
+                    parts.push(C86SplitPart {
+                        bytes: start..at,
+                        reuse: None,
+                    });
+                    start = end;
+                    break;
+                }
+                character_at = character_at
+                    .checked_add(character.width)
+                    .filter(|&end| end <= characters.len())
+                    .ok_or_else(unavailable)?;
+            }
+            at = end;
+        }
+    }
+    parts.push(C86SplitPart {
+        bytes: start..source.len(),
+        reuse: None,
+    });
+    Ok(parts)
 }
 
 #[cfg(test)]
@@ -902,5 +1009,57 @@ mod tests {
                 .expect("Unicode-only original split control succeeds");
             assert_eq!(got, expected, "split {string:?} {chars:?}");
         }
+    }
+}
+
+#[cfg(test)]
+mod c86_split_plan_tests {
+    use super::plan_c86_split;
+
+    fn hex(value: &str) -> Vec<u8> {
+        value
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn counted_branches_match_all_18_actual_c86_raw_element_rows() {
+        let rows = include_str!("../tests/data/native_split_c86/rows.tsv");
+        let mut count = 0;
+        for row in rows.lines() {
+            let fields: Vec<_> = row.split('\t').collect();
+            let source = hex(fields[3]);
+            let characters = if fields[4] == "DEFAULT" {
+                b" \n\t\r".to_vec()
+            } else {
+                hex(fields[4])
+            };
+            let parts = plan_c86_split(&source, &characters).unwrap();
+            let expected: Vec<_> = if fields[5] == "0" {
+                Vec::new()
+            } else {
+                fields[6].split(',').map(hex).collect()
+            };
+            let actual: Vec<_> = parts
+                .iter()
+                .map(|part| source[part.bytes.clone()].to_vec())
+                .collect();
+            assert_eq!(actual, expected, "{}", fields[0]);
+            count += 1;
+        }
+        assert_eq!(count, 18);
+    }
+
+    #[test]
+    fn unmeasured_raw_zero_delimiter_does_not_seek_beyond_owned_storage() {
+        assert!(
+            plan_c86_split(b"word", b"\0")
+                .unwrap_err()
+                .native_access_refusal()
+                .is_some()
+        );
+        assert!(plan_c86_split(b"", b"\0").unwrap().is_empty());
     }
 }

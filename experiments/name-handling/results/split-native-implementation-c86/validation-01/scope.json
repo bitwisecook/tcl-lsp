@@ -1,0 +1,23 @@
+{
+  "compiled_dependency_inventory_basis": "Conservative normal/dev standalone Cargo path-package closure retained from prior getter validation; manifests unchanged; all current files in the same path packages + runtime sources/fixtures captured. Optional target source files are conservative inventory, not a claim each compiled.",
+  "path_package_dirs": [
+    "tcl-bytecode",
+    "tcl-cmd-core",
+    "tcl-core-types",
+    "tcl-dialect",
+    "tcl-engine-api",
+    "tcl-host-c-abi",
+    "tcl-host-native",
+    "tcl-lexer",
+    "tcl-platform",
+    "tcl-regex",
+    "tcl-registry",
+    "tcl-runtime-api",
+    "tcl-syntax",
+    "tcl-test-support"
+  ],
+  "files": 29874,
+  "excluded": "tcl-compiler, tcl-vm, tcl-lsp and xtask are not standalone runtime/lib compiled dependencies; coordination13 snapshot includes six quiescent compiler/xtask/doc paths only for coordination, not compiled acceptance.",
+  "source_ready": "preparation/source-ready-v2.json",
+  "cargo": "exclusive tmp/name-target-runtime; /tmp/name-env.sh; --offline -j2; no broad all.tcl in this stage."
+}

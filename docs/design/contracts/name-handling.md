@@ -54,6 +54,9 @@ existence of a structured type does not establish a consumer's ownership.
 | Logical command candidate order | `naming::{command_resolution_candidates, resolve_command_with}`; results are reporting candidates, with a path-free wrapper only when the path is proven absent |
 | Shared static slot projection | `tcl_runtime_api::command_identity::{StaticCommandSlot, display_namespace, display_command, encode_command_slot}` |
 | Original name recipes | `NativeNameProtocol` and the selected operation's checked object/input facade; C, Jim and hosted issuers remain independent |
+| Native source text materialisation | `tcl_syntax::backslash::native_arena_text`, over retained `ExecutablePartArena` source/channel/config; runtime admission and operation currency belong to `Interp`, not decoded lexical bytes |
+| Native character units | `tcl_syntax::native_tcl_utf::NativeTclUtf::{decode_unit, decode_c86_ucs4}`; pure selected byte-unit decoding, without object/cache or execution authority |
+| C86 split planning and physical results | `tcl_cmd_core::list::plan_c86_split` returns original byte ranges/reuse keys; `tcl_syntax::value::ValueOps::native_split` selects the actual physical adapter |
 | Runtime namespace and command lookup | Checked `tcl_runtime_api::Namespaces` interfaces through actual runtime object/table/lifetime adapters; reporting lookup cannot replace original-object lookup |
 | Namespace command semantics | `tcl_cmd_core::namespace`: which, origin, import patterns, variable FQNs, qualifiers/tail, parent/children/exists |
 | Binding facts and safe specialisation | Compiler `command_binding`, registry `resolved_invocation`, dispatch proofs and site claims |
@@ -69,6 +72,9 @@ when consolidating policy; flattening a tree into display FQNs loses semantics.
 Namespace deletion uses the shared `NamespaceDeleteBackend::delete_original`
 two-pass operation over original operands. Fresh written lookup and a retained
 namespace object's cached live token have distinct semantics during teardown.
+The [original command-argument contract](../runtime/original-command-arguments.md#native-c86-source-text-and-split)
+describes selected C86 source materialisation and split's storage/lifetime boundary,
+including the Runtime adapter and the VM's unavailable-worker refusal.
 
 ## Context and observable semantics
 

@@ -1,0 +1,8 @@
+
+running 3 tests
+test cmd_list::c86_split_tests::actual_native_c86_split_preserves_18_raw_rows_and_result_ownership ... ok
+test cmd_list::c86_split_tests::empty_set_reuses_actual_children_and_retained_child_survives_list_retirement ... ok
+test cmd_list::c86_split_tests::written_nul_delimiter_reaches_actual_source_producer_before_binary_split ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2083 filtered out; finished in 2.21s
+

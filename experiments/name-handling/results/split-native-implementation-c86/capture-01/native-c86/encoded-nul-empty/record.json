@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/encoded-nul-empty",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.423,
+  "input_sha256": "4a37ba4ba05ebf102e3c9ca79a9ce72db22636d3a84fb0f97fdb1193b570a7f8",
+  "stdout_sha256": "1e671a105e82722906fafbda3f51510fbdd14e5d82930eb9933c7f1f79819159",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

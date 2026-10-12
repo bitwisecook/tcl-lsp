@@ -70,7 +70,7 @@
 
 use std::borrow::Cow;
 
-use tcl_lexer::script::{group_commands_bytes, WordSpan};
+use tcl_lexer::script::{WordSpan, group_commands_bytes};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source: `Bare` (`foo`, `$x`, `a[b]c`),
@@ -102,6 +102,16 @@ pub struct Word<'s> {
     pub start: usize,
     /// Original word extent projected by the shared lexer range owner.
     pub raw_source: &'s [u8],
+    /// Original top-level escaped text, retained by the central arena owner.
+    pub original_text: Vec<OriginalEscapedText>,
+}
+
+/// Source geometry only; native decoding/authority is selected at evaluation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OriginalEscapedText {
+    pub part_index: usize,
+    pub span: tcl_lexer::Span,
+    pub arena: Result<tcl_lexer::ExecutablePartArena, tcl_lexer::ExecutablePartsUnavailable>,
 }
 
 /// One parsed command: its words and where to resume parsing the next command.
@@ -202,11 +212,25 @@ pub fn parse_script(src: &[u8]) -> Vec<Command<'_>> {
 /// through, so `{*}` expansion is off and the first-close
 /// `${…}` rule applies when the interpreter emulates Tcl 8.4.
 pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> Vec<Command<'_>> {
+    parse_script_with_text_provenance(src, config, false)
+}
+
+/// Retain original NativeValue text spans without changing lexical values.
+pub fn parse_script_with_original_text(src: &[u8], config: LexerConfig) -> Vec<Command<'_>> {
+    parse_script_with_text_provenance(src, config, true)
+}
+
+fn parse_script_with_text_provenance(
+    src: &[u8],
+    config: LexerConfig,
+    retain: bool,
+) -> Vec<Command<'_>> {
     let toks = match Lexer::with_bytes(src, config).tokenise_all() {
         Ok(t) => t,
         Err(_) => return Vec::new(),
     };
     let sm = SourceMap::from_bytes(src);
+    let image = retain.then(|| tcl_lexer::SourceImage::native(src));
     // The boundary question — where each command and each word begins and
     // ends — is the owner's: answering it with a separate copy of the loop
     // here would risk disagreeing with the compiler's segmenter on `{*}`
@@ -237,7 +261,9 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
                 words: cmd
                     .words
                     .iter()
-                    .map(|w| build_word(&sm, src, &toks[w.tokens.clone()], w, config))
+                    .map(|w| {
+                        build_word(&sm, src, &toks[w.tokens.clone()], w, config, image.as_ref())
+                    })
                     .collect(),
                 next,
                 start,
@@ -412,8 +438,8 @@ fn script_parse_error(
 /// the one that fails closed, carrying the failure as a
 /// [`WordPart::ParseError`] the evaluator raises when it reaches the word.
 use tcl_lexer::{
-    word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
     EXTRA_AFTER_CLOSE_QUOTE,
+    word_parts::{EXTRA_AFTER_CLOSE_BRACE, MISSING_CLOSE_BRACE, MISSING_QUOTE},
 };
 
 /// Whether a `Str` token that **opens a brace** never found its closing `}`
@@ -450,6 +476,7 @@ fn build_word<'s>(
     toks: &[Token],
     word: &WordSpan,
     config: LexerConfig,
+    image: Option<&tcl_lexer::SourceImage>,
 ) -> Word<'s> {
     let escapes = config.escapes;
     let expand = word.expand;
@@ -457,6 +484,7 @@ fn build_word<'s>(
     let start = toks[0].span.start() as usize;
     let range = tcl_lexer::word_span_at(sm.source_bytes(), word.span).as_range();
     let raw_source = src.get(range).unwrap_or_default();
+    let mut original_text = Vec::new();
     // Text welded straight onto a close-brace (`{a}b`, `{a}$b`, `{a}[b]`,
     // `{}x`, `{a}{b}`, `{a}{*}$b`) is C's `extra characters after
     // close-brace`, raised while the *command* is parsed: measured on 8.6.16
@@ -476,6 +504,7 @@ fn build_word<'s>(
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_BRACE)]),
             start,
             raw_source,
+            original_text,
         };
     }
     // The sibling shape on a quote (`"a"b`, `""b`, `"a"$b`, `"a"[b]`,
@@ -501,6 +530,7 @@ fn build_word<'s>(
             body: WordBody::Parts(vec![WordPart::ParseError(EXTRA_AFTER_CLOSE_QUOTE)]),
             start,
             raw_source,
+            original_text,
         };
     }
     // A single braced token is a literal word (no substitution) — except a
@@ -520,6 +550,7 @@ fn build_word<'s>(
                 body: WordBody::Parts(vec![WordPart::ParseError(MISSING_CLOSE_BRACE)]),
                 start,
                 raw_source,
+                original_text,
             };
         }
         let content = token_content(sm, src, toks[0]);
@@ -533,6 +564,7 @@ fn build_word<'s>(
             body,
             start,
             raw_source,
+            original_text,
         };
     }
     // A `"`-delimited word that never closes is C's `missing "`
@@ -559,6 +591,39 @@ fn build_word<'s>(
             // already separate tokens), so decode it in one shot via the shared
             // decoder — no per-escape splitting.
             TokenType::Esc if !bytes.is_empty() => {
+                if let Some(image) = image {
+                    // token_content supplies the shared owner's actual source slice.
+                    let start = bytes.as_ptr() as usize - src.as_ptr() as usize;
+                    let extent = u32::try_from(start)
+                        .ok()
+                        .zip(
+                            start
+                                .checked_add(bytes.len())
+                                .and_then(|end| u32::try_from(end).ok()),
+                        )
+                        .map(|(start, end)| tcl_lexer::Span::new(start, end));
+                    let arena = extent.map_or(
+                        Err(tcl_lexer::ExecutablePartsUnavailable::SourceBounds),
+                        |span| {
+                            tcl_lexer::ExecutablePartArena::decompose(
+                                image.clone(),
+                                span,
+                                tcl_lexer::word_parts::SubstFlags {
+                                    vars: false,
+                                    cmds: false,
+                                    backslashes: true,
+                                    ..Default::default()
+                                },
+                                config,
+                            )
+                        },
+                    );
+                    original_text.push(OriginalEscapedText {
+                        part_index: parts.len(),
+                        span: extent.unwrap_or(t.span),
+                        arena,
+                    });
+                }
                 parts.push(WordPart::Text(tcl_syntax::backslash::decode_bytes_in(
                     bytes, escapes,
                 )));
@@ -664,6 +729,7 @@ fn build_word<'s>(
             body: WordBody::Literal(b""),
             start,
             raw_source,
+            original_text,
         };
     }
     if let [WordPart::Text(Cow::Borrowed(b))] = parts.as_slice() {
@@ -673,6 +739,7 @@ fn build_word<'s>(
             body: WordBody::Literal(b),
             start,
             raw_source,
+            original_text,
         };
     }
     Word {
@@ -681,6 +748,7 @@ fn build_word<'s>(
         body: WordBody::Parts(parts),
         start,
         raw_source,
+        original_text,
     }
 }
 
@@ -804,9 +872,11 @@ mod tests {
                     assert!(command.start <= command.end && command.end <= source.len());
                     assert!(super::first_parse_error(&command.words, config).is_none());
                     for word in &command.words {
-                        assert!(source
-                            .windows(word.raw_source.len())
-                            .any(|bytes| bytes == word.raw_source));
+                        assert!(
+                            source
+                                .windows(word.raw_source.len())
+                                .any(|bytes| bytes == word.raw_source)
+                        );
                     }
                 }
             }

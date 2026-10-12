@@ -1,0 +1,18 @@
+{
+  "name": "native-producer/written-surrogate",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/written-surrogate.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.269,
+  "input_sha256": "3fd2eb2d50d34a758810ae24fa6849c304d9a0c1b093580df3a4672595b51656",
+  "stdout_sha256": "d311fa475260ce95932561a7740fb71409a9c9d87edcb5ff0ed5dbda38080cc2",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

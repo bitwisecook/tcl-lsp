@@ -1,0 +1,6 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-test-support v0.1.0 (/workspace/tcl-lsp/rust/tcl-test-support)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+    Finished `test` profile [unoptimized] target(s) in 8.00s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_cmd_core-6ef33476c521644b)

@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/empty-delimiter-reuse",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.372,
+  "input_sha256": "37369ab5b85f09883a069723519d9df77ac0376d378beb58d27154a9c0325393",
+  "stdout_sha256": "2ae694755a58e5cbd36e4e02ba74b19ba9acd6a2d34cffa52b17e51c8a21f26e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

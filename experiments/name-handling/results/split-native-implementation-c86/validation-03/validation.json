@@ -1,0 +1,120 @@
+{
+  "records": [
+    {
+      "label": "runtime-split",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "c86_split_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "tests_passed": 3,
+      "stdout": "experiments/name-handling/results/split-native-implementation-c86/validation-02/runtime-split.stdout.txt",
+      "stderr": "experiments/name-handling/results/split-native-implementation-c86/validation-02/runtime-split.stderr.txt",
+      "stdout_sha256": "03022d948cb1380925c7a1a43dfbebbe9593f7aea62d508e3da68e7171bc183b",
+      "stderr_sha256": "89a750e895159cd0eaaae09ca8e55875a89a124039c3c315eb7a13b0030cf60f"
+    },
+    {
+      "label": "runtime-source",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "c86_original_source_text_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "tests_passed": 6,
+      "stdout": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-source.stdout.txt",
+      "stderr": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-source.stderr.txt",
+      "stdout_sha256": "9f57db33bd1dd174acff496e6672878c2ad7872b27b39c5f36fa7f7b0f7b1f9d",
+      "stderr_sha256": "93fa73610593781a324a888c92895b00ab027cace0a9c51bdde814d6f2463af3"
+    },
+    {
+      "label": "runtime-original-default",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "lreverse_concat_join_split",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "tests_passed": 1,
+      "stdout": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-original-default.stdout.txt",
+      "stderr": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-original-default.stderr.txt",
+      "stdout_sha256": "694ff4a48be0182fdb2d89c33b9c2f6e99f7cace58853f74f973ff402e7da397",
+      "stderr_sha256": "7fb1ff74574477526bb40845554e55175035a05d6375e34832c45430f9a99277"
+    },
+    {
+      "label": "runtime-original-lexical",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "runtime/rust/Cargo.toml",
+        "--lib",
+        "word_escapes_decode_for_the_emulated_release",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "tests_passed": 1,
+      "stdout": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-original-lexical.stdout.txt",
+      "stderr": "experiments/name-handling/results/split-native-implementation-c86/validation-03/runtime-original-lexical.stderr.txt",
+      "stdout_sha256": "bae268f3d2a4caf8f1ce661dc00cfa2293690861a0d1580e9b9743814cd80a0e",
+      "stderr_sha256": "7fb1ff74574477526bb40845554e55175035a05d6375e34832c45430f9a99277"
+    },
+    {
+      "label": "core-split",
+      "argv": [
+        "cargo",
+        "test",
+        "--offline",
+        "-j2",
+        "--manifest-path",
+        "Cargo.toml",
+        "-p",
+        "tcl-cmd-core",
+        "--lib",
+        "c86_split_plan_tests",
+        "--",
+        "--test-threads=1"
+      ],
+      "exit": 0,
+      "tests_passed": 2,
+      "stdout": "experiments/name-handling/results/split-native-implementation-c86/validation-03/core-split.stdout.txt",
+      "stderr": "experiments/name-handling/results/split-native-implementation-c86/validation-03/core-split.stderr.txt",
+      "stdout_sha256": "9e41f864850a3fefdac8f5281f62c9be0b3b2a469e41dfec963cbce9ec0344ba",
+      "stderr_sha256": "7de97370ce935a9d5a5afaa81835a9c4cca03f3d109b8d65cbf6e1f95f070a78"
+    }
+  ],
+  "code_ready": "preparation/source-ready-v4.json",
+  "scope": "13 relevant passing focused tests: Runtime split3, source6, unchanged default1/lexical1, shared planner2. Runtime split3 executed under v3; production changes afterward are only diagnostics/independent naming capability on the NEW Logical fixture. Shared/production implementation unchanged.",
+  "failures_retained": [
+    "validation-01 compile seven errors",
+    "validation-02 source five pass/one failure",
+    "validation-02 identical-fixture typed diagnostic confirms missing independent LogicalNameProvider"
+  ],
+  "currency": "2,968 conservative source/fixture dependency inventory and coordination13 unchanged before/after final source/default/lexical/core checks. Coordination extra6 compiler/xtask/docs are not standalone compiled acceptance.",
+  "excluded": "Compiler/VM/LSP diagnostics and builds; native F5/unmeasured producer contexts; nested index/subst producer provenance; no all.tcl in focused stage."
+}

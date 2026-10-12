@@ -1,0 +1,358 @@
+{
+  "records": [
+    {
+      "name": "native-c86/ascii-default",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-default.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.369,
+      "input_sha256": "5bee51fb2b677068d6927a588465a069c54ca4a6c64433b712b0911d84ab8b13",
+      "stdout_sha256": "55b3f103c7269e3c015813da49a4169b8999cdfe3264f1d253de9bd7994dd589",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/ascii-single",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.373,
+      "input_sha256": "5e944c4889877b87d2c1c8c0772e291e318ff1efa2efce62350f7ea6049448ee",
+      "stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/ascii-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-duplicate.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.525,
+      "input_sha256": "e2e41e033883247c5abd486483cebd64b31c8b08ce640c32cc2024c701da5c2e",
+      "stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-input",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.423,
+      "input_sha256": "763e7c47712e88ae0be9aec4c025c4a6aac957e92fd300c4daa32897db99d4f6",
+      "stdout_sha256": "7eb0117ba7e75a829c71d4a63cfbd5610ca3d55d7b4e3d43ec9fc382ad436e4e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-delimiter-reuse",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-delimiter-reuse.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.372,
+      "input_sha256": "37369ab5b85f09883a069723519d9df77ac0376d378beb58d27154a9c0325393",
+      "stdout_sha256": "2ae694755a58e5cbd36e4e02ba74b19ba9acd6a2d34cffa52b17e51c8a21f26e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/literal-nul-single",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.57,
+      "input_sha256": "939bea4ebab21769fb2571f08248d489d63577356627da25c868e1e44c35779b",
+      "stdout_sha256": "e44a98d79bf3e35b867cc5d8e5ce07335cbe49ea3f7153a7408d01c372515fe1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/literal-nul-duplicate",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.637,
+      "input_sha256": "3faf129a316264a8048d37a303509b45f070201c066f460d7513fa48e9cb1d66",
+      "stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/encoded-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.373,
+      "input_sha256": "90ca950e5427ea86f6659702c11409a3cd376163eacf016852e610b43815d9ce",
+      "stdout_sha256": "556bf914f4c5762d0bdfedf1cbb33f99a0a71ca56057a374cd8f659dac7e691e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/binary-nul-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/binary-nul-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.319,
+      "input_sha256": "8c9f0ff39aa3e403fccdaa4aa181499eb88b1d553dbff6aafe8eb87a12cc170a",
+      "stdout_sha256": "556bf914f4c5762d0bdfedf1cbb33f99a0a71ca56057a374cd8f659dac7e691e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/nonbmp-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.52,
+      "input_sha256": "46cecc280014e84ee84b1cf4868740f02c2524789b9734f599f9f7ee97733c53",
+      "stdout_sha256": "24294dcb52265a821f3b83a8a9f9d7c3bf8bb78ee3fac7bf3eb45667b05fd46f",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/nonbmp-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.319,
+      "input_sha256": "fa43a24d6e1a213269b0206af46acad585b8c6245cb9df41b6785bf17a02032b",
+      "stdout_sha256": "5e6c188db8041e7f16ff350c56c9d97e514bee9ef3c76509835b6b4d5e228ad6",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/surrogate-pair-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.319,
+      "input_sha256": "ba8360b3fd2d0d3f4f8cecf2ed0284bb81292e50dd5b0c8f8d7e9d31f10912f7",
+      "stdout_sha256": "d98fb906b7ead9d7f66ff067d024497f9416fee01a117283a48327d7f6e1033b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/lone-surrogate-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.319,
+      "input_sha256": "0fca030423f57f5296f90f5ae73f0fbe11fccefcde990866ce84fb00c6b4aa0e",
+      "stdout_sha256": "3a40ecd9f75522965ded7b4db4b2fd5f463bcfa7ed7d2c668881b945c95fe24b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/invalid-ff-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-ff-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.319,
+      "input_sha256": "018e5c50459dfc5c2fbe4f0476679654511074cec5e736308564924b8b8914d1",
+      "stdout_sha256": "3a40ecd9f75522965ded7b4db4b2fd5f463bcfa7ed7d2c668881b945c95fe24b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/truncated-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.419,
+      "input_sha256": "fed5f38bcc99b5a7b569ec6c929533c8a565425261861b58bfa316fc6a65fe32",
+      "stdout_sha256": "d2e3335bbdd1fb1bef23b16b0cdb0be6aac5ff3c0c820399d178630b8504699c",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/encoded-nul-empty",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-empty.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.423,
+      "input_sha256": "4a37ba4ba05ebf102e3c9ca79a9ce72db22636d3a84fb0f97fdb1193b570a7f8",
+      "stdout_sha256": "1e671a105e82722906fafbda3f51510fbdd14e5d82930eb9933c7f1f79819159",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/invalid-delimiter-only",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.369,
+      "input_sha256": "6b906b1a190bb936d17cebbfdf646ac39bc9f998564e753d90ba977523ee4692",
+      "stdout_sha256": "046a6314119c69db0ab1f3b3c8c9660a8996e9d161ffd5f502b6b76c5e3c20b1",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "native-c86/empty-input-invalid-delimiter",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+      ],
+      "exit_code": 0,
+      "seconds": 1.369,
+      "input_sha256": "769c7492b9cb271394ce40b24f7e0387c2a6ecfd4c52f87181ec844c633fa449",
+      "stdout_sha256": "7eb0117ba7e75a829c71d4a63cfbd5610ca3d55d7b4e3d43ec9fc382ad436e4e",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "runner_sha256_before": "f6a0d30ccd9ea52f292ff1788a63949f641e1daf55267f6fed2b59bceb471bf6",
+  "runner_sha256_after": "f6a0d30ccd9ea52f292ff1788a63949f641e1daf55267f6fed2b59bceb471bf6",
+  "source_inventory_count": 2968,
+  "changed_sources": [],
+  "scope": "Conservative standalone source/fixture inventory, not every file compiled. Compiler/VM/LSP/xtask absent from standalone graph. Frozen seven owners and focused fixture hashes are separately recorded in source-ready-v4.json.",
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "core_bytes": 0
+  },
+  "environment": "Inherited host data never logged or dumped. Only named benign NH_CLOCK_GETENV controls added; overlays/Tcl test environment switches removed.",
+  "version_axes": "Current Native C86 only; retained C5/Jim receipts preserve separate old provenance. No F5 native context executed."
+}

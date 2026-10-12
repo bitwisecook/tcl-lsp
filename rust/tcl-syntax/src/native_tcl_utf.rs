@@ -205,6 +205,24 @@ impl NativeTclUtf {
         self.decode_unit_with(|index| bytes.get(index).copied(), previous)
     }
 
+    /// C86's TclUtfToUCS4 purpose joins a reached surrogate pair while
+    /// preserving the original byte width. Other releases are not admitted.
+    #[must_use]
+    pub fn decode_c86_ucs4(self, bytes: &[u8]) -> Option<TclUtfUnit> {
+        if self.version != TclVersion::V8_6 {
+            return None;
+        }
+        let mut unit = self.decode_unit(bytes, None)?;
+        if (0xd800..=0xdbff).contains(&unit.value)
+            && let Some(low) = self.decode_unit(&bytes[unit.width..], Some(unit.value))
+            && (0xdc00..=0xdfff).contains(&low.value)
+        {
+            unit.value = 0x10000 + ((unit.value - 0xd800) << 10) + low.value - 0xdc00;
+            unit.width += low.width;
+        }
+        Some(unit)
+    }
+
     /// Decode through a boundary-owned reader, requesting only the lead and
     /// continuation bytes tested by the native decoder. Literal NUL is a unit;
     /// this reader has no C-string stopping rule. The callback must provide

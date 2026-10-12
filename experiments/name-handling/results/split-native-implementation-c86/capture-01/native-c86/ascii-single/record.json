@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/ascii-single",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/ascii-single.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.373,
+  "input_sha256": "5e944c4889877b87d2c1c8c0772e291e318ff1efa2efce62350f7ea6049448ee",
+  "stdout_sha256": "41cc6ccf62636892d7a33f34b5a43d9a9fc2ed3eb627f7b78b09630b8c710c21",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

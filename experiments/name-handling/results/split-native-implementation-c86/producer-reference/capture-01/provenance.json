@@ -1,0 +1,115 @@
+{
+  "records": [
+    {
+      "case": "written-nul",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/written-nul.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "49e8ae1db48d8eb8af4536e8328a63701ac8ab9ad998e9a901a7829ca19d2789",
+      "stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "written-unicode-nul",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/written-unicode-nul.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "5b215c5bb655615b98a381d74da5c0bab3990569eb6f6662328175aa079f5014",
+      "stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "written-surrogate",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/written-surrogate.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "52ab98ccf47b5f8228aec1752b01c05199b536cadc319f88a50f12dad0d02f62",
+      "stdout_sha256": "02f2dfe8fdad4b2bb913db2c25dac768eca4447c815d40e64657f8fe05c16d27",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "literal-raw-nul",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/literal-raw-nul.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "d85aa16ffab0cf9ca9eb2433a25097967fa7566dbe70d302c5ee0c1e560472d1",
+      "stdout_sha256": "d6bae7e98ab637c49208fdd2904ecfc17b165758ea9f84f0d9fa06aef62f71fe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "literal-encoded-nul",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/literal-encoded-nul.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "1bf39cfaa46bacf464f3fb2fb4ab29f25b42a64ecf05af7dd86d6185657a04e9",
+      "stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "braced-backslash",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/braced-backslash.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "f3319312161dbc82ef25032f315d5264359b30956c5426b5c7c9914ca6eb4d70",
+      "stdout_sha256": "023bb88f702384dd472c384074fbe41ce8dd952fb6c6b12832fdd073a6b36fef",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "double-backslash",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/double-backslash.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "aaa0baa108bd212def9b25e9294923c81bc13c89f13f07e35f9bae740288c502",
+      "stdout_sha256": "023bb88f702384dd472c384074fbe41ce8dd952fb6c6b12832fdd073a6b36fef",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "case": "mixed",
+      "argv": [
+        "timeout",
+        "15",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/control-8.6.18",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/producer-reference/capture-01/mixed.tcl"
+      ],
+      "exit": 0,
+      "source_sha256": "c68dec71899d4f4a970fdd3a2a83f5534133a0cf5e0237eb903d31bba54c706e",
+      "stdout_sha256": "c66f059da7f62563f5b46d91a9665d507bdeb6476c2180bcea629f500638cdfe",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "control_sha256": "bb446fe17ca800923c8f2fcc15105322f3d3716a82646b8cbf0e2a4d6d204d73",
+  "actual_source_sha256": {
+    "tmp/tcl8.6.18/generic/tclParse.c": "bbab97189d8d3e1ccca11a1bb02cc2c8c6099c7ba33d3f35de4e614a7ba8bfb6",
+    "tmp/tcl8.6.18/generic/tclUtf.c": "95d8a272d4c96a4462c5e406d4fef3073b3bd7489691d839615bfaef394ac7f5",
+    "tmp/tcl8.6.18/library/init.tcl": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35"
+  },
+  "scope": "Eight benign direct C86 source controls only; actual real Tcl_Init/counting Tcl_EvalEx, no new oracle build, Native rebuilt comparisons pending focused checks, no C84/C85/C9/Jim/F5 producer execution inferred."
+}

@@ -1,0 +1,72 @@
+   Compiling tcl-syntax v0.1.0 (/workspace/tcl-lsp/rust/tcl-syntax)
+   Compiling tcl-runtime-api v0.1.0 (/workspace/tcl-lsp/rust/tcl-runtime-api)
+   Compiling tcl-cmd-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-cmd-core)
+   Compiling tcl-bytecode v0.1.0 (/workspace/tcl-lsp/rust/tcl-bytecode)
+   Compiling tcl-regex v0.1.0 (/workspace/tcl-lsp/rust/tcl-regex)
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-runtime v0.1.0 (/workspace/tcl-lsp/runtime/rust)
+error: let chains are only allowed in Rust 2024 or later
+     --> src/interp.rs:18549:36
+      |
+18549 |   ...                   && let Some(original) = word
+      |  __________________________^
+18550 | | ...                       .original_text
+18551 | | ...                       .iter()
+18552 | | ...                       .find(|original| original.part_index == part_index)
+      | |_____________________________________________________________________________^
+
+warning: unused import: `native_list_storage::native_list_range`
+  --> src/list.rs:57:16
+   |
+57 | pub(crate) use native_list_storage::native_list_range;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0616]: field `result` of struct `interp::InterpState` is private
+    --> src/cmd_list.rs:1887:56
+     |
+1887 |                 let result = obj::Owned::retain(interp.result.get());
+     |                                                        ^^^^^^ private field
+
+error[E0616]: field `result` of struct `interp::InterpState` is private
+    --> src/cmd_list.rs:1921:52
+     |
+1921 |             let result = obj::Owned::retain(interp.result.get());
+     |                                                    ^^^^^^ private field
+
+error[E0616]: field `result` of struct `interp::InterpState` is private
+    --> src/cmd_list.rs:1944:52
+     |
+1944 |         let members = interp.list_elements(&interp.result.get()).unwrap();
+     |                                                    ^^^^^^ private field
+
+error[E0616]: field `source_span` of struct `SpannedExecutablePart` is private
+     --> src/interp.rs:18633:26
+      |
+18633 |             if component.source_span.start() != at
+      |                          ^^^^^^^^^^^ private field
+
+error[E0616]: field `source_span` of struct `SpannedExecutablePart` is private
+     --> src/interp.rs:18634:30
+      |
+18634 |                 || component.source_span.end() > original.span.end()
+      |                              ^^^^^^^^^^^ private field
+
+error[E0616]: field `source_span` of struct `SpannedExecutablePart` is private
+     --> src/interp.rs:18655:28
+      |
+18655 |             at = component.source_span.end();
+      |                            ^^^^^^^^^^^ private field
+
+warning: unused variable: `scope`
+   --> src/interp/native_body_artifact/original_word_input_tests.rs:208:17
+    |
+208 |             let scope =
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_scope`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0616`.
+warning: `tcl-runtime` (lib test) generated 2 warnings
+error: could not compile `tcl-runtime` (lib test) due to 7 previous errors; 2 warnings emitted

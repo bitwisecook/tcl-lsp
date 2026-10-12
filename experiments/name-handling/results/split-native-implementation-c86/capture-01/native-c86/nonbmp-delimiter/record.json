@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/nonbmp-delimiter",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-delimiter.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.319,
+  "input_sha256": "fa43a24d6e1a213269b0206af46acad585b8c6245cb9df41b6785bf17a02032b",
+  "stdout_sha256": "5e6c188db8041e7f16ff350c56c9d97e514bee9ef3c76509835b6b4d5e228ad6",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

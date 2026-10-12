@@ -1,0 +1,24 @@
+{
+  "state": "Refrozen after NEW Logical fixture diagnostic confirmed missing independent naming capability; existing authored naming provider installed only on that new fixture. All original inputs/profiles/assertions unchanged.",
+  "source_sha256": {
+    "rust/tcl-syntax/src/native_tcl_utf.rs": "0687244c9cb7e9b968d81dd1af5a62ded4133b28e62abdb6a756537e5d9e1a79",
+    "rust/tcl-syntax/src/value.rs": "12b2a1c69a47c765d13f270a403ef2cf1f2c05177023cb2755083d07e3565ee3",
+    "rust/tcl-cmd-core/src/list.rs": "6956071f349ad968fff69e283abc33e71aba33a265fc2d08bc76df1a77c49557",
+    "runtime/rust/src/value_ops.rs": "0477464bf7325ff9ea8620c4ab15b8e03700f79423ab47f8f4971360d50e8ccd",
+    "runtime/rust/src/cmd_list.rs": "98ce9444134b90dd7434589a7c9435446ce8f137cb0dcdd608589c424f411909",
+    "runtime/rust/src/parse.rs": "0574c1059371181c912099209a524d031f6df3cae2e8ee846f0eb57c5ccfc943",
+    "runtime/rust/src/interp.rs": "178a2aaa1faa8a6c2ac853ef1b13d04f9541d8bb2d4d2941d24a9ccca4f31995",
+    "rust/tcl-cmd-core/tests/data/native_split_c86/rows.tsv": "ae2b22a650c64951940884d4f058edff458c089e6a0d176a8e8346e54edf9ba0",
+    "rust/tcl-cmd-core/tests/data/native_split_c86/README.md": "f3864731b2e5c95d9cf818859b7fbc3e23677f74daa16cbad302bd1ff04202c9"
+  },
+  "scope": "Native C86 split + top-level original escaped text producer. Existing other Native/Logical paths retained; nested scan_parts/array-index/subst producer provenance is unproved.",
+  "planned_checks": [
+    "runtime --lib c86_split_tests",
+    "runtime --lib c86_original_source_text_tests",
+    "runtime original cmd_list::tests::lreverse_concat_join_split",
+    "runtime original parse::tests::word_escapes_decode_for_the_emulated_release",
+    "tcl-cmd-core --lib c86_split_plan_tests",
+    "fresh standalone runner and original18-case comparisons only; no all.tcl rerun"
+  ],
+  "dependencies": "runtime lib dev target and tcl-cmd-core lib dev target do not reach tcl-compiler; manifests use tcl-test-support and tcl-host-c-abi. Shared syntax/cmd-core sources must remain frozen for parallel VM diagnostic."
+}

@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/invalid-delimiter-only",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/invalid-delimiter-only.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.369,
+  "input_sha256": "6b906b1a190bb936d17cebbfdf646ac39bc9f998564e753d90ba977523ee4692",
+  "stdout_sha256": "046a6314119c69db0ab1f3b3c8c9660a8996e9d161ffd5f502b6b76c5e3c20b1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

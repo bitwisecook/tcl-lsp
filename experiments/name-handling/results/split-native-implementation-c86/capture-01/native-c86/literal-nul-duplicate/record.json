@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/literal-nul-duplicate",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-duplicate.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.637,
+  "input_sha256": "3faf129a316264a8048d37a303509b45f070201c066f460d7513fa48e9cb1d66",
+  "stdout_sha256": "a3da879f4d54536ea6c4f1738009ca27c3279a46aeebe64164215d739b197c61",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

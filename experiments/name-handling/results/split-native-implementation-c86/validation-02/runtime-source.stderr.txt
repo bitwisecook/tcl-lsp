@@ -1,0 +1,118 @@
+warning: unused import: `native_list_storage::native_list_range`
+  --> src/list.rs:57:16
+   |
+57 | pub(crate) use native_list_storage::native_list_range;
+   |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `scope`
+   --> src/interp/native_body_artifact/original_word_input_tests.rs:208:17
+    |
+208 |             let scope =
+    |                 ^^^^^ help: if this is intentional, prefix it with an underscore: `_scope`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `read_double` is never used
+   --> src/bignum.rs:311:15
+    |
+311 | pub(crate) fn read_double(obj: *mut TclObj) -> Option<f64> {
+    |               ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `materialise_selected_array` is never used
+   --> src/frame.rs:648:8
+    |
+587 | impl CellContents {
+    | ----------------- method in this implementation
+...
+648 |     fn materialise_selected_array(&mut self, root: Option<&[u8]>) -> Result<(), VarError> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `remove` is never used
+  --> src/frame/native_element_entry.rs:68:19
+   |
+31 | impl NativeElementEntries {
+   | ------------------------- method in this implementation
+...
+68 |     pub(super) fn remove(&mut self, key: &[u8]) {
+   |                   ^^^^^^
+
+warning: methods `retire_native_entry` and `retire_jim_key` are never used
+   --> src/frame/native_variable_names.rs:92:19
+    |
+ 14 | impl VarTable {
+    | ------------- methods in this implementation
+...
+ 92 |     pub(super) fn retire_native_entry(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^^^^^^
+...
+112 |     pub(super) fn retire_jim_key(&self, name: &[u8]) {
+    |                   ^^^^^^^^^^^^^^
+
+warning: method `retain_original_compiled_alias` is never used
+   --> src/frame/native_variable_names.rs:247:19
+    |
+154 | impl FrameStack {
+    | --------------- method in this implementation
+...
+247 |     pub(crate) fn retain_original_compiled_alias(
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: method `on_command_replaced` is never used
+    --> src/interp.rs:5570:8
+     |
+1883 | impl Interp {
+     | ----------- method in this implementation
+...
+5570 |     fn on_command_replaced(&mut self, fqn: &[u8]) {
+     |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `concatenate_native_lists` is never used
+    --> src/list.rs:1289:15
+     |
+1289 | pub(crate) fn concatenate_native_lists(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `replace_elements_native_checked` is never used
+    --> src/list.rs:1526:15
+     |
+1526 | pub(crate) fn replace_elements_native_checked(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `retire` is never used
+   --> src/obj/native_namespace_name.rs:128:15
+    |
+128 | pub(crate) fn retire(value: *mut TclObj) -> Result<(), ValueError> {
+    |               ^^^^^^
+
+warning: function `set_at` is never used
+    --> src/vars.rs:1657:15
+     |
+1657 | pub(crate) fn set_at(
+     |               ^^^^^^
+
+warning: function `set_elem_at` is never used
+    --> src/vars.rs:1684:15
+     |
+1684 | pub(crate) fn set_elem_at(
+     |               ^^^^^^^^^^^
+
+warning: function `selected_namespace_link_target` is never used
+    --> src/vars.rs:2637:15
+     |
+2637 | pub(crate) fn selected_namespace_link_target(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `capture_variable_receiver_at` is never used
+    --> src/vars.rs:2706:15
+     |
+2706 | pub(crate) fn capture_variable_receiver_at(
+     |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-runtime` (lib test) generated 15 warnings (run `cargo fix --lib -p tcl-runtime --tests` to apply 2 suggestions)
+    Finished `test` profile [unoptimized] target(s) in 0.04s
+     Running unittests src/lib.rs (tmp/name-target-runtime/debug/deps/tcl_runtime-05b21be85cf383d9)
+error: test failed, to rerun pass `--lib`

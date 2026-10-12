@@ -1,0 +1,25 @@
+
+running 6 tests
+test interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain ... FAILED
+test interp::c86_original_source_text_tests::original_text_request_cannot_fall_back_after_prior_argument_changes_profile ... ok
+test interp::c86_original_source_text_tests::original_top_level_escapes_preserve_written_and_literal_native_extents ... ok
+test interp::c86_original_source_text_tests::original_word_order_preserves_substitution_effects_and_single_object_passthrough ... ok
+test interp::c86_original_source_text_tests::selected_source_producer_does_not_fall_back_after_change_and_restore ... ok
+test interp::c86_original_source_text_tests::source_channel_and_grammar_refuse_before_decoding_under_actual_operation ... ok
+
+failures:
+
+---- interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain stdout ----
+
+thread 'interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain' (231529) panicked at src/interp.rs:24459:9:
+assertion `left == right` failed
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 2080 filtered out; finished in 4.87s
+

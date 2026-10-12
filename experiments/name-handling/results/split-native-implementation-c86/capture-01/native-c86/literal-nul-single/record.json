@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/literal-nul-single",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/literal-nul-single.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.57,
+  "input_sha256": "939bea4ebab21769fb2571f08248d489d63577356627da25c868e1e44c35779b",
+  "stdout_sha256": "e44a98d79bf3e35b867cc5d8e5ce07335cbe49ea3f7153a7408d01c372515fe1",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

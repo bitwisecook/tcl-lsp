@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/lone-surrogate-delimiter",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/lone-surrogate-delimiter.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.319,
+  "input_sha256": "0fca030423f57f5296f90f5ae73f0fbe11fccefcde990866ce84fb00c6b4aa0e",
+  "stdout_sha256": "3a40ecd9f75522965ded7b4db4b2fd5f463bcfa7ed7d2c668881b945c95fe24b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

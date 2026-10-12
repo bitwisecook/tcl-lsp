@@ -66,7 +66,7 @@ use tcl_syntax::number::{self, Number};
 use tcl_syntax::value::IntegerMagnitude;
 use tcl_syntax::value::{ValueError, ValueOps};
 
-use crate::interp::{obj_bytes, Interp};
+use crate::interp::{Interp, obj_bytes};
 use crate::list;
 use crate::obj::{self, TclObj};
 
@@ -688,10 +688,10 @@ impl RuntimeDictionaryChecks {
     fn new(
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-                *mut TclObj,
-                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-            + 'static,
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+        + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> std::rc::Rc<Self> {
@@ -733,10 +733,10 @@ impl RuntimeAppendObjects {
         self,
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-                *mut TclObj,
-                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-            + 'static,
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+        + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> OriginalRuntimeAppendObjects {
@@ -770,10 +770,10 @@ impl RuntimeDictionaryObjects {
         mut self,
         current: impl Fn() -> Result<(), tcl_cmd_core::CmdError> + 'static,
         string: impl Fn(
-                *mut TclObj,
-                &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
-            ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
-            + 'static,
+            *mut TclObj,
+            &dyn Fn() -> Result<(), tcl_cmd_core::CmdError>,
+        ) -> Result<std::rc::Rc<[u8]>, tcl_cmd_core::CmdError>
+        + 'static,
         refuse: impl Fn(ValueError) -> tcl_cmd_core::CmdError + 'static,
         retain: impl Fn(tcl_cmd_core::CmdError) -> tcl_cmd_core::CmdError + 'static,
     ) -> Self {
@@ -1610,7 +1610,7 @@ impl ValueOps for Interp {
 
     fn array_existence_result(&mut self, present: bool) -> Result<*mut TclObj, ValueError> {
         use tcl_registry::native_array_compilation::{
-            native_array_existence_result, NativeArrayExistenceResult,
+            NativeArrayExistenceResult, native_array_existence_result,
         };
         if self.observed_name_policy_selected() {
             return Ok(self.new_bool(present));
@@ -1973,6 +1973,66 @@ impl ValueOps for Interp {
         self.native_object_string_bytes(*value)
     }
 
+    fn native_split(
+        &mut self,
+        value: &Self::Value,
+        chars: Option<&Self::Value>,
+    ) -> Result<Option<Self::Value>, ValueError> {
+        use tcl_syntax::{naming::NamePolicyAuthority, native_string::NativeStringProtocol};
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        if !self.name_policy_protocol().is_some_and(|policy| {
+            policy.authority() == NamePolicyAuthority::Native
+                && policy.string_protocol() == protocol
+        }) {
+            return Ok(None);
+        }
+        let original = ValueCoercion::enter(self, *value)?;
+        let delimiter = chars
+            .map(|&chars| {
+                obj::check_native_liveness(chars)?;
+                Ok::<_, ValueError>(obj::NativeObjectLifetime::retain(chars))
+            })
+            .transpose()?;
+        let characters = if let Some(delimiter) = &delimiter {
+            let bytes = self.native_object_string_bytes(delimiter.as_ptr());
+            original.check()?;
+            obj::check_native_liveness(delimiter.as_ptr())?;
+            bytes?
+        } else {
+            Rc::from(&b" \n\t\r"[..])
+        };
+        let source = self.native_object_string_bytes(*value);
+        original.check()?;
+        if let Some(delimiter) = &delimiter {
+            obj::check_native_liveness(delimiter.as_ptr())?;
+        }
+        let source = source?;
+        let parts = tcl_cmd_core::list::plan_c86_split(&source, &characters)?;
+        let result = obj::Owned::fresh(obj::new_obj());
+        let mut reused = std::collections::HashMap::<u32, *mut TclObj>::new();
+        for part in parts {
+            let existing = part.reuse.and_then(|key| reused.get(&key).copied());
+            let fresh = existing
+                .is_none()
+                .then(|| obj::Owned::fresh(obj::new_string_bytes(&source[part.bytes])));
+            let child =
+                existing.unwrap_or_else(|| fresh.as_ref().expect("fresh split child").as_ptr());
+            let appended = crate::list::append_native_element_with_currency(
+                result.as_ptr(),
+                child,
+                protocol,
+                original.scope.currency(),
+            );
+            original.check()?;
+            appended.map_err(|error| ValueCoercion::value_error(self, error))?;
+            if let Some(key) = part.reuse {
+                reused.insert(key, child);
+            }
+        }
+        original.check()?;
+        Ok(Some(result.into_native_unowned()))
+    }
+
     /// Byte-exact construction (the `obj::new_string_bytes` path).
     fn new_bytes(&mut self, bytes: &[u8]) -> *mut TclObj {
         obj::new_string_bytes(bytes)
@@ -2092,9 +2152,11 @@ mod tests {
                 NativeStringProtocol::C(version),
             ));
             let mut original = receiver.as_ptr();
-            assert!(interp
-                .try_list_append_in_place(&mut original, &first.as_ptr())
-                .unwrap());
+            assert!(
+                interp
+                    .try_list_append_in_place(&mut original, &first.as_ptr())
+                    .unwrap()
+            );
             assert_eq!(original, receiver.as_ptr());
             crate::list::append_prepared_native_elements(
                 original,

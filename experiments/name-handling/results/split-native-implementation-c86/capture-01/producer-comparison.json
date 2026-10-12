@@ -1,0 +1,69 @@
+{
+  "cases": [
+    {
+      "case": "written-nul",
+      "current_raw_result_hex": "c080",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "retained_c86_input_sha256": "49e8ae1db48d8eb8af4536e8328a63701ac8ab9ad998e9a901a7829ca19d2789",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "written-unicode-nul",
+      "current_raw_result_hex": "c080",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "retained_c86_input_sha256": "5b215c5bb655615b98a381d74da5c0bab3990569eb6f6662328175aa079f5014",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "written-surrogate",
+      "current_raw_result_hex": "eda080",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "02f2dfe8fdad4b2bb913db2c25dac768eca4447c815d40e64657f8fe05c16d27",
+      "retained_c86_input_sha256": "52ab98ccf47b5f8228aec1752b01c05199b536cadc319f88a50f12dad0d02f62",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "literal-raw-nul",
+      "current_raw_result_hex": "00",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "d6bae7e98ab637c49208fdd2904ecfc17b165758ea9f84f0d9fa06aef62f71fe",
+      "retained_c86_input_sha256": "d85aa16ffab0cf9ca9eb2433a25097967fa7566dbe70d302c5ee0c1e560472d1",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "literal-encoded-nul",
+      "current_raw_result_hex": "c080",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "e9b9d6843ffda17ce1f7c6e1e0ef1c0e30ae9c986b7a230fcd4e14d47c09108b",
+      "retained_c86_input_sha256": "1bf39cfaa46bacf464f3fb2fb4ab29f25b42a64ecf05af7dd86d6185657a04e9",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "braced-backslash",
+      "current_raw_result_hex": "5c30",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "023bb88f702384dd472c384074fbe41ce8dd952fb6c6b12832fdd073a6b36fef",
+      "retained_c86_input_sha256": "f3319312161dbc82ef25032f315d5264359b30956c5426b5c7c9914ca6eb4d70",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "double-backslash",
+      "current_raw_result_hex": "5c30",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "023bb88f702384dd472c384074fbe41ce8dd952fb6c6b12832fdd073a6b36fef",
+      "retained_c86_input_sha256": "aaa0baa108bd212def9b25e9294923c81bc13c89f13f07e35f9bae740288c502",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    },
+    {
+      "case": "mixed",
+      "current_raw_result_hex": "41c0805658c08042",
+      "matches_retained_c86_raw_element": true,
+      "retained_c86_stdout_sha256": "c66f059da7f62563f5b46d91a9665d507bdeb6476c2180bcea629f500638cdfe",
+      "retained_c86_input_sha256": "c68dec71899d4f4a970fdd3a2a83f5534133a0cf5e0237eb903d31bba54c706e",
+      "reporting": "Same body; Native final set d uses counted completion bytes, retained C final list $d uses counted raw element."
+    }
+  ],
+  "other_producer_oracles": "C84/C85/C9/Jim/F5 not executed; no producer parity inferred."
+}

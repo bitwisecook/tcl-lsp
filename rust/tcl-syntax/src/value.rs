@@ -1048,6 +1048,26 @@ pub trait ValueOps {
         Ok(self.as_bytes(v))
     }
 
+    /// Independently admitted original C86 split worker. Other existing text
+    /// purposes retain their checked Unicode route; selected missing C86
+    /// physical workers must refuse rather than reconstruct original objects.
+    fn native_split(
+        &mut self,
+        _value: &Self::Value,
+        _chars: Option<&Self::Value>,
+    ) -> Result<Option<Self::Value>, ValueError> {
+        if self.name_policy_protocol().is_some_and(|policy| {
+            policy.authority() == crate::naming::NamePolicyAuthority::Native
+                && policy.string_protocol()
+                    == crate::native_string::NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6)
+        }) {
+            return Err(ValueError::CommandProtocolUnavailable(
+                "original C86 split worker",
+            ));
+        }
+        Ok(None)
+    }
+
     /// Construct a native value retaining every supplied byte. There is no
     /// Unicode fallback; a string-only test model must keep its inputs bounded.
     fn new_bytes(&mut self, bytes: &[u8]) -> Self::Value;

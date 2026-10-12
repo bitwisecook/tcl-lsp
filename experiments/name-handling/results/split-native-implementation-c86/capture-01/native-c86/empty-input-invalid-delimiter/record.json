@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/empty-input-invalid-delimiter",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/empty-input-invalid-delimiter.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.369,
+  "input_sha256": "769c7492b9cb271394ce40b24f7e0387c2a6ecfd4c52f87181ec844c633fa449",
+  "stdout_sha256": "7eb0117ba7e75a829c71d4a63cfbd5610ca3d55d7b4e3d43ec9fc382ad436e4e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

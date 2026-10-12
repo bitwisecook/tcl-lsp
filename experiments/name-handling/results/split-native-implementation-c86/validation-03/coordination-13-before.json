@@ -1,0 +1,15 @@
+{
+  "rust/tcl-syntax/src/native_tcl_utf.rs": "0687244c9cb7e9b968d81dd1af5a62ded4133b28e62abdb6a756537e5d9e1a79",
+  "rust/tcl-syntax/src/value.rs": "12b2a1c69a47c765d13f270a403ef2cf1f2c05177023cb2755083d07e3565ee3",
+  "rust/tcl-cmd-core/src/list.rs": "6956071f349ad968fff69e283abc33e71aba33a265fc2d08bc76df1a77c49557",
+  "runtime/rust/src/value_ops.rs": "0477464bf7325ff9ea8620c4ab15b8e03700f79423ab47f8f4971360d50e8ccd",
+  "runtime/rust/src/cmd_list.rs": "98ce9444134b90dd7434589a7c9435446ce8f137cb0dcdd608589c424f411909",
+  "runtime/rust/src/parse.rs": "0574c1059371181c912099209a524d031f6df3cae2e8ee846f0eb57c5ccfc943",
+  "runtime/rust/src/interp.rs": "178a2aaa1faa8a6c2ac853ef1b13d04f9541d8bb2d4d2941d24a9ccca4f31995",
+  "rust/tcl-compiler/src/registry_invocation/source_scoped_body.rs": "cdc954a58e0ad4837af2012e85f7cd448329a842ba7a66830c715661ae12aa42",
+  "rust/tcl-compiler/src/command_binding/source_transition_advice.rs": "16e6b2da25b9aad0d556b5ee53f5e1b323038c9824922a8bdf13348c79a3410c",
+  "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs": "54f0e7332eef99cfeecbc05225d8ce1077ec3c7865be35c99d996c7e47433178",
+  "rust/tcl-compiler/src/command_binding/source_transition_advice/produced_prefix.rs": "6f755b87742f78e6e477995ea7a375dab5440e9584d41f74f0b9768d097f26b0",
+  "rust/xtask/src/owner_resolution.rs": "6a1a966ec72eeeff1856a15d03a70de1fbd2803a1b730f689e013528878373a6",
+  "docs/design/contracts/shared-utility-contracts-rust.md": "cf496dfd3c67eba949f14567eab2e87ac4272bacf674956adfc5ddf7389fec7f"
+}

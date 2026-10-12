@@ -1,0 +1,18 @@
+{
+  "name": "native-producer/double-backslash",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/double-backslash.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.472,
+  "input_sha256": "a3a2162477e54560585d50980bcfa8b837b09d7fdcc3575b7f2c5d26ec096a3c",
+  "stdout_sha256": "2d522c27753994db6f3b3ec7f285ee467ec40d4b79d93b8da86433a9f4e28f84",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

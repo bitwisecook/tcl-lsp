@@ -1,0 +1,18 @@
+{
+  "name": "native-producer/mixed",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/mixed.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.472,
+  "input_sha256": "33039b92aa888e662eeb87e474aba8fd37d06c5ef2cde7ecdba609195b06011e",
+  "stdout_sha256": "08a33cef64bb4cef55e0a67938f8df03266c660068d19c102e47bb8b39e248d8",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

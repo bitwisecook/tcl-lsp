@@ -1,0 +1,56 @@
+{
+  "runtime_source_sha256": {
+    "rust/tcl-syntax/src/native_tcl_utf.rs": "0687244c9cb7e9b968d81dd1af5a62ded4133b28e62abdb6a756537e5d9e1a79",
+    "rust/tcl-syntax/src/value.rs": "12b2a1c69a47c765d13f270a403ef2cf1f2c05177023cb2755083d07e3565ee3",
+    "rust/tcl-cmd-core/src/list.rs": "6956071f349ad968fff69e283abc33e71aba33a265fc2d08bc76df1a77c49557",
+    "runtime/rust/src/value_ops.rs": "0477464bf7325ff9ea8620c4ab15b8e03700f79423ab47f8f4971360d50e8ccd",
+    "runtime/rust/src/cmd_list.rs": "98ce9444134b90dd7434589a7c9435446ce8f137cb0dcdd608589c424f411909",
+    "runtime/rust/src/parse.rs": "0574c1059371181c912099209a524d031f6df3cae2e8ee846f0eb57c5ccfc943",
+    "runtime/rust/src/interp.rs": "178a2aaa1faa8a6c2ac853ef1b13d04f9541d8bb2d4d2941d24a9ccca4f31995",
+    "rust/tcl-cmd-core/tests/data/native_split_c86/rows.tsv": "ae2b22a650c64951940884d4f058edff458c089e6a0d176a8e8346e54edf9ba0",
+    "rust/tcl-cmd-core/tests/data/native_split_c86/README.md": "f3864731b2e5c95d9cf818859b7fbc3e23677f74daa16cbad302bd1ff04202c9"
+  },
+  "focused_tests_passed": 13,
+  "original_scripts": {
+    "executed": 18,
+    "process_successes": 18,
+    "same_retained_c86_guest_stdout": 18
+  },
+  "producer_controls": {
+    "executed": 8,
+    "raw_c86_matches": 8,
+    "scope": "Native same original source body; final reporting uses set d counted completion versus retained C list $d counted element."
+  },
+  "one_original_orchestration": {
+    "process_exit": 1,
+    "guest_error": "invalid command name \"GetDateFields\"",
+    "suite_entered": false,
+    "previous_operational_refusal": "Unicode byte3 no longer reached",
+    "next_worker_implemented": false,
+    "rerun": false
+  },
+  "currency": {
+    "coordination13_changed": [],
+    "source_inventory_count": 2968,
+    "source_changed_across_build_from_validation03_and_captures": 0,
+    "compiled_scope": "Standalone runtime/core only; six extra coordinator owners are not compiled acceptance."
+  },
+  "runner_build": {
+    "argv": [
+      "cargo",
+      "build",
+      "--offline",
+      "-j2",
+      "--manifest-path",
+      "runtime/rust/Cargo.toml",
+      "--example",
+      "run_script"
+    ],
+    "exit": 0,
+    "env_setup": "source /tmp/name-env.sh; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-runtime",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr_sha256": "15966bf2eb5d928dead7b5ed7aa20062d2464dfd984322eb62ff1115ac0232b3",
+    "binary_sha256": "f6a0d30ccd9ea52f292ff1788a63949f641e1daf55267f6fed2b59bceb471bf6"
+  },
+  "unexecuted": "Other Native release runner comparisons, fresh C5/Jim reruns, C84/C85/C9/Jim/F5 producer controls and F5 native contexts."
+}

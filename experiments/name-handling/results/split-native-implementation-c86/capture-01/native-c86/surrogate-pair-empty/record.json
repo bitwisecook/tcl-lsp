@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/surrogate-pair-empty",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/surrogate-pair-empty.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.319,
+  "input_sha256": "ba8360b3fd2d0d3f4f8cecf2ed0284bb81292e50dd5b0c8f8d7e9d31f10912f7",
+  "stdout_sha256": "d98fb906b7ead9d7f66ff067d024497f9416fee01a117283a48327d7f6e1033b",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

@@ -1,0 +1,20 @@
+
+running 1 test
+test interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain ... FAILED
+
+failures:
+
+---- interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain stdout ----
+
+thread 'interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain' (231933) panicked at src/interp.rs:24459:9:
+assertion `left == right` failed: actual refusal: Some(ValueAccessRefusal(CommandProtocolUnavailable("missing-command name reporting"))); result: []
+  left: Error
+ right: Ok
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    interp::c86_original_source_text_tests::explicit_logical_and_previous_native_source_routes_keep_their_text_domain
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2085 filtered out; finished in 2.66s
+

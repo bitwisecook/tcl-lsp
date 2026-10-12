@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/truncated-empty",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/truncated-empty.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.419,
+  "input_sha256": "fed5f38bcc99b5a7b569ec6c929533c8a565425261861b58bfa316fc6a65fe32",
+  "stdout_sha256": "d2e3335bbdd1fb1bef23b16b0cdb0be6aac5ff3c0c820399d178630b8504699c",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

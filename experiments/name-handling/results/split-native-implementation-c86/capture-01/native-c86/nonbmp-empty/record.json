@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/nonbmp-empty",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/nonbmp-empty.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.52,
+  "input_sha256": "46cecc280014e84ee84b1cf4868740f02c2524789b9734f599f9f7ee97733c53",
+  "stdout_sha256": "24294dcb52265a821f3b83a8a9f9d7c3bf8bb78ee3fac7bf3eb45667b05fd46f",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

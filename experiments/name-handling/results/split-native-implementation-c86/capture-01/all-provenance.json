@@ -1,0 +1,35 @@
+{
+  "records": [
+    {
+      "name": "native-original-all-tcl",
+      "argv": [
+        "timeout",
+        "--kill-after=5",
+        "60",
+        "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+        "--quiet",
+        "--tcl-version",
+        "8.6",
+        "--init",
+        "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+      ],
+      "exit_code": 1,
+      "seconds": 4.329,
+      "input_sha256": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+      "stdout_sha256": "1b45f53c070a67d83c6a23eb109df5702d48cd98b09cb852dfb5b52122a88822",
+      "stderr_sha256": "f0fd4b10d37d9e53b04f6a27f3341a8fdca7096f36664034318bd46e3cd71d40"
+    }
+  ],
+  "runner_sha256_before": "f6a0d30ccd9ea52f292ff1788a63949f641e1daf55267f6fed2b59bceb471bf6",
+  "runner_sha256_after": "f6a0d30ccd9ea52f292ff1788a63949f641e1daf55267f6fed2b59bceb471bf6",
+  "source_inventory_count": 2968,
+  "changed_sources": [],
+  "scope": "Conservative standalone source/fixture inventory, not every file compiled. Compiler/VM/LSP/xtask absent from standalone graph. Frozen seven owners and focused fixture hashes are separately recorded in source-ready-v4.json.",
+  "limits": {
+    "address_space_bytes": 1073741824,
+    "timeout_seconds": 60,
+    "core_bytes": 0
+  },
+  "environment": "Inherited host data never logged or dumped. Only named benign NH_CLOCK_GETENV controls added; overlays/Tcl test environment switches removed.",
+  "version_axes": "Current Native C86 only; retained C5/Jim receipts preserve separate old provenance. No F5 native context executed."
+}

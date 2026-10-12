@@ -1,0 +1,18 @@
+{
+  "name": "native-producer/written-nul",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/written-nul.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.319,
+  "input_sha256": "ffbf7c48fe347e1bd6458eb8ae0ecb60833562dab4e4ec7bc1d8612803b328a8",
+  "stdout_sha256": "d6990d8b18ab5d070fe3c663130dd78ecd6daff0d334e455f49f10f1cf255146",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

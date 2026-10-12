@@ -1,0 +1,19 @@
+{
+  "name": "native-c86/encoded-nul-delimiter",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-reference/capture-02/encoded-nul-delimiter.tcl"
+  ],
+  "exit_code": 0,
+  "seconds": 1.373,
+  "input_sha256": "90ca950e5427ea86f6659702c11409a3cd376163eacf016852e610b43815d9ce",
+  "stdout_sha256": "556bf914f4c5762d0bdfedf1cbb33f99a0a71ca56057a374cd8f659dac7e691e",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+}

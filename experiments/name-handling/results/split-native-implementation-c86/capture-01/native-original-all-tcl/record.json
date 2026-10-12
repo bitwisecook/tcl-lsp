@@ -1,0 +1,19 @@
+{
+  "name": "native-original-all-tcl",
+  "argv": [
+    "timeout",
+    "--kill-after=5",
+    "60",
+    "/workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script",
+    "--quiet",
+    "--tcl-version",
+    "8.6",
+    "--init",
+    "/workspace/tcl-lsp/experiments/name-handling/results/split-native-implementation-c86/capture-01/all-tcl-var.tcl"
+  ],
+  "exit_code": 1,
+  "seconds": 4.329,
+  "input_sha256": "452d2c2a68c43fccf8529a1f7c28ef46c4009d62b07b217333242b98a1c0daf9",
+  "stdout_sha256": "1b45f53c070a67d83c6a23eb109df5702d48cd98b09cb852dfb5b52122a88822",
+  "stderr_sha256": "f0fd4b10d37d9e53b04f6a27f3341a8fdca7096f36664034318bd46e3cd71d40"
+}

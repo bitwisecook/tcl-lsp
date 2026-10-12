@@ -13430,7 +13430,16 @@ impl Interp {
             self.cmd_frames.borrow_mut().push(f);
         }
         let mut last = Code::Ok;
-        let commands = parse::parse_script_with_config(src, self.lexer_config());
+        let commands = if self
+            .native_invocation_dialect()
+            .native_source_string_protocol()
+            == Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                tcl_dialect::TclVersion::V8_6,
+            )) {
+            parse::parse_script_with_original_text(src, self.lexer_config())
+        } else {
+            parse::parse_script_with_config(src, self.lexer_config())
+        };
         let failure = (self.native_invocation_dialect().script_parse_timing()
             == Some(tcl_registry::invocation_words::NativeScriptParseTiming::BeforeScript))
         .then(|| {
@@ -14052,7 +14061,7 @@ impl Interp {
             let word_line = cmd_line + count_newlines(&src[w0..w.start.min(src.len())]);
             let is_literal = matches!(w.body, parse::WordBody::Literal(_));
             self.begin_native_arguments();
-            let substituted = self.substitute_word(src, &w.body);
+            let substituted = self.substitute_word(src, w);
             self.end_native_arguments();
             let obj = match substituted {
                 Ok(o) => o, // owned (+1)
@@ -18468,8 +18477,15 @@ impl Interp {
     /// Substitute one word's body into an **owned** (`+1`) object.
     /// A `Variable` reference to an unset variable, or a `[cmd]` that errors,
     /// returns `Err(code)` with the interp result already set.
-    fn substitute_word(&mut self, src: &[u8], body: &WordBody) -> Result<*mut TclObj, Code> {
-        match body {
+    fn substitute_word(&mut self, src: &[u8], word: &parse::Word<'_>) -> Result<*mut TclObj, Code> {
+        let native_text = !word.original_text.is_empty()
+            || self
+                .native_invocation_dialect()
+                .native_source_string_protocol()
+                == Some(tcl_syntax::native_string::NativeStringProtocol::C(
+                    tcl_dialect::TclVersion::V8_6,
+                ));
+        match &word.body {
             WordBody::Literal(bytes) => {
                 let obj = new_string(bytes);
                 unsafe { obj::incr_ref_count(obj) };
@@ -18526,9 +18542,22 @@ impl Interp {
                     }
                 }
                 let mut buf: Vec<u8> = Vec::new();
-                for part in parts {
+                for (part_index, part) in parts.iter().enumerate() {
                     match part {
-                        WordPart::Text(b) => buf.extend_from_slice(b),
+                        WordPart::Text(b) => {
+                            let original = if native_text {
+                                word.original_text
+                                    .iter()
+                                    .find(|original| original.part_index == part_index)
+                            } else {
+                                None
+                            };
+                            if let Some(original) = original {
+                                buf.extend_from_slice(&self.original_c86_word_text(original)?);
+                            } else {
+                                buf.extend_from_slice(b);
+                            }
+                        }
                         WordPart::Expression(expression) => {
                             buf.extend_from_slice(&self.word_expression_bytes(expression)?);
                         }
@@ -18560,6 +18589,90 @@ impl Interp {
                 Ok(obj)
             }
         }
+    }
+
+    fn original_c86_word_text(
+        &mut self,
+        original: &parse::OriginalEscapedText,
+    ) -> Result<Vec<u8>, Code> {
+        use tcl_syntax::{
+            native_string::NativeStringProtocol, raw_string::NativeValueAccessRefusal,
+        };
+        let protocol = NativeStringProtocol::C(tcl_dialect::TclVersion::V8_6);
+        if let Err(first) = self.check_entered_native_operation() {
+            self.refuse_native_execution(first);
+            return Err(Code::Error);
+        }
+        if self
+            .native_invocation_dialect()
+            .native_source_string_protocol()
+            != Some(protocol)
+            || self.source_string_protocol() != Some(protocol)
+        {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original C86 word source producer",
+                ),
+            ));
+        }
+        let arena = original.arena.as_ref().map_err(|_| {
+            self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                "original escaped word geometry",
+            ))
+        })?;
+        if arena.image().channel() != tcl_lexer::SourceChannel::NativeValue
+            || arena.config() != self.lexer_config()
+        {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word channel or grammar",
+                ),
+            ));
+        }
+        let mut at = original.span.start();
+        let mut output = Vec::new();
+        for component in arena.list(arena.root()) {
+            let source_span = arena.source_span(component).ok_or_else(|| {
+                self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word source extent",
+                ))
+            })?;
+            if source_span.start() != at
+                || source_span.end() > original.span.end()
+                || !matches!(component.part, tcl_lexer::ExecutablePart::Text(_))
+            {
+                return Err(self.refuse_native_access(
+                    NativeValueAccessRefusal::CommandProtocolUnavailable(
+                        "original escaped word component extent",
+                    ),
+                ));
+            }
+            let bytes = tcl_syntax::backslash::native_arena_text(
+                arena,
+                component,
+                arena.config().escapes,
+                protocol,
+            )
+            .map_err(|_| {
+                self.refuse_native_access(NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word decoding",
+                ))
+            })?;
+            output.extend_from_slice(&bytes);
+            at = source_span.end();
+        }
+        if at != original.span.end() {
+            return Err(self.refuse_native_access(
+                NativeValueAccessRefusal::CommandProtocolUnavailable(
+                    "original escaped word coverage",
+                ),
+            ));
+        }
+        if let Err(first) = self.check_entered_native_operation() {
+            self.refuse_native_execution(first);
+            return Err(Code::Error);
+        }
+        Ok(output)
     }
 
     /// Evaluate a quoted expression or raw index through its original arena.
@@ -24185,3 +24298,192 @@ mod native_result_boundaries_tests;
 #[cfg(test)]
 #[path = "interp/original_limit_tick_cfg_tests.rs"]
 mod original_limit_tick_cfg_tests;
+
+#[cfg(test)]
+mod c86_original_source_text_tests {
+    use super::*;
+    use std::cell::Cell;
+    use tcl_lexer::{ExecutablePartArena, LexerConfig, SourceChannel, SourceImage, Span};
+
+    thread_local! { static MARKS: Cell<usize> = const { Cell::new(0) }; }
+    fn native() -> Interp {
+        Interp::with_native_core(
+            default_host(),
+            crate::environment::profile_for_dialect("tcl8.6"),
+            tcl_registry::special_vars::NativeBootstrapInputs {
+                package_path: Vec::new(),
+                default_library: None,
+            },
+        )
+        .unwrap()
+    }
+    fn mark(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        MARKS.with(|marks| marks.set(marks.get() + 1));
+        interpreter.set_result(obj::new_string_bytes(b"X"));
+        Code::Ok
+    }
+    fn mutate(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        let original = interpreter.runtime_context();
+        let mut changed = original.clone();
+        changed.packages = vec![("original-source-text-test".to_owned(), "1.0".to_owned())];
+        interpreter.pin_context(&changed).unwrap();
+        interpreter.pin_context(&original).unwrap();
+        interpreter.set_result(obj::new_obj());
+        Code::Ok
+    }
+
+    #[test]
+    fn original_top_level_escapes_preserve_written_and_literal_native_extents() {
+        for (script, expected) in [
+            (b"set d \\0".as_slice(), b"\xc0\x80".as_slice()),
+            (b"set d \\u0000", b"\xc0\x80"),
+            (b"set d \\uD800", b"\xed\xa0\x80"),
+            (b"set d {\0}", b"\0"),
+            (b"set d {\xc0\x80}", b"\xc0\x80"),
+            (b"set d {\\0}", b"\\0"),
+            (b"set d \\\\0", b"\\0"),
+        ] {
+            let mut interpreter = native();
+            assert_eq!(interpreter.eval_str(script), Code::Ok, "{script:?}");
+            assert_eq!(interpreter.result_bytes(), expected, "{script:?}");
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
+    }
+
+    #[test]
+    fn original_word_order_preserves_substitution_effects_and_single_object_passthrough() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mark", mark);
+        MARKS.with(|marks| marks.set(0));
+        assert_eq!(
+            interpreter.eval_str(b"set v V; set d \"A\\0$v[mark]\\u0000B\""),
+            Code::Ok
+        );
+        assert_eq!(interpreter.result_bytes(), b"A\xc0\x80VX\xc0\x80B");
+        assert_eq!(MARKS.with(Cell::get), 1);
+        assert_eq!(
+            interpreter.eval_str(b"set v [list a b]; set d $v"),
+            Code::Ok
+        );
+        assert_eq!(interpreter.var_get(b"v"), interpreter.var_get(b"d"));
+        MARKS.with(|marks| marks.set(0));
+        assert_eq!(interpreter.eval_str(b"list [mark] {broken"), Code::Error);
+        assert_eq!(MARKS.with(Cell::get), 0);
+    }
+
+    #[test]
+    fn selected_source_producer_does_not_fall_back_after_change_and_restore() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mutate", mutate);
+        assert_eq!(
+            interpreter.eval_str(b"set v V; trace add variable v read mutate; set d \"$v\\0\""),
+            Code::Error
+        );
+        assert!(interpreter.native_execution_refusal().is_some());
+        assert!(interpreter.var_get(b"d").is_none());
+    }
+
+    fn mutate_profile(interpreter: &mut Interp, _: &[*mut TclObj]) -> Code {
+        interpreter.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
+        interpreter.set_result(obj::new_obj());
+        Code::Ok
+    }
+
+    #[test]
+    fn original_text_request_cannot_fall_back_after_prior_argument_changes_profile() {
+        let mut interpreter = native();
+        interpreter.register_builtin(b"mutateProfile", mutate_profile);
+        assert_eq!(
+            interpreter.eval_str(b"list [mutateProfile] \\0"),
+            Code::Error
+        );
+        assert!(interpreter.native_execution_refusal().is_some());
+
+        // The captured source operand remains a physical request even if an
+        // earlier argument's callback changed the current admission recipe.
+        let mut interpreter = native();
+        let source = b"set d \\0";
+        let commands = parse::parse_script_with_original_text(source, interpreter.lexer_config());
+        let _operation =
+            native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+        interpreter.set_dialect_profile(crate::environment::profile_for_dialect("tcl9.0"));
+        assert!(interpreter
+            .substitute_word(source, &commands[0].words[2])
+            .is_err());
+        assert!(interpreter.native_execution_refusal().is_some());
+    }
+
+    #[test]
+    fn source_channel_and_grammar_refuse_before_decoding_under_actual_operation() {
+        for (channel, config) in [
+            (SourceChannel::Document, LexerConfig::for_dialect("tcl8.6")),
+            (
+                SourceChannel::NativeValue,
+                LexerConfig::for_dialect("tcl8.5"),
+            ),
+        ] {
+            let mut interpreter = native();
+            let original = parse::OriginalEscapedText {
+                part_index: 0,
+                span: Span::new(0, 2),
+                arena: ExecutablePartArena::decompose(
+                    SourceImage::from_bytes(b"\\0".to_vec(), channel),
+                    Span::new(0, 2),
+                    tcl_lexer::word_parts::SubstFlags {
+                        vars: false,
+                        cmds: false,
+                        backslashes: true,
+                        ..Default::default()
+                    },
+                    config,
+                ),
+            };
+            let _operation =
+                native_operation_currency::NativeOperationScope::enter(&interpreter).unwrap();
+            assert_eq!(
+                interpreter.original_c86_word_text(&original),
+                Err(Code::Error)
+            );
+            assert!(interpreter.native_execution_refusal().is_some());
+        }
+    }
+
+    #[test]
+    fn explicit_logical_and_previous_native_source_routes_keep_their_text_domain() {
+        let mut logical = Interp::new();
+        logical.set_dialect_profile(crate::environment::profile_for_dialect("irules"));
+        assert!(logical.set_logical_name_provider(
+            tcl_syntax::naming::NamePolicyProtocol::authored_tcl(tcl_dialect::TclVersion::V8_4),
+        ));
+        assert!(logical.set_logical_source_word_provider(
+            tcl_registry::invocation_words::LogicalSourceWordProvider::Tcl84CoreSimulation,
+            crate::environment::profile_for_dialect("tcl8.6"),
+        ));
+        assert_eq!(
+            logical.eval_str(b"set d \\0"),
+            Code::Ok,
+            "actual refusal: {:?}; result: {:?}",
+            logical.native_execution_refusal(),
+            logical.result_bytes()
+        );
+        assert_eq!(logical.result_bytes(), b"\0");
+        for dialect in ["tcl8.4", "tcl8.5", "tcl9.0", "tcl9.1", "jim"] {
+            let mut interpreter = Interp::with_native_core(
+                default_host(),
+                crate::environment::profile_for_dialect(dialect),
+                tcl_registry::special_vars::NativeBootstrapInputs {
+                    package_path: Vec::new(),
+                    default_library: None,
+                },
+            )
+            .unwrap();
+            assert_eq!(
+                interpreter.eval_str(b"set d \\0; split word {}"),
+                Code::Ok,
+                "{dialect}"
+            );
+            assert_eq!(interpreter.result_bytes(), b"w o r d", "{dialect}");
+            assert!(interpreter.native_execution_refusal().is_none());
+        }
+    }
+}
