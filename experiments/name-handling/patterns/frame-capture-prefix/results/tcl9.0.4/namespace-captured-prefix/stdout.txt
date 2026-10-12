@@ -1,0 +1,11 @@
+FIELD setup_code 30
+FIELD setup_result 3a3a6469737061746368
+FIELD setup_options 2d636f64652030202d6c6576656c2030
+FIELD setup_error_code {}
+FIELD setup_error_info {}
+FIELD question_code 30
+FIELD question_result 6f726967696e616c2031
+FIELD question_options 2d636f64652030202d6c6576656c2030
+FIELD question_error_code {}
+FIELD question_error_info {}
+FIELD background_errors {}

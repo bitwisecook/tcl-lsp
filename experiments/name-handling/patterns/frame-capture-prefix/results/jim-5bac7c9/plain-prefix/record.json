@@ -1,0 +1,33 @@
+{
+  "provider": "jim-5bac7c9",
+  "case_id": "plain-prefix",
+  "question": "After exact successful setup, which caller-local value and namespace-cell-existence result does ::writer::caller produce?",
+  "source": "experiments/name-handling/patterns/frame-capture-prefix/plain-prefix.tcl",
+  "source_sha256": "2950b71cc136d7198d83cc7503931319f4f7ddf54d01a380af04452a3a177c3a",
+  "input_sha256": "6f8e7c4ea95e3b931c00a6196e283da6b147c44414ee604c1566010c9c0d08c6",
+  "stdout_sha256": "3a82d266a8aa1947ef28c0a91c19bd026ed07d4ec065b24e96639c116e84ef96",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/frame-capture-prefix/results/jim-5bac7c9/plain-prefix/input.tcl"
+  ],
+  "environment": {
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/frame-capture-prefix/results/jim-5bac7c9/plain-prefix",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "1",
+  "setup_result": "wrong # args: should be \"interp\"",
+  "setup_options": "-code 1 -level 0 -errorinfo {{} {} 10 {interp alias {} ::dispatch {} ::writer::assign}} -errorcode NONE",
+  "setup_error_code": "NONE",
+  "setup_error_info": "",
+  "question_code": "not-run",
+  "question_result": "",
+  "question_options": "",
+  "question_error_code": "",
+  "question_error_info": "",
+  "background_errors": "",
+  "status": "setup-failed-question-and-callback-unreached"
+}

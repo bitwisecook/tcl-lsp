@@ -1,0 +1,25 @@
+{
+  "captured_at_utc": "2026-10-12T21:13:29.192440+00:00",
+  "subject_commit": "47c1691f86ab22aaed03353f4656df38cc709b29",
+  "runner_sha256": "2c2d7b2e7d3e53f6d9c7f456bbd462a84e6709f93653a1a819ede05a81412b1f",
+  "references": [
+    {
+      "provider": "tcl8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.4.20\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "generic/tclNamesp.c_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb"
+    }
+  ],
+  "case_count": 2,
+  "F5": "unanswered; no device access; see F5-REQUEST.md",
+  "semantic_scope": "authored caller-frame/capture reductions in fresh native processes; final question and asynchronous callback failures retained separately; no static-consumer execution or canonical proof registration; driver selects native catch-options capability by provider rather than C package vcompare"
+}

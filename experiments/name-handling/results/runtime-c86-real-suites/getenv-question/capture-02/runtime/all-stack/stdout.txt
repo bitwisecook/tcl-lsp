@@ -1,0 +1,33 @@
+Tests running in interp:  /workspace/tcl-lsp/tmp/name-target-runtime/debug/examples/run_script
+Tests located in:  /workspace/tcl-lsp/tmp/tcl8.6.18/tests
+Tests running in:  /tmp/clock-getenv-question-4c_1ciq6
+Temporary files stored in /tmp/clock-getenv-question-4c_1ciq6
+Test files sourced into current interpreter
+Running tests that match:  *
+Skipping test files that match:  l.*.test
+Only running test files that match:  var.test
+outcome 1 {invalid command name "getenv"}
+errorcode {TCL LOOKUP COMMAND getenv}
+errorinfo {invalid command name "getenv"
+    while executing
+"getenv TCL_TZ"
+    (procedure "GetSystemTimeZone" line 5)
+    invoked from within
+"GetSystemTimeZone"
+    (procedure "::tcl::clock::format" line 2)
+    ("uplevel" body line 2)
+    invoked from within
+"uplevel 1 [info level 0]"
+    (procedure "::tcl::clock::format" line 1)
+    invoked from within
+"clock format [clock seconds] -format "%Y-%m-%d %H:%M:%S %Z" -locale en"
+    ("eval" body line 1)
+    invoked from within
+"eval $timeCmd"
+    (procedure "runAllTests" line 49)
+    invoked from within
+"runAllTests"
+    invoked from within
+"if {[runAllTests] && $ErrorOnFailures} {exit 1}"
+    invoked from within
+"source {/workspace/tcl-lsp/tmp/tcl8.6.18/tests/all.tcl}"}

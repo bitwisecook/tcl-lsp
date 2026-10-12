@@ -1,0 +1,31 @@
+///
+/// The scope is Tcl 9.0 or later: querying only the 9.0 point would omit
+/// commands introduced in 9.1. [`surface_admits_from`] includes those
+/// later releases.
+///
+/// A name the registry holds more than one spec for is one command, and its
+/// specs must declare the same backing.
+fn core_commands() -> Result<BTreeMap<&'static str, CoreCommand>> {
+    let mut core: BTreeMap<&'static str, CoreCommand> = BTreeMap::new();
+    for spec in tcl_registry::commands::tcl::tcl_command_specs()
+        .iter()
+        .filter(|spec| spec.required_package.is_none())
+        .filter(|spec| {
+            spec.surface
+                .is_none_or(|rows| surface_admits_from(rows, Family::Tcl, "9.0"))
+        })
+    {
+        let name: &'static str = spec.name;
+        let declared = spec.runtime_backing;
+        let version = [TclVersion::V9_0, TclVersion::V9_1]
+            .into_iter()
+            .find(|version| {
+                spec.surface.is_none_or(|rows| {
+                    surface_admits(
+                        rows,
+                        Some(&SurfaceQuery::core(Family::Tcl, version.version_string())),
+                    )
+                })
+            })
+            .with_context(|| format!("`{name}` has no admitted supported backing release"))?;
+        if let Some(existing) = core.get_mut(name) {

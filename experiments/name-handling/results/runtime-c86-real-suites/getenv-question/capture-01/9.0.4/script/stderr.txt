@@ -1,0 +1,9 @@
+bad option "variable": must be add, info, or remove
+    while executing
+"trace variable ::env(NH_CLOCK_GETENV_TEST) r ::readTrap"
+    invoked from within
+"if {[llength [info commands $worker]]} {
+    set ::readCalls 0
+    proc ::readTrap {a b op} {incr ::readCalls; error SHOULD_NOT_READ_ENV_ARRAY}
+    tr..."
+    (file "/workspace/tcl-lsp/experiments/name-handling/results/runtime-c86-real-suites/getenv-question/capture-01/input.tcl" line 7)

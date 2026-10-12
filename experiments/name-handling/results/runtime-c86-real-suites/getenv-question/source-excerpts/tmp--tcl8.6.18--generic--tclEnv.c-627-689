@@ -1,0 +1,63 @@
+EnvTraceProc(
+    ClientData clientData,	/* Not used. */
+    Tcl_Interp *interp,		/* Interpreter whose "env" variable is being
+				 * modified. */
+    const char *name1,		/* Better be "env". */
+    const char *name2,		/* Name of variable being modified, or NULL if
+				 * whole array is being deleted (UTF-8). */
+    int flags)			/* Indicates what's happening. */
+{
+    /*
+     * For array traces, let TclSetupEnv do all the work.
+     */
+
+    if (flags & TCL_TRACE_ARRAY) {
+	TclSetupEnv(interp);
+	TclEnvEpoch++;
+	return NULL;
+    }
+
+    /*
+     * If name2 is NULL, then return and do nothing.
+     */
+
+    if (name2 == NULL) {
+	return NULL;
+    }
+
+    /*
+     * If a value is being set, call TclSetEnv to do all of the work.
+     */
+
+    if (flags & TCL_TRACE_WRITES) {
+	const char *value;
+
+	value = Tcl_GetVar2(interp, "env", name2, TCL_GLOBAL_ONLY);
+	TclSetEnv(name2, value);
+	TclEnvEpoch++;
+    }
+
+    /*
+     * If a value is being read, call TclGetEnv to do all of the work.
+     */
+
+    if (flags & TCL_TRACE_READS) {
+	Tcl_DString valueString;
+	const char *value = TclGetEnv(name2, &valueString);
+
+	if (value == NULL) {
+	    return (char *) "no such variable";
+	}
+	Tcl_SetVar2(interp, name1, name2, value, 0);
+	Tcl_DStringFree(&valueString);
+    }
+
+    /*
+     * For unset traces, let TclUnsetEnv do all the work.
+     */
+
+    if (flags & TCL_TRACE_UNSETS) {
+	TclUnsetEnv(name2);
+	TclEnvEpoch++;
+    }
+    return NULL;

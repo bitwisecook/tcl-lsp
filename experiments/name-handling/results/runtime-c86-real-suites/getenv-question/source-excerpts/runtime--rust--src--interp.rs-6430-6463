@@ -1,0 +1,34 @@
+            match variable {
+                V::ErrorInfo | V::ErrorCode | V::Precision => {
+                    let allocated = self.ensure_trace_variable(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+                }
+                V::Environment | V::Platform => {
+                    let allocated = self.ensure_array(name);
+                    scope
+                        .currency()
+                        .ensure_current_or_refuse()
+                        .map_err(|first| self.refuse_native_execution(first))?;
+                    let allocated =
+                        allocated.map_err(|error| crate::builtins::var_error(self, name, error));
+                    self.checked_bootstrap_outcome(scope.currency(), allocated)?;
+                    let entries: Vec<(&str, &str)> = if variable == V::Environment {
+                        snapshot
+                            .environment()
+                            .iter()
+                            .map(|(key, value)| (key.as_str(), value.as_str()))
+                            .collect()
+                    } else {
+                        snapshot
+                            .platform()
+                            .iter()
+                            .map(|(key, value)| (*key, value.as_str()))
+                            .collect()
+                    };
+                    for (key, value) in entries {

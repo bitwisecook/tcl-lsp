@@ -1,0 +1,18 @@
+wrong # args: should be "catch command ?varName?"
+    while compiling
+"catch $question question_result question_options"
+    while compiling
+"set question_code [catch $question question_result question_options]"
+    ("if" then script line 2)
+    while compiling
+"if {$modern} {
+        set question_code [catch $question question_result question_options]
+    } else {
+        set question_code [catch $question qu..."
+    invoked from within
+"if {!$setup_code} {
+    if {$modern} {
+        set question_code [catch $question question_result question_options]
+    } else {
+        set question_..."
+    (file "/workspace/tcl-lsp/experiments/name-handling/patterns/frame-capture-prefix/results/tcl8.4.20/plain-prefix/input.tcl" line 28)

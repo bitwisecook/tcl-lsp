@@ -1,0 +1,5 @@
+{} 1 {invalid command name "::tcl::clock::getenv"} NONE
+NH_CLOCK_GETENV_TEST 1 {invalid command name "::tcl::clock::getenv"} NONE
+NH_CLOCK_GETENV_MISSING 1 {invalid command name "::tcl::clock::getenv"} NONE
+{NH_CLOCK_GETENV_TEST extra} 1 {invalid command name "::tcl::clock::getenv"} NONE
+{{}} 1 {invalid command name "::tcl::clock::getenv"} NONE

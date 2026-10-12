@@ -1,0 +1,34 @@
+{
+  "provider": "tcl9.0.4",
+  "case_id": "plain-prefix",
+  "question": "After exact successful setup, which caller-local value and namespace-cell-existence result does ::writer::caller produce?",
+  "source": "experiments/name-handling/patterns/frame-capture-prefix/plain-prefix.tcl",
+  "source_sha256": "2950b71cc136d7198d83cc7503931319f4f7ddf54d01a380af04452a3a177c3a",
+  "input_sha256": "3f564d8c4ac496d529d1e8ed95a07357b493df93507f836de236dae1e5fc61ff",
+  "stdout_sha256": "fdbda421a64d9b0586088e491f808ec3f955631b39c00ec1539effe8aa4e31aa",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "process_exit_code": 0,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/frame-capture-prefix/results/tcl9.0.4/plain-prefix/input.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/frame-capture-prefix/results/tcl9.0.4/plain-prefix",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "setup_code": "0",
+  "setup_result": "::dispatch",
+  "setup_options": "-code 0 -level 0",
+  "setup_error_code": "",
+  "setup_error_info": "",
+  "question_code": "0",
+  "question_result": "changed 0",
+  "question_options": "-code 0 -level 0",
+  "question_error_code": "",
+  "question_error_info": "",
+  "background_errors": "",
+  "status": "returned-value"
+}

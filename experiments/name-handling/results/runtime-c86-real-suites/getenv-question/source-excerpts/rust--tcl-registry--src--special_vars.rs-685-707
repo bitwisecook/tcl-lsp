@@ -1,0 +1,23 @@
+    // ── Environment ────────────────────────────────────────────────────────
+    SpecialVarSpec {
+        name: "env",
+        kind: SpecialVarKind::Array,
+        access: VarAccess::ReadWrite,
+        origin: VarOrigin::Environment,
+        surface: SpecSurface::ALL_TCL,
+        initially_bound: SpecSurface::ALL_TCL,
+        lazily_readable: &[],
+        startup_binding: StartupBinding::Interpreter,
+        runtime_hook: None,
+        keys: &[],
+        externally_read: true,
+        cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: Some(TaintColour::TAINTED),
+        summary: "The process environment. Writes propagate to child processes; \
+                  keys are environment-variable names.",
+    },
+    // ── Error context ──────────────────────────────────────────────────────
+    // Tcl 8.4's default `init.tcl` unconditionally initialises these after a
+    // successful Tcl_Init. Later releases intentionally leave them absent
+    // until an error occurs, and plain Tcl_CreateInterp does not qualify.

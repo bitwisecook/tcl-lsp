@@ -1,0 +1,23 @@
+{
+  "provider": "tcl8.4.20",
+  "case_id": "namespace-captured-prefix",
+  "question": "After exact successful setup, which caller-local value and namespace-cell-existence result does ::writer::caller produce?",
+  "source": "experiments/name-handling/patterns/frame-capture-prefix/namespace-captured-prefix.tcl",
+  "source_sha256": "2f498b7feac4d06a12dd42fbc8dbe8bc6c17202f5b2a0e8dabfedb9009af2680",
+  "input_sha256": "2af59da9c042942156cf0a2187086dfffc9144402332459af53c6647beb815ae",
+  "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "stderr_sha256": "09c62ff17bede9dbf953761a09184e84f3b1405d8555bfa600fa2bb585de8575",
+  "process_exit_code": 1,
+  "timed_out": false,
+  "command": [
+    "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+    "/workspace/tcl-lsp/experiments/name-handling/patterns/frame-capture-prefix/results/tcl8.4.20/namespace-captured-prefix/input.tcl"
+  ],
+  "environment": {
+    "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+    "LC_ALL": "C"
+  },
+  "capture": "experiments/name-handling/patterns/frame-capture-prefix/results/tcl8.4.20/namespace-captured-prefix",
+  "adaptation": "none; exact preceding lines are setup and exact final line is question; driver intercepts bgerror and preserves message/errorCode/errorInfo separately",
+  "status": "driver-failed"
+}

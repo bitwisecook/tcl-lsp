@@ -1,0 +1,19 @@
+pub trait Env {
+    /// The value of environment variable `key`.
+    fn get(&self, key: &str) -> Option<String>;
+    /// Set environment variable `key` to `val`.
+    fn set(&self, key: &str, val: &str);
+    /// All environment variables.
+    fn vars(&self) -> Vec<(String, String)>;
+    /// The current working directory (`pwd`).
+    fn cwd(&self) -> Result<String, HostError>;
+    /// Change the working directory (`cd`).
+    fn chdir(&self, path: &str) -> Result<(), HostError>;
+    /// The path of the running executable (`info nameofexecutable`,
+    /// `Tcl_GetNameOfExecutable`). `None` on a host with no such notion (the
+    /// browser, and WASI where there is no host-process path).
+    fn current_exe(&self) -> Option<String> {
+        None
+    }
+}
+

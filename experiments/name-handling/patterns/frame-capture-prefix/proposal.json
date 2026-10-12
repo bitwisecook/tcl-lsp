@@ -1,0 +1,142 @@
+{
+  "status": "proposed-unexecuted-unregistered",
+  "review_budget": "two corpus sites and one retained Wiki page metadata receipt",
+  "corpus_sites": [
+    {
+      "retained_manifest_index": 3,
+      "retained_site": {
+        "id": "corpus-state-upvar",
+        "repository": "https://github.com/georgtree/ruff",
+        "revision": "b63da69eed625bc544d1f4da76371e8bd6b02d29",
+        "file": "src/ruff.tcl",
+        "start_line": 1137,
+        "end_line": 1150,
+        "file_sha256": "1c901fe9764e8ba0511485064514e589c081f57b5255f86c1b2059acda2eb2f2",
+        "selected_range_sha256": "30c37063940be2f4ac28cb1efa9415d658254ddbc90dfad2aa3760895b64df9a",
+        "source_url": "https://github.com/georgtree/ruff/blob/b63da69eed625bc544d1f4da76371e8bd6b02d29/src/ruff.tcl#L1137",
+        "family": "frame-place",
+        "eligibility": "eligible",
+        "context": "Caller-supplied name parameter aliases caller array through upvar 1.",
+        "reduction": "frame-wrapper",
+        "licence_inspected": [
+          {
+            "path": "LICENSE",
+            "sha256": "da28762a647b1ff0ec5776faa9b06dd96412cc897754914e4e9e926092f33529"
+          }
+        ],
+        "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+        "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+      },
+      "local_full_and_range_hash_check": "matches existing receipt",
+      "retention": "coordinates/hashes only; no source/licence text copied"
+    },
+    {
+      "retained_manifest_index": 5,
+      "retained_site": {
+        "id": "corpus-frame-forward",
+        "repository": "https://github.com/aplsimple/pave",
+        "revision": "875de1f1539d62e46e48e206f34f82848bca1736",
+        "file": "apavebase.tcl",
+        "start_line": 3673,
+        "end_line": 3678,
+        "file_sha256": "5c6f2bba4f80a88c772cf7a7b6bf56efa458084ee98bd338b2fef14d022cf0ac",
+        "selected_range_sha256": "f8689fb65e2ad8a614678a1dc3bcf7ae8bc4d114553e9e61db1cab35971630e9",
+        "source_url": "https://github.com/aplsimple/pave/blob/875de1f1539d62e46e48e206f34f82848bca1736/apavebase.tcl#L3673",
+        "family": "frame-place",
+        "eligibility": "eligible",
+        "context": "Method forwards through uplevel 1 with list-built self receiver and expansion.",
+        "reduction": "frame-wrapper",
+        "licence_inspected": [
+          {
+            "path": "LICENSE",
+            "sha256": "500f8e2e6dd5b3cfe3d3a316f6af04c1c704987abd24a0ee3e5842efbecfc691"
+          }
+        ],
+        "retention": "Source coordinates/hashes; authored reductions only, no vendored source excerpt",
+        "dialect_and_dependency_note": "Actual project runtime not executed; use source context and reduced C observations only"
+      },
+      "local_full_and_range_hash_check": "matches existing receipt",
+      "retention": "coordinates/hashes only; no source/licence text copied"
+    }
+  ],
+  "wiki_page": {
+    "retained_manifest_index": 2,
+    "receipt": {
+      "url": "https://wiki.tcl-lang.org/page/namespace+code",
+      "status": "200",
+      "title": "namespace code",
+      "retrieved_date": "2026-10-12",
+      "page_updated": "2016-10-11 15:50:32",
+      "html_sha256": "54eaa368dbc4319da183bdeb6e07fbe6ff0ebbfa0cd140379995138a65f2532a",
+      "examples": [
+        {
+          "index": 0,
+          "sha256": "525fb7d0bd079d08352ff48dbd9ecc139fab9e5dc1a3c0102a1a85929e475599"
+        },
+        {
+          "index": 1,
+          "sha256": "7a24c29a9871df58923c07edc6c68acb20ddf464dcd517bab02c14da36b642f6"
+        },
+        {
+          "index": 2,
+          "sha256": "1b904d4464cfd2a6d8dcaae4633144140f2371902584bc1ae6943975bfa8cfe1"
+        },
+        {
+          "index": 3,
+          "sha256": "e483f5e95cf045086cf00e03d5064bc6393dc77f65de90032b912f021a00bb18"
+        },
+        {
+          "index": 4,
+          "sha256": "51815a8f21f2d7840ca8679cf0d098da5e7266f5daca910727087f93a52852de"
+        },
+        {
+          "index": 5,
+          "sha256": "c73f76353a3763f46d2994a051ee7d94997f2c5f812627b6a884fa83a7bdabc9"
+        }
+      ],
+      "status_class": "read"
+    },
+    "pin_scope": "existing snapshot metadata/hashes; no newly verified revision or retrieval",
+    "licence_scope": "no inspected Wiki licence in retained receipt; no source text copied"
+  },
+  "inputs": [
+    {
+      "source": "namespace-captured-prefix.tcl",
+      "sha256": "2f498b7feac4d06a12dd42fbc8dbe8bc6c17202f5b2a0e8dabfedb9009af2680",
+      "question": "After exact successful setup, which caller-local value and namespace-cell-existence result does ::writer::caller produce?",
+      "providers": {
+        "C5": "unexecuted",
+        "pinned_Jim": "unexecuted; original input unchanged",
+        "F5": "unanswered; no native host input/load authored"
+      }
+    },
+    {
+      "source": "plain-prefix.tcl",
+      "sha256": "2950b71cc136d7198d83cc7503931319f4f7ddf54d01a380af04452a3a177c3a",
+      "question": "After exact successful setup, which caller-local value and namespace-cell-existence result does ::writer::caller produce?",
+      "providers": {
+        "C5": "unexecuted",
+        "pinned_Jim": "unexecuted; original input unchanged",
+        "F5": "unanswered; no native host input/load authored"
+      }
+    }
+  ],
+  "duplicate_review": {
+    "catalogue": "experiments/name-handling/patterns/README.md",
+    "source_controls": [
+      "frame-wrapper",
+      "frame-wrapper-near-miss",
+      "wiki-upvar-3",
+      "wiki-upvar-4",
+      "wiki-code-1",
+      "wiki-code-2",
+      "wiki-alias-1",
+      "wiki-alias-2"
+    ],
+    "distinct_operation": "same uplevel-forwarded aliased upvar prefix with vs without namespace-code wrapper; original controls have no such combined input",
+    "scope": "new composed authored question; source sites supply ingredients, not an observed exact idiom or prevalence"
+  },
+  "native_execution": "none",
+  "network": "none",
+  "new_revision_claim": "none"
+}

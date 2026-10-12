@@ -1,0 +1,38 @@
+/// Environment view: reads fall through to the real process environment, but
+/// writes are kept in a per-host override map (no `unsafe` global mutation).
+#[derive(Default)]
+struct NativeEnv {
+    overrides: RefCell<HashMap<String, String>>,
+}
+
+impl Env for NativeEnv {
+    fn get(&self, key: &str) -> Option<String> {
+        if let Some(v) = self.overrides.borrow().get(key) {
+            return Some(v.clone());
+        }
+        std::env::var(key).ok()
+    }
+
+    fn set(&self, key: &str, val: &str) {
+        self.overrides
+            .borrow_mut()
+            .insert(key.to_string(), val.to_string());
+    }
+
+    fn vars(&self) -> Vec<(String, String)> {
+        // `Env` is deliberately a Unicode interface. Unix permits arbitrary
+        // bytes in process environment entries, so enumerate with `vars_os`
+        // and omit entries that cannot be represented without changing their
+        // key or value. `std::env::vars` would panic on the first such entry.
+        let mut map: HashMap<String, String> = std::env::vars_os()
+            .filter_map(|(key, value)| Some((key.into_string().ok()?, value.into_string().ok()?)))
+            .collect();
+        for (k, v) in self.overrides.borrow().iter() {
+            map.insert(k.clone(), v.clone());
+        }
+        map.into_iter().collect()
+    }
+
+    fn cwd(&self) -> Result<String, HostError> {
+        std::env::current_dir()
+            .map(|p| p.to_string_lossy().into_owned())

@@ -1,0 +1,122 @@
+[
+  {
+    "source": "tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "lines": [
+      209,
+      223
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--generic--tclClock.c-209-223",
+    "excerpt_sha256": "9895a1db011c8af3d50c0b7b1dbc80fefa1c274cffec51157fab678effcea3c4"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclClock.c",
+    "source_sha256": "45840cb02c0d27113344779f823df6d9039f5149601426e3bd67e2192916e7d8",
+    "lines": [
+      1649,
+      1689
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--generic--tclClock.c-1649-1689",
+    "excerpt_sha256": "cb6aa4e5b14ff0a8b20e44d22aa6ac7f29f88c8e08367c69fbc9ba2a2c892429"
+  },
+  {
+    "source": "tmp/tcl8.6.18/generic/tclEnv.c",
+    "source_sha256": "4a3efa47312567d17794b3b125e8281e2c1abae6e001e6009be415b6ed671669",
+    "lines": [
+      627,
+      689
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--generic--tclEnv.c-627-689",
+    "excerpt_sha256": "18f91dafcae525f6e0596abd9e54ad053b8e5bbab1aa2afadf0a7af0f464682f"
+  },
+  {
+    "source": "tmp/tcl8.6.18/library/clock.tcl",
+    "source_sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "lines": [
+      664,
+      677
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--library--clock.tcl-664-677",
+    "excerpt_sha256": "566dc4a65e41456995f4c14e4d769a7064dd062fd7c246ba4f9c570e9863b671"
+  },
+  {
+    "source": "tmp/tcl8.6.18/library/clock.tcl",
+    "source_sha256": "3fd236d0d8cd613dee7e4ece236396bd424bc81673e9bd403bee4695d0ff5c75",
+    "lines": [
+      2988,
+      3007
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--library--clock.tcl-2988-3007",
+    "excerpt_sha256": "5300ea10f0b564605ff1f48dcf6623670f8f872eada98be8fc8a4e90549d0c58"
+  },
+  {
+    "source": "tmp/tcl8.6.18/library/tcltest/tcltest.tcl",
+    "source_sha256": "03da6ebf2e314e6c931430761cc47cf586ded9210f9c5afed804858a78034e67",
+    "lines": [
+      2926,
+      2927
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--library--tcltest--tcltest.tcl-2926-2927",
+    "excerpt_sha256": "2d5f658db9590cb8995c05fe444924d7e4bf96db1eedccd0bd002c4b7fc1bd93"
+  },
+  {
+    "source": "tmp/tcl8.6.18/tests/all.tcl",
+    "source_sha256": "84d710d37d8c7cd2070062ddd89254aaf25f0d9f827e11c27995575829da825c",
+    "lines": [
+      17,
+      25
+    ],
+    "excerpt": "source-excerpts/tmp--tcl8.6.18--tests--all.tcl-17-25",
+    "excerpt_sha256": "46e3d1b8c76ed8b014bce45464a0676b3e9a4708978a5fd4c8feb380caae74c7"
+  },
+  {
+    "source": "rust/tcl-platform/src/lib.rs",
+    "source_sha256": "d2b073540c119acea58db916c01e3b5e4fac9a280b53f6b441183d9b51a9625b",
+    "lines": [
+      392,
+      410
+    ],
+    "excerpt": "source-excerpts/rust--tcl-platform--src--lib.rs-392-410",
+    "excerpt_sha256": "ad4baf6ffd9080febac215253bc32a1a91c91a74a487f0b5552f999282a01e6c"
+  },
+  {
+    "source": "rust/tcl-host-native/src/lib.rs",
+    "source_sha256": "ca255a3b7d43f74cfe5ecae08c1f3f100309094ff2b87747101346695744799a",
+    "lines": [
+      249,
+      286
+    ],
+    "excerpt": "source-excerpts/rust--tcl-host-native--src--lib.rs-249-286",
+    "excerpt_sha256": "2b82f2399aa6d0f683e8ac58653c51537fe9a07296fb6f9cff1916619ef5b8c8"
+  },
+  {
+    "source": "rust/tcl-registry/src/special_vars.rs",
+    "source_sha256": "548e2bfcdf94fde1e7811c18e8910dfe2450fdc0a6ca772bd35d7a895dca44a5",
+    "lines": [
+      685,
+      707
+    ],
+    "excerpt": "source-excerpts/rust--tcl-registry--src--special_vars.rs-685-707",
+    "excerpt_sha256": "7fb9ea1baf91265c2551c3b2e9b7e107573daa7e42bf55712a292e99e9ca4eda"
+  },
+  {
+    "source": "runtime/rust/src/interp.rs",
+    "source_sha256": "5bb09bed466ef0df6af67ec4a08401172018cc97f03974c29dfd685493a3c7e3",
+    "lines": [
+      6430,
+      6463
+    ],
+    "excerpt": "source-excerpts/runtime--rust--src--interp.rs-6430-6463",
+    "excerpt_sha256": "be88cf812927da85cfac3095ce92d9276abec300dfe4a822a4017803f607909d"
+  },
+  {
+    "source": "rust/xtask/src/command_backing.rs",
+    "source_sha256": "28a422e7f4c32a8c9460d54ba61aaf90a867afc8796e728ff249c33deca6dc8d",
+    "lines": [
+      191,
+      221
+    ],
+    "excerpt": "source-excerpts/rust--xtask--src--command_backing.rs-191-221",
+    "excerpt_sha256": "a8d3232d5592275b4953025b2ebe127283d7e1a0f431891201b25bbba6747f00"
+  }
+]

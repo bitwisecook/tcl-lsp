@@ -1,0 +1,107 @@
+{
+  "captured_at_utc": "2026-10-12T21:13:00.059051+00:00",
+  "subject_commit": "47c1691f86ab22aaed03353f4656df38cc709b29",
+  "runner_sha256": "1b4a07e383e11f5eb3e44cf9f1e8bde2d96bf17aa45549eae16a1224a0e7b28b",
+  "references": [
+    {
+      "provider": "tcl8.4.20",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.4.20/unix/tclsh",
+      "binary_sha256": "04f39dc867adab5acc96738a8dc04e47a3674b6487e698a0f8bb690f9fe3dd85",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.4.20/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.4.20\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "a7f4388d1989f005872a47ca5d698aa06680aca21407462301972c5a6048d92b",
+      "generic/tclNamesp.c_sha256": "cd23865ee8d4b0ce81874d519b24de5b84a16c116ed3593ead366946b0512cbb"
+    },
+    {
+      "provider": "tcl8.5.19",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.5.19/unix/tclsh",
+      "binary_sha256": "46548301a578572298155e130fe2a6b856fc82b7cdf96a66e54d3eb9c2329961",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.5.19/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.5.19\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "21a5aad2ed6d69e15c032be72da55dcca8b56580c869e863d87caf2848e5c2b1",
+      "generic/tclNamesp.c_sha256": "60f944eb9ab669e183a546297c5aa6c8b62af0f79cdab115c74d37497c1fd83f"
+    },
+    {
+      "provider": "tcl8.6.18",
+      "binary": "/workspace/tcl-lsp/tmp/tcl8.6.18/unix/tclsh",
+      "binary_sha256": "b307c18ab4946e932f72918d4803f01a1cd6ce8c28e8dd412c94876537e1190c",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl8.6.18/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 8.6.18\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "513985a7db39509e30f1bec641284dff77db22aa44fe9a0e6191eb63dcc28f35",
+      "generic/tclNamesp.c_sha256": "b4b3095f69b2192f13bf355d70a0efeb9aa78b5e6ceccf6b17536cc5e9be1e24"
+    },
+    {
+      "provider": "tcl9.0.4",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.0.4/unix/tclsh",
+      "binary_sha256": "cfe2b23524ca46502d2199084f8c56d4acea13353bde0bd5634fdede8dc92965",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.0.4/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 9.0.4\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "8c5907793b2b8aa05e8d8cf39c0cb7f033c01ca1b8be683e7159774d1a01357a",
+      "generic/tclNamesp.c_sha256": "73e79904d662d12564dd7d35f922fd896566411524a6e14c6454325f2ce17b8d"
+    },
+    {
+      "provider": "tcl9.1.0",
+      "binary": "/workspace/tcl-lsp/tmp/tcl9.1.0/unix/tclsh",
+      "binary_sha256": "cad3069775a57324bd43e7ea5a0ff20f8990fb483e0d2b7ed177686ce4d17cc7",
+      "selectors": {
+        "TCL_LIBRARY": "/workspace/tcl-lsp/tmp/tcl9.1.0/library",
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 9.1.0\n",
+      "startup_stderr": "",
+      "startup_sha256": "95dfd908093824fdb7f3ce45f65e060331a3ef52d07c6d35e43a45f71afe3da9",
+      "library/init.tcl_sha256": "636818d3e4071d28ffb610c86d895cb4f0cff57ddf7d8523dabf1feed821ca9f",
+      "generic/tclNamesp.c_sha256": "fce8ca8ee9a21f2e87f7a1917e7a2e4109f9fadf72fd0e585673d1450409b815"
+    },
+    {
+      "provider": "jim-5bac7c9",
+      "binary": "/workspace/tcl-lsp/tmp/jimtcl-oracle/jimsh",
+      "binary_sha256": "c5b2b0c37c3bad8e97760350460310bde65e74cf9833979fe1c088e4dd2a4891",
+      "selectors": {
+        "LC_ALL": "C"
+      },
+      "startup_exit_code": 0,
+      "startup_stdout": "PATCHLEVEL 0.84-9-g5bac7c9\n",
+      "startup_stderr": "",
+      "startup_sha256": "5082ccb3814797ae482d692d2e0171ec0e0f2c4072abf663c4d718358ea20005",
+      "revision": "5bac7c99ad65864c87da513e22e2f01703fa4e03",
+      "describe": "0.84-9-g5bac7c9",
+      "upstream_head_check_scope": "reuses prior retained check; no new remote HEAD assertion",
+      "initjimsh.tcl_sha256": "8e0cf2dee783435d849882f6f0cfa1917d4ceeee3b60e1d53d9eb361017a601a",
+      "_initjimsh.c_sha256": "23644c8ddef5f094a163ff8a6eeed5590dbe513564424cab1887f5e86c4fd359",
+      "tests/testing.tcl_sha256": "67f42fd0f5447622b03eecefa445e5c878faa827b960e1ea1ed48bf81beb2bc3",
+      "tcltest.tcl_sha256": "21f225ae1ef2f8fe631a808a99ad9e4a80077a3dadb6f74ea2ca020787511dce",
+      "jim-config.h_sha256": "d092046fe07c2ec14b77da74304135da24725d766e1c9fd74ee32eeb07702221",
+      "jimautoconf.h_sha256": "053feea9504ac654a94c28e21985d9bf8b0f9afcd83c51211d108813c05d6c65",
+      "Makefile_sha256": "1cfb962be629942512ee101d010f6c273fe9e2593fcf3f08a2565422fcf7d29c"
+    }
+  ],
+  "case_count": 12,
+  "F5": "unanswered; no device access; see F5-REQUEST.md",
+  "semantic_scope": "authored caller-frame/capture reductions in fresh native processes; final question and asynchronous callback failures retained separately; no static-consumer execution or canonical proof registration; driver selects native catch-options capability by provider rather than C package vcompare"
+}

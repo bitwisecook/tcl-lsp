@@ -19,6 +19,10 @@ retains original aliased-builder/captured-`my`/stored-callback inputs, C5 and pi
 Jim outcomes, failed driver attempts, a separate consumer plan and unanswered F5
 contexts; it changes no existing canonical question or answer.
 
+The separate [frame-capture prefix pair](frame-capture-prefix/README.md) retains
+C5 observations of an aliased caller-relative link with/without namespace
+capture, original Jim setup refusals and unanswered native F5 contexts.
+
 ## Source evidence
 
 The [maintained corpus manifest](../../../scripts/perf/MANIFEST.toml) pins all

@@ -1,0 +1,41 @@
+ClockGetenvObjCmd(
+    ClientData clientData,
+    Tcl_Interp *interp,
+    int objc,
+    Tcl_Obj *const objv[])
+{
+#ifdef _WIN32
+    const WCHAR *varName;
+    const WCHAR *varValue;
+    Tcl_DString ds;
+#else
+    const char *varName;
+    const char *varValue;
+#endif
+    (void)clientData;
+
+    if (objc != 2) {
+	Tcl_WrongNumArgs(interp, 1, objv, "name");
+	return TCL_ERROR;
+    }
+#ifdef _WIN32
+    varName = (const WCHAR *)Tcl_WinUtfToTChar(TclGetString(objv[1]), -1, &ds);
+    varValue = _wgetenv(varName);
+	Tcl_DStringFree(&ds);
+    if (varValue == NULL) {
+	varValue = L"";
+    }
+    Tcl_WinTCharToUtf((TCHAR *)varValue, -1, &ds);
+    Tcl_DStringResult(interp, &ds);
+#else
+    varName = TclGetString(objv[1]);
+    varValue = getenv(varName);
+    if (varValue == NULL) {
+	varValue = "";
+    }
+    Tcl_SetObjResult(interp, Tcl_NewStringObj(varValue, -1));
+#endif
+    return TCL_OK;
+}
+
+/*

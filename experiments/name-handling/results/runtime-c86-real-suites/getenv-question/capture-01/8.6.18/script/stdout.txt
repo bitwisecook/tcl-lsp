@@ -1,0 +1,9 @@
+{} 1 {wrong # args: should be "::tcl::clock::getenv name"} {TCL WRONGARGS}
+NH_CLOCK_GETENV_TEST 0 host-value UNSET
+NH_CLOCK_GETENV_MISSING 0 {} UNSET
+{NH_CLOCK_GETENV_TEST extra} 1 {wrong # args: should be "::tcl::clock::getenv name"} {TCL WRONGARGS}
+{} 1 {wrong # args: should be "::tcl::clock::getenv name"} {TCL WRONGARGS}
+read-trace host-value 0
+after-element-write script-value
+after-element-unset {}
+after-array-replacement before-array-unset local-only
