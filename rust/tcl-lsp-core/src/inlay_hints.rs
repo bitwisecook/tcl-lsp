@@ -16,43 +16,23 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Inlay-hints provider (parameter-name hints).
+//! Inlay hints under the document's retained source and analysis input.
 //!
-//! Surfaces `param_name:` hints at each positional argument
-//! of every user-proc call site within the requested document
-//! range.  The hints make it easy to see which argument goes
-//! where without having to hover or look up the proc
-//! signature.
+//! Parameter hints label original call-site arguments (`name:`). Type hints
+//! annotate inferred variable types (`: int`) and format conversions (`int`).
+//! Each family has an independent enable flag.
 //!
-//! Example: for `proc greet {name greeting} { ... }` and a
-//! call site `greet alice hello`, the provider emits:
+//! Complete source-image/configuration checks precede advice. Parameter
+//! positions come from source structure and original operand mappings;
+//! captured values do not supply written source anchors. Procedure prototypes
+//! and selected registry synopsis metadata supply parameter names.
 //!
-//! ```text
-//! greet (name:)alice (greeting:)hello
-//! ```
+//! Type hints use a checked [`CompilationUnit`]. Exact original SSA
+//! definitions must match declaration inputs/spans; the explicitly admitted
+//! Logical branch projects per-function types onto analyser scope variables.
+//! Unknown or overdefined types do not produce annotations.
 //!
-//! Implementation: re-segments the source on each request so
-//! per-argument token spans are available (the analyser
-//! records the command-head span on `command_invocations` but
-//! not per-arg spans).  Re-segmenting is cheap relative to
-//! the LSP request rate.
-//!
-//! Built-in command hints: when a registry is
-//! provided and the call's head matches a built-in command (or
-//! `cmd subcommand`), the provider parses the spec's synopsis
-//! for positional parameter names and labels the matching
-//! call-site args.  Synopsis flags (`?-nocase?`,
-//! `?-length length?`) are skipped on both sides — synopsis
-//! parsing drops flag tokens, and call-site args that look
-//! like flags (start with `-`) don't consume a positional
-//! slot.  Varargs (`?name ...?`) stop the parse.
-//!
-//! Limitations:
-//!
-//! * Type / inferred-trait annotations on hints (e.g.
-//!   `name:string`, `count:int`) are not shown.
-//! * Method-call hints inside class bodies — needs the
-//!   analyser's method-resolution machinery — are not shown.
+//! Method-call parameter hints inside class bodies are not provided.
 
 use rustc_hash::FxHashMap;
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope, ScopeKind};
@@ -101,13 +81,10 @@ pub struct InlayHint {
 
 /// Compute inlay hints for `range` in `source`.
 ///
-/// `analysis` provides the proc-name → parameter-list lookup
-/// the hints need.  When `analysis` is `None` (a stub-only
-/// caller from the minimal port), returns an empty vector.
-/// `registry`, when `Some`, additionally surfaces parameter-
-/// name hints for built-in commands via their synopsis (and is
-/// required for the inferred-type hints, which build a
-/// [`CompilationUnit`] from it).
+/// `analysis` supplies the retained source/configuration and declaration facts;
+/// missing analysis returns an empty vector. The retained registry supplies
+/// selected built-in metadata and the checked [`CompilationUnit`] for type
+/// hints. `registry` is a compatibility fallback under admitted lexical advice.
 ///
 /// `type_hints` gates the inferred-variable-type annotations and the
 /// format-string specifier labels ([`InlayHintKind::Type`]);
@@ -415,12 +392,8 @@ fn collect_type_hints(
         return;
     }
 
-    // Build a *per-function* name → display map, keyed by the function's
-    // qualified name (leading `::` stripped so it matches the analyser's
-    // scope names). A single flat map was last-writer-wins across functions,
-    // so a var named `x` typed Int in one proc bled its type onto an unrelated
-    // `x` typed String in another. Keeping the maps separate
-    // and selecting by the owning scope keeps each scope's types local.
+    // Select each owning scope's type map by its normalised function name
+    // so equally spelled variables in unrelated functions remain separate.
     let mut by_function: FxHashMap<String, FxHashMap<String, String>> = FxHashMap::default();
     for fu in cu.functions() {
         let mut m: FxHashMap<String, String> = FxHashMap::default();

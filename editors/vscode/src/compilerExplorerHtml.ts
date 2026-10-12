@@ -20,8 +20,8 @@
  * Generates the HTML content for the Tcl Compiler Explorer webview panel.
  *
  * This is the standalone explorer index.html adapted for VS Code webview:
- * - Pyodide web worker replaced with an inlined Rust → WASM module that
- *   compiles in the webview itself (no LSP `executeCommand` roundtrip)
+ * - An inlined Rust → WASM module compiles in the webview itself
+ *   (no LSP `executeCommand` roundtrip)
  * - Textarea is read-only (source comes from the active editor)
  * - When the WASM module is absent (dev builds without `make explorer-wasm`)
  *   compilation degrades to the host-brokered `{type:"compile"}` path
