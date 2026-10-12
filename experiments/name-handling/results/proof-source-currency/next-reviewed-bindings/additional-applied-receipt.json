@@ -1,0 +1,18 @@
+{
+  "scope": "Exactly5 implementation sha256 fields /5 records /3 stable source owners /5 canonical pages",
+  "approval": "root independently verified old/current SHA and entire diffs; approved exact5 bindings",
+  "proposal": "additional-source-review.json",
+  "manifest_before_sha256": "026e00ef9377aedfe6631a506de1b24a5a3fb5c9acbb664a06a359fada234cc5",
+  "manifest_after_sha256": "d7acc48f717be9a9e037a34192ff64d234d7c7b5530f447801d88bcd27416ac4",
+  "records_before_after": 2606,
+  "all2606_record_objects_identical_after_inverse5_hash_fields": true,
+  "all_provider_oracle_native_variant_test_statuses_and_wording_fields_preserved": true,
+  "exact_old_binding_tuples_and_current_source_hashes_verified": true,
+  "no_selected_owner_in_workingtree_modified_paths": true,
+  "source_owner_digests_unchanged": [{"path": "rust/tcl-syntax/src/naming/reporting.rs", "sha256": "009349c67795cd1cab75ab2066d12f180eda1af8f71ff2265656d776cd6e00f5"}, {"path": "rust/tcl-lsp-core/src/hover/original_registry.rs", "sha256": "0f5ab579df9e4b3ad49f17be922bacc127ae85dbf8c0ac751db8f73d900c4e66"}, {"path": "rust/tcl-syntax/src/expr/substitution.rs", "sha256": "6d41034ca56825004b7f6ef806c4f0fe17acc62854d1567e213c78cc0b904a53"}],
+  "canonical_pages": [{"record_id": "naming.analysis.constructed-key-consumer-projections", "path": "docs/design/analysis/name-resolution-proofs/constructed-key-consumer-projections.md", "before_sha256": "98c6f86d49d922c8522b90259515b60679310ced11070335d2dcbe63039f053a", "after_sha256": "5816752db721ec4f6e34ca842e618dc77b5936087f4c55c640b4692f4192489a"}, {"record_id": "naming.analysis.reported-qname-namespace-prefix", "path": "docs/design/analysis/name-resolution-proofs/reported-qname-namespace-prefix.md", "before_sha256": "b7fee70ee6ad3bbd402faf23ca24af2094e47c2dd74750ed5965650d23ec7c21", "after_sha256": "93ef664e28a064f59ea406de520c8c4de3ec730c0db4330d9857358796b6563e"}, {"record_id": "naming.core.original-registry-source-hover", "path": "docs/design/analysis/name-resolution-proofs/original-registry-source-hover.md", "before_sha256": "5648bcc13f19ccdf5e501c5cc78346d4ab33e71dcca7515942227bc861f882d2", "after_sha256": "7a5a8ae26cd6a65c6b9b60abaa871b064d3f31d9c05531677cf899636f39450c"}, {"record_id": "naming.grammar.checked-expression-substitution-context", "path": "docs/design/analysis/name-resolution-proofs/checked-expression-substitution-context.md", "before_sha256": "ea9acc595865457f548b7b7fe20b67caf41544bee9473b061d959f5917caaf3b", "after_sha256": "7cb38bc8dd9577c1e805367e4a7f0fdfe01b49ed8a4cde75531d99ceef9e00c0"}, {"record_id": "naming.source.authored-command-transition-advice", "path": "docs/design/analysis/name-resolution-proofs/authored-command-transition-advice.md", "before_sha256": "666c371d1cfb58fb6183c70fb939353466194d1ce39093bcdf67b25c31591c9a", "after_sha256": "f66dd83518bb710d1b02346aa0f635afd6836516e15ba06870da37d07b7f0dde"}],
+  "page_changes_only_5_allowed_digest_replacements": true,
+  "selected_record_schema_errors": [],
+  "renderer_sha256": "e3a6728b81388b29b9f7403b97288e5dd8e251fabded039d7b77f81e4f516ab2",
+  "execution": "No full checker, Cargo, Rust/native execution, source edit or Git mutation; exact bindings, full-object inverse, frozen sources, selected schema and canonical renderer checks only."
+}

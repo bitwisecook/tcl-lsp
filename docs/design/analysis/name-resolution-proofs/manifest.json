@@ -52687,7 +52687,7 @@
           "id": "metadata-projection-source-6",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/reporting.rs",
-          "sha256": "de89b38c6df4bfc8d71d364efdbd731f0fb30bdbae55731ca4c920c9644b4d39",
+          "sha256": "009349c67795cd1cab75ab2066d12f180eda1af8f71ff2265656d776cd6e00f5",
           "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
         },
         {
@@ -53384,7 +53384,7 @@
           "id": "reporting-source-1",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/naming/reporting.rs",
-          "sha256": "de89b38c6df4bfc8d71d364efdbd731f0fb30bdbae55731ca4c920c9644b4d39",
+          "sha256": "009349c67795cd1cab75ab2066d12f180eda1af8f71ff2265656d776cd6e00f5",
           "description": "Current pure reporting owner/delegate or independently retained source/namespace/metadata guard. Source definition only; no Rust assertion outcome, Native process or execution effect."
         },
         {
@@ -782686,7 +782686,7 @@
           "id": "receiver-selected-source598-27ebccec767ad829",
           "role": "implementation",
           "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
-          "sha256": "450a621ec260f42f81d494c24978cae83ba811892c8ffd23d9ae8e0f5f78d81b",
+          "sha256": "0f5ab579df9e4b3ad49f17be922bacc127ae85dbf8c0ac751db8f73d900c4e66",
           "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         },
         {
@@ -891295,7 +891295,7 @@
           "id": "current-original-source-purpose-2760f3974abf9410",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
-          "sha256": "3da20c56150cb3a5202dd931b49d7fae7bd77caa03e8102d2da756c48eec2a39",
+          "sha256": "6d41034ca56825004b7f6ef806c4f0fe17acc62854d1567e213c78cc0b904a53",
           "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         },
         {
@@ -1116910,7 +1116910,7 @@
           "id": "current-original-source-purpose-2760f3974abf9410",
           "role": "implementation",
           "path": "rust/tcl-syntax/src/expr/substitution.rs",
-          "sha256": "3da20c56150cb3a5202dd931b49d7fae7bd77caa03e8102d2da756c48eec2a39",
+          "sha256": "6d41034ca56825004b7f6ef806c4f0fe17acc62854d1567e213c78cc0b904a53",
           "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         }
       ],
