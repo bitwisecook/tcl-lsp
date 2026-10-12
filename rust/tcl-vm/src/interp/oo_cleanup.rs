@@ -280,3 +280,9 @@ impl OriginalOoCleanup {
 pub(crate) fn select_cleanup_fixture_interpreter(vm: &mut Vm, target: InterpId) {
     vm.switch_to(target);
 }
+
+/// Test-only withdrawal through the actual original name world's retire worker.
+#[cfg(test)]
+pub(crate) fn withdraw_cleanup_fixture_name_world(vm: &mut Vm) {
+    vm.name_world.borrow_mut().retire();
+}

@@ -184,6 +184,21 @@ impl OriginalDefinitionExit {
     }
 }
 
+/// Join the reached namespace worker before checking cleanup currency. The
+/// intrinsic typed failure precedes any refusal caused by the final check.
+fn checked_definition_namespace(
+    vm: &mut Vm,
+    active: &OriginalOoActivation,
+    reached: Result<Option<NsId>, ValueError>,
+) -> Result<Option<NsId>, CmdError> {
+    let reached = reached.map_err(CmdError::from);
+    if let Err(first) = &reached {
+        retain_error(vm, first);
+    }
+    active.cleanup().check(vm)?;
+    reached
+}
+
 pub(super) fn enter(
     vm: &mut Vm,
     class: bool,
@@ -210,16 +225,15 @@ pub(super) fn enter(
         };
         Namespaces::find_namespace_bytes_checked(vm, vm.current_ns_id(), name.as_bytes())
     };
-    let checked = active.cleanup().check(vm);
-    let namespace = match (reached, checked) {
-        (_, Err(error)) | (Err(error), _) => {
+    let namespace = match checked_definition_namespace(vm, &active, reached) {
+        Err(error) => {
             retain_error(vm, &error);
             drop(argv);
             let completion = crate::command::completion_from_cmd_error(vm, error);
             return Err(active.finish(vm, completion));
         }
-        (Ok(Some(namespace)), Ok(())) => namespace,
-        (Ok(None), Ok(())) => {
+        Ok(Some(namespace)) => namespace,
+        Ok(None) => {
             drop(argv);
             return Err(active.finish(
                 vm,

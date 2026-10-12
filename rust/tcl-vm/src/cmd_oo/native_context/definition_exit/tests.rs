@@ -412,3 +412,45 @@ fn original_failed_procedure_constructor_keeps_child_state_and_retires_original_
         );
     }
 }
+
+#[test]
+fn original_definition_namespace_lookup_keeps_full_intrinsic_refusal_through_cleanup() {
+    // naming.embedding.original-host-publication-and-fact-transport
+    // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
+    for withdrawn in [false, true] {
+        let mut vm = provided();
+        let active = OriginalOoActivation::enter(&mut vm);
+        let level = vm.current_level();
+        let context = vm.current_ns_id();
+        if withdrawn {
+            crate::interp::oo_cleanup::withdraw_cleanup_fixture_name_world(&mut vm);
+        }
+        let reached = Namespaces::find_namespace_bytes_checked(&vm, context, b"::oo::define");
+        let intrinsic = reached.as_ref().err().map(|error| {
+            CmdError::from(error.clone())
+                .native_access_refusal()
+                .unwrap()
+        });
+        assert_eq!(intrinsic.is_some(), withdrawn);
+        let joined = checked_definition_namespace(&mut vm, &active, reached);
+        if withdrawn {
+            let first = first(&vm);
+            assert_eq!(
+                first,
+                tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(intrinsic.unwrap())
+            );
+            assert_eq!(joined.unwrap_err().native_execution_refusal(), Some(&first));
+            let completion = active.finish(&mut vm, ok(Value::empty()));
+            assert_eq!(completion.code, Code::Error);
+            assert_eq!(vm.execution_refusal, Some(first));
+        } else {
+            assert!(joined.unwrap().is_some());
+            let completion = active.finish(&mut vm, ok(Value::empty()));
+            assert_eq!(completion.code, Code::Ok);
+            assert!(vm.execution_refusal.is_none());
+        }
+        assert_eq!(vm.current_level(), level);
+        assert!(vm.oo.def_stack.is_empty());
+        assert!(vm.oo.definition_usage.words().is_none());
+    }
+}
