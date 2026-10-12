@@ -59,11 +59,9 @@ Current independent checks and outstanding work:
   default was preserved. Results: `experiments/name-handling/results/gate-validation/`.
 - C8.6 real init now reaches marker after shared29-name constructor mathfunc
   roster repair; ten fresh native/C controls pass. VM shared roster regression passes1/1; real VM startup refuses
-  NativePreflightRequired. Seven
-  clock support workers, map/registration order remain open. Frozen-runner real
+  NativePreflightRequired. Six other clock support workers, shared pool lifetime and map/registration order remain open. Frozen-runner real
   naming suites measured C1182/85/0; Native proc/rename40/17/0, five refusals,
-  ooNext2 error and34 prior failures. Actual all.tcl missing ParseFormatArgs
-  before tests; see `results/runtime-c86-real-suites/`. Native C8.6 crash input completes after counter
+  ooNext2 error and34 prior failures. ParseFormatArgs matches eleven C8.6 answers and three focused runtime controls; fresh actual all.tcl now stops at getenv before suites; see `results/runtime-c86-real-suites/`. Native C8.6 crash input completes after counter
   repair; other profiles still refuse. Exact questions:
   `experiments/name-handling/clock-bootstrap-epoch/registration-repair/` and
   `experiments/name-handling/results/foreach-counter-object-lifetime/`.
@@ -72,18 +70,13 @@ Current independent checks and outstanding work:
   Logical namespace controls and one retained-original import control pass. Exact source and limits:
   `experiments/name-handling/results/c-source-namespace-advice/`. Coordinator
   published `c7b94e8fb` and closed #2287 against its exact reproduction.
-- Final W210 filter has6 passing controls and3 genuine-missing-read failures at
-  C8.4. Evidence: `experiments/name-handling/results/static-name-advice/`,
-  `experiments/name-handling/tcltest-shared-frame/` and latest C-source receipts.
-  #2286 remains open. Two traces found metadata/lifecycle selection accepted;
-  same retained binding is now forwarded onto original rebuilt tokens; owner
-  regression passes1/1 but nine controls remain6/3. Next read-only comparison
-  measured retained proc-point Standalone versus full source request as the
-  first refusal; Native header/formals unreached. Trace owners restored.
-  Genuine provider input producer passes2 owner controls; filterstill6/3
-  (direct/alias2vs1 with preparedcleanup warning, original0vs2).
-  Packaged regression passes2/2; #2287 remains closed. See
-  `results/w210-source-purpose-join/` and its separate producer result.
+- W210 cleanup-flow repair has8 passing diagnostic controls and1 original-program
+  failure (0vs2). First graph20 run has17pass/3fail: two loop regressions need
+  compiler-only correction, one actual procedure lookup refusal remains separate.
+  w210_cleanup_flow owns declaration_flow.rs and compiler cache until release;
+  runtime builds are stopped, all otherRust frozen. vm_test_api_repairs then gets
+  compiler cache to compile26 diagnostic-cluster repairs and run29 controls.
+  #2286 remains open. Current results: results/w210-cleanup-flow/.
 - Residual fixture constructors forward actual source inputs and compile;
   seeded_parameter filter has0 pass/6 fail at shared procedure lookup before SCCP. Exact receipt:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;
@@ -92,7 +85,7 @@ Current independent checks and outstanding work:
   Final checker:2,606 records, zero pending/unlinked;315 implementation-digest
   errors across 154 paths, no other error class. Exact result:
   `experiments/name-handling/results/proof-source-currency/20261012-merged-f5-three-renewals/`.
-  Review exact invariants before renewing remaining bindings; never blanket-rehash
+  Three further exact bindings independently reviewed/renewed; bounded UTF8 scope wording corrected from existing Unicode source controls. Full checker not yet rerun. Review exact invariants before renewing remaining bindings; never blanket-rehash
   or alter oracle bytes. Current typed-counter repair has separate ownership.
 - Five unrelated F5/editor prose passages and five F5-document correction groups
   were cleaned. Whole-repository docs,

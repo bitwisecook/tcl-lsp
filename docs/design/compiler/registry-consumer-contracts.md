@@ -370,10 +370,7 @@ pack able to add a catalogue member, which the standing rules forbid.
 
 **What follows.** [../registry/spec-packs.md](../registry/spec-packs.md)
 § *One authoring format* states "the shipped cores … stay native Rust;
-there is no ahead-of-time `.tclspec` → `.rs` path", and
-[../registry/dialect-and-package-registry-redesign.md](../registry/dialect-and-package-registry-redesign.md)
-§ *11. The open-questions ledger* records the same decision in its
-"deliberately **not** in this ledger" paragraph.
+there is no ahead-of-time `.tclspec` → `.rs` path".
 [command-registry.md](command-registry.md) § *Authoring a spec without
 Rust* separates the Spec Studio's `.rs` contribution export
 (`rust/tcl-spec-studio/src/render_rs.rs`, a drafting aid whose output a

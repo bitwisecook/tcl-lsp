@@ -273,8 +273,8 @@ core-vs-feature lens.
 
 - **Fix bottom-up.** A Tier 1 parser bug or a Tier 3 trace/encoding/channel bug
   shows up as scattered failures across many higher-tier stems; fixing it lifts
-  all of them at once (firing read traces from `info exists` unblocked lazy
-  tcltest constraints across the whole suite). Chasing a Tier 5 failure while a
+  all of them at once. For example, `info exists` read traces can initialise
+  lazy tcltest constraints used across the suite. Chasing a Tier 5 failure while a
   Tier 3 fundamental is broken is usually wasted work.
 - **A CRASH on a low tier is the highest-leverage fix** — it zeroes a whole
   file, so one fix converts a `0` into whatever the file would otherwise
