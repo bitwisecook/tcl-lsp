@@ -6,11 +6,9 @@ C Tcl 8.4–9.1, latest JimTcl and F5 oracle evidence. The starting report is
 across `tcltest` setup/body/cleanup execution. Its reproduction must be covered
 alongside the broader command, namespace, variable and object identity work.
 
-Current checkpoints, 12 October 2026: integration baseline `c49ef6fd5`,
-implementation/evidence `e803f53f1`, wild-pattern catalogue and C/Jim/F5
-evidence index `df919cbed`. These checkpoints are on `work`; verify the remote ref before claiming
-publication. Evidence certifies its recorded source and inputs,
-not every later commit. Check `git log` and `git status` for subsequent changes.
+Current published checkpoint at this snapshot: `1b3a01d66` on `work`.
+Read the compact continuation prompt and ledger for current ownership/results.
+Evidence certifies its exact recorded source and inputs, not later commits.
 
 | Document | Purpose |
 | --- | --- |
@@ -40,8 +38,8 @@ paths; never replace a failed result with an unexecuted claim.
 A new chat starts with `AGENTS.md`, this page, the ledger and the continuation
 prompt. Inspect branch/status and incoming changes, verify the evidence source
 before rerunning or interpreting a result, then take the next unresolved ledger
-obligation. Compiler source advice, missing-read diagnostics, runtime variables, native
-bootstrap, gate repair and consumer/documentation audits have active assignments.
+obligation. Current small jobs are accepting the frozen caller-source checkpoint and reviewing
+its remaining diagnostic/fixture failures; use the ledger for ownership.
 Required gates remain red. The user authorises regular development pushes
 before green checks; all required checks must pass at the PR stage.
 
