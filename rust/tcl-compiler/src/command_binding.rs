@@ -166,6 +166,7 @@ pub use math_occurrence::{SourceConditionalMathInvocation, SourceMathInvocation}
 pub(crate) mod formal_topology;
 mod formal_value;
 mod origin_inventory;
+pub(crate) use origin_inventory::OriginalInvocationSourcePurpose;
 mod retained_body_inventory;
 pub(crate) use retained_body_inventory::RetainedSourceBodyInventory;
 mod original_body_namespace;

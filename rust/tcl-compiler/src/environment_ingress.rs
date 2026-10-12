@@ -153,6 +153,16 @@ impl std::ops::DerefMut for CapturedNativeEntry {
 pub(crate) fn captured_native_entry_with_owner(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
+    captured_native_entry_with_owner_using(profile, |_| {})
+}
+
+/// The same capture worker after actual public command setup. The entry is
+/// captured from its real owner; no command row or trace flag is manufactured.
+#[cfg(test)]
+pub(crate) fn captured_native_entry_with_owner_using(
+    profile: &'static tcl_dialect::DialectProfile,
+    setup: impl FnOnce(&mut tcl_vm::Vm),
+) -> (tcl_vm::Vm, tcl_runtime_api::NativeCompilationEntry) {
     use std::cell::RefCell;
     use std::rc::Rc;
 
@@ -205,6 +215,7 @@ pub(crate) fn captured_native_entry_with_owner(
         },
     )
     .expect("authentic native registration before entry capture");
+    setup(&mut vm);
     vm.set_compiler(Box::new(Capture(Rc::clone(&captured))));
     // Capture the compiler's actual entry, including when the physical Jim
     // Script evaluator has an independent direct execution route.

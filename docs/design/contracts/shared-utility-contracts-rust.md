@@ -4148,3 +4148,43 @@ unknown dispatch attempts command lookup before vocabulary classification. These
 pure projections grant no Native lookup, package, event, source-edit or compiler
 body authority. Rust module paths and restricted stock descriptor labels keep
 their independent owners.
+
+
+Registry descriptor-key projections retain the exact selected descriptor label.
+Literal punctuation in that label supplies no constructed root marker, written
+command parsing, source policy or runtime binding. Owned invocation facts and
+the selected descriptor expose this same pure view; the semantic-operation
+roster projects its existing descriptor rows without changing availability.
+
+Compiler execution-trace hazard keys join the selected trace transition to its
+actual frozen non-head operand, post-head ordinal and retained namespace lookup.
+The canonical native source-spelling worker must round-trip each possible slot
+under the original lookup and publication recipe. Opaque, missing or noninjective
+inputs leave the hazard dynamic. These keys are possible spelling hazards, not
+trace-registration tokens or successful invocation receipts.
+
+At an actual Native invocation, the original complete source input, vector,
+current head producer, source instance and frame must match the retained point.
+Lookup and execution must select the same complete target identity, generation,
+allocation and captured prefixes. The existing source/entered/step observer and
+Native entry token owner then supplies trace absence. Its initial token trace
+bit is checked even when the module spelling inventory is empty. Aliases, imports
+and renames retain their independently selected token and observer obligations;
+a descriptor label or current slot spelling cannot replace that owner.
+
+The original binding and module entry issue a separate request-purpose query.
+A supplied Native entry retains Execution purpose even when its raw assistance
+input permits Logical naming, as Jim does without a Native name protocol.
+Execution purpose grants no dispatch, handler entry, compilation or trace
+absence. Logical spelling advice requires the actual retained Logical source
+owner; Standalone requires the original explicit tagged owner. Missing purpose
+declines without selecting from a profile or repairing from availability.
+
+Implicit descriptor-only operations have no actual invocation receiver and
+cannot obtain Native trace absence from a spelling inventory. The original AOT
+and Wasm direct-procedure adapters carry their actual call tokens; a procedure
+published by source without a matching Native entry row remains unavailable to
+this observer check. Explicit authored compatibility joins its original source
+metadata before using its separate spelling model. Constructed procedure keys
+remove exactly one root marker. Wasm mutation trust receives the exact selected
+descriptor label and retains its independent binding and mutation owner.

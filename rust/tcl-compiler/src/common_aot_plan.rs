@@ -1358,7 +1358,13 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     if input.unit.ir_module.has_dynamic_trace {
         return decline(SemanticCallDecline::DynamicExecutionTrace);
     }
-    if command_has_execution_trace(&input.unit.ir_module, &facts.canonical_command) {
+    if crate::registry_invocation::original_invocation_has_execution_trace(
+        input.registry,
+        input.metadata.expect("selected metadata prerequisite"),
+        tokens,
+        facts.descriptor_key(),
+        &input.unit.ir_module.traced_commands,
+    ) {
         return decline(SemanticCallDecline::ExecutionTrace);
     }
     let mut arguments = Vec::with_capacity(input.site.args.len());
@@ -1405,11 +1411,19 @@ fn semantic_call_decision(input: &SemanticCallInputs<'_>) -> SemanticCallDecisio
     })
 }
 
-fn command_has_execution_trace(module: &crate::ir::Module, command: &str) -> bool {
-    module.traced_commands.contains(command)
-        || module
-            .traced_commands
-            .contains(command.trim_start_matches("::"))
+fn command_has_execution_trace(
+    registry: &tcl_registry::CommandRegistry,
+    module: &crate::ir::Module,
+    command: tcl_registry::CanonicalCommandDescriptorKey<'_>,
+) -> bool {
+    // An implicit semantic operation has no actual called-slot receipt.
+    // Native inventories require token history; ambiguous authored descriptor
+    // punctuation likewise supplies no constructed-key encoding contract.
+    crate::registry_invocation::trace_set_requires_original_owner(
+        registry, module,
+        crate::registry_invocation::InvocationMetadataContext::for_module(registry, module),
+    ) || (!module.traced_commands.is_empty() && command.label().starts_with("::"))
+        || module.traced_commands.contains(command.label())
 }
 
 fn closed_program_linear_entry(function: &FunctionUnit) -> Option<(&Block, &SsaBlock)> {
@@ -1752,8 +1766,10 @@ fn direct_decision(input: &DirectInputs<'_>) -> DirectProcDecision {
     if input.unit.ir_module.has_dynamic_trace {
         return decline(DirectProcDecline::DynamicExecutionTrace);
     }
-    let trace_name = input.callee_name.trim_start_matches("::");
-    if input.unit.ir_module.traced_commands.contains(trace_name) {
+    if crate::registry_invocation::original_procedure_has_execution_trace(
+        input.registry, input.metadata, input.site.tokens.as_deref(),
+        input.callee_name, &input.unit.ir_module.traced_commands,
+    ) {
         return decline(DirectProcDecline::ExecutionTrace);
     }
     if input.binding_kind == BindingKind::Alias
@@ -2084,13 +2100,8 @@ fn semantic_operation_has_execution_trace(
     operation: SemanticOperationId,
 ) -> bool {
     registry
-        .command_names_for_semantic_operation(operation)
-        .any(|command| {
-            module.traced_commands.contains(command)
-                || module
-                    .traced_commands
-                    .contains(command.trim_start_matches("::"))
-        })
+        .command_descriptor_keys_for_semantic_operation(operation)
+        .any(|command| command_has_execution_trace(registry, module, command))
 }
 
 fn actual_fact(

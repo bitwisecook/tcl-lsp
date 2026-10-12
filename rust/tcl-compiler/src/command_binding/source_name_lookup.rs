@@ -421,6 +421,29 @@ impl SourceInvocationBinding {
         self.original_lookup_from_rows(input, rows)
     }
 
+    /// Exact non-head command operand at this same consuming invocation.
+    /// The original argument index selects its frozen producer; a variable-root
+    /// facet, head input or reconstructed equal spelling cannot replace it.
+    pub(crate) fn original_transition_command_lookup(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        argument_index: usize,
+    ) -> Option<OriginalCommandLookup> {
+        if tokens.synthetic.is_some() || tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let operands = self.original_variable_operands_for_tokens(tokens)?;
+        let state = &self.lookup_state.as_ref()?.state;
+        let input = operands.input(argument_index, &state.source_variables)?;
+        if matches!(input, SignatureSourceNameInput::OriginalVariableRoot(_)) {
+            return None;
+        }
+        let rows = super::declaration_layout::original_declaration_layouts(
+            self.declaration_layout_observations.as_deref()?,
+        )?.collect();
+        self.original_lookup_from_rows(input, rows)
+    }
+
     /// Complete written static head under its genuine declaration observations.
     /// This supplies source lookup geometry, never entered dispatch or presence.
     pub(crate) fn original_static_head_lookup_for_tokens(

@@ -23,6 +23,17 @@ use super::{
     SourceCommandBindings, SourceInvocationBinding, SourceOriginId,
 };
 
+/// Purpose retained by the original source binding or module entry. Execution
+/// means a supplied Native entry owns the request, including unsupported naming
+/// purposes; it grants no dispatch, handler entry, compilation or trace absence.
+/// Logical and Standalone retain their own explicitly selected source models.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OriginalInvocationSourcePurpose {
+    Execution,
+    Logical,
+    Standalone,
+}
+
 /// Source selection and entered activation are separate obligations. Deferred
 /// declarations retain the same source mapping without an execution owner.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +46,61 @@ pub(super) struct EnteredScriptObservation {
 }
 
 impl SourceInvocationBinding {
+    /// Join the request to this complete original vector before reading the
+    /// purpose retained at its actual point. A raw input's Logical naming flag
+    /// cannot replace a supplied Native entry, including Jim without a name
+    /// protocol. Missing retained purposes decline without profile inference.
+    pub(crate) fn original_invocation_source_purpose(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalInvocationSourcePurpose> {
+        if !metadata.matches_registry(registry) || tokens.source_binding.as_ref() != Some(self) {
+            return None;
+        }
+        let original_input = if let Some(input) = metadata.source_analysis_input() {
+            self.original_invocation_metadata_for_input(tokens, input, registry)?
+                .source_analysis_input()
+        } else {
+            metadata.is_standalone().then_some(())?;
+            self.original_invocation_metadata_for_owner(
+                tokens,
+                &crate::registry_invocation::OwnedInvocationMetadataContext::Standalone,
+                registry,
+            )
+            .ok()?;
+            None
+        };
+        let declaration = if self.lookup_state.is_none() {
+            Some(
+                self.declaration_operand_layout_advice(tokens)
+                    .or_else(|| self.original_compilation_lookup_advice(tokens))?,
+            )
+        } else {
+            None
+        };
+        let state = self
+            .lookup_state
+            .as_ref()
+            .map(|point| &point.state)
+            .or_else(|| declaration.as_ref().map(|advice| &advice.snapshot.state))?;
+        if state.current_source_origin.as_ref() != Some(&self.invocation_site()?.source)
+            || state.variable_frame != self.variable_frame
+        {
+            return None;
+        }
+        if original_input.is_some()
+            && declaration
+                .as_ref()
+                .is_some_and(|advice| !advice.closed_logical_source_lookup())
+            && state.baseline.native_entry.is_none()
+        {
+            return None;
+        }
+        state.retained_original_source_purpose(metadata, registry)
+    }
+
     /// Source instance owning this immutable execution point.
     #[must_use]
     pub fn source_origin(&self) -> Option<&Arc<SourceOriginId>> {
@@ -97,6 +163,37 @@ impl SourceInvocationBinding {
             .filter(|row| row.token == runtime.token)
             .collect::<Vec<_>>();
         !rows.is_empty() && rows.iter().all(|row| !row.has_execution_trace)
+    }
+
+    /// The same observer owner for a caller's complete original invocation.
+    /// Source instance, current frame and full lookup/execution implementation
+    /// must agree before reborrowing the actual Native entry token ledger.
+    pub(crate) fn original_unobserved_native_dispatch_for_tokens(
+        &self,
+        tokens: &crate::ir::CommandTokens,
+        target: &super::SourceCommandTarget,
+    ) -> bool {
+        if tokens.source_binding.as_ref() != Some(self)
+            || self.original_lexer_config_for_tokens(tokens).is_none()
+        {
+            return false;
+        }
+        let Some(head) = self.original_head_name_input(tokens) else {
+            return false;
+        };
+        let Some(snapshot) = self.lookup_state.as_ref() else {
+            return false;
+        };
+        let Some(site) = self.invocation_site() else {
+            return false;
+        };
+        snapshot.state.current_source_origin.as_ref() == Some(&site.source)
+            && snapshot.state.variable_frame == self.variable_frame
+            && head.is_current(&self.variable_context)
+            && target.identity.as_ref().and_then(|identity| identity.runtime).is_some()
+            && self.proved_execution_target() == Some(target)
+            && self.proved_target() == Some(target)
+            && self.unobserved_native_dispatch()
     }
 
     /// Whether this point belongs to original authored document bytes.
@@ -1385,5 +1482,82 @@ mod original_math_body_purpose_tests {
                 );
             }
         }
+    }
+}
+
+impl super::ModuleCommandBindings {
+    /// The entry purpose retained in this source state. Callers must first join
+    /// their original source/argument/declaration geometry to this same state;
+    /// this projection supplies no invocation, layout, frame or execution grant.
+    pub(crate) fn retained_original_source_purpose(
+        &self,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> Option<OriginalInvocationSourcePurpose> {
+        if !metadata.matches_registry(registry)
+            || self.baseline.registry_snapshot.as_ref() != Some(&registry.snapshot().semantic_key())
+        {
+            return None;
+        }
+        let original = &self.baseline.metadata_context;
+        match (
+            original.source_analysis_input(),
+            metadata.source_analysis_input(),
+        ) {
+            (Some(original), Some(input))
+                if original == input || original == &input.for_nested_source() => {}
+            (None, None) if original.is_standalone() && metadata.is_standalone() => {}
+            _ => return None,
+        }
+        if self.baseline.native_entry.is_some() {
+            return Some(OriginalInvocationSourcePurpose::Execution);
+        }
+        if self.baseline.unknown_entry {
+            return None;
+        }
+        if let Some(input) = metadata.source_analysis_input() {
+            let logical = self.logical_source_name_advice_input()?;
+            return (logical == input || logical == &input.for_nested_source())
+                .then_some(OriginalInvocationSourcePurpose::Logical);
+        }
+        original
+            .is_standalone()
+            .then_some(OriginalInvocationSourcePurpose::Standalone)
+    }
+}
+
+impl crate::ir::Module {
+    /// Purpose of this module's retained entry for an implicit operation lacking
+    /// an actual invocation receiver. Availability and raw Logical eligibility
+    /// cannot select its purpose; Native entries still need a separate token
+    /// owner before any trace absence is usable.
+    pub(crate) fn original_invocation_source_purpose(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+        metadata: crate::registry_invocation::InvocationMetadataContext<'_>,
+    ) -> Option<OriginalInvocationSourcePurpose> {
+        let original =
+            crate::registry_invocation::InvocationMetadataContext::for_module(registry, self)?;
+        if !metadata.matches_registry(registry)
+            || original.source_analysis_input() != metadata.source_analysis_input()
+            || original.is_standalone() != metadata.is_standalone()
+        {
+            return None;
+        }
+        if self.source_entry.native_entry.is_some() {
+            return Some(OriginalInvocationSourcePurpose::Execution);
+        }
+        if self.source_entry.unknown_entry {
+            return None;
+        }
+        let options = self.source_entry.options();
+        if let Some(input) = metadata.source_analysis_input() {
+            let logical =
+                options.retained_logical_source_input(registry, Some(self.lexer_config))?;
+            return (logical == *input || logical.for_nested_source() == *input)
+                .then_some(OriginalInvocationSourcePurpose::Logical);
+        }
+        (metadata.is_standalone() && options.retained_metadata_context().is_standalone())
+            .then_some(OriginalInvocationSourcePurpose::Standalone)
     }
 }

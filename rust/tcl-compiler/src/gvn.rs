@@ -659,7 +659,11 @@ pub fn is_pure_command_with_traces(
     if has_dynamic_trace {
         return false;
     }
-    if traced_commands.contains(command.trim_start_matches("::")) {
+    // This compatibility facade receives an explicitly authored written name;
+    // production original-token gates below consume selected descriptor keys.
+    let written = tcl_syntax::naming::canonical_written_command(command);
+    let trace_key = tcl_syntax::naming::unroot_rooted_key(&written).unwrap_or(&written);
+    if traced_commands.contains(command) || traced_commands.contains(trace_key) {
         return false;
     }
     is_pure_command(registry, command, args, dialect)
@@ -689,8 +693,9 @@ pub(crate) fn is_pure_tokens_with_metadata_context(
     };
     let facts = &invocation.facts;
     if has_dynamic_trace
-        || traced_commands.contains(&facts.canonical_command)
-        || traced_commands.contains(facts.canonical_command.trim_start_matches("::"))
+        || crate::registry_invocation::original_invocation_has_execution_trace(
+            registry, metadata, tokens, facts.descriptor_key(), traced_commands,
+        )
         || !facts.traits.contains(Traits::PURE)
         || !facts.effects.accesses().is_empty()
         || facts.effects.requires_world_barrier()

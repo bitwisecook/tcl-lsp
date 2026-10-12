@@ -32,6 +32,11 @@ pub(crate) use original_procedure_call::{
     original_procedure_scalar_bindings,
 };
 mod metadata_context;
+mod execution_trace;
+pub(crate) use execution_trace::{
+    original_execution_trace_keys, original_invocation_has_execution_trace, original_procedure_has_execution_trace,
+    trace_set_requires_original_owner,
+};
 pub(crate) use metadata_context::retained_module_metadata_context;
 pub use metadata_context::{
     InvocationMetadataContext, InvocationMetadataInput, OwnedInvocationMetadataContext,

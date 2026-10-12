@@ -1626,9 +1626,7 @@ fn direct_proc_eligible(
     };
     if crate::native_compilation_admission::script_requires_admission(&proc.body)
         || proc.namespace_scoped
-        || proc
-            .qualified_name
-            .strip_prefix("::")
+        || tcl_syntax::naming::unroot_rooted_key(&proc.qualified_name)
             .is_some_and(|name| name.contains("::"))
         || module.redefined_procedures.contains(&proc.qualified_name)
         || unit.complexity_guarded
@@ -1759,7 +1757,7 @@ fn function_facts(
                 && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
                     resolve_command_tokens_with_metadata_context(registry, Some(context), tokens)
                 && bindings.is_original_builtin_at(block, stmt_idx, command)
-                && mutations.trusts(invocation.canonical_command.trim_start_matches("::"))
+                && mutations.trusts(invocation.descriptor_key().label())
             {
                 record_operation(
                     &mut facts,
@@ -1789,8 +1787,11 @@ fn function_facts(
                 record_direct_calls(
                     &mut facts,
                     module,
+                    registry,
+                    context,
                     mutations,
                     &bindings,
+                    &unit.cfg.command_binding_sites,
                     (block, stmt_idx),
                     statement,
                 );
@@ -1873,7 +1874,7 @@ fn assignment_operation_is_trusted(
             )
         })
         && bindings.is_original_builtin_at(site.0, site.1, written_head)
-        && mutations.trusts(invocation.canonical_command.trim_start_matches("::"))
+        && mutations.trusts(invocation.descriptor_key().label())
 }
 
 /// Record every procedure this call site provably binds to, so the emitter may
@@ -1881,8 +1882,11 @@ fn assignment_operation_is_trusted(
 fn record_direct_calls(
     facts: &mut FunctionFacts,
     module: &Module,
+    registry: &CommandRegistry,
+    context: Option<InvocationMetadataContext<'_>>,
     mutations: &ModuleCommandMutations,
     bindings: &CommandBinding<'_>,
+    sites: &crate::ir::CommandBindingSites,
     site: (crate::cfg::BlockId, usize),
     statement: &Statement,
 ) {
@@ -1897,10 +1901,12 @@ fn record_direct_calls(
                 && binding.target.as_deref() == Some(proc.qualified_name.as_str())
                 && mutations.trusts_proc_binding(&proc.qualified_name)
                 && !module.has_dynamic_trace
-                && !module.traced_commands.contains(
-                    proc.qualified_name
-                        .strip_prefix("::")
-                        .unwrap_or(&proc.qualified_name),
+                && !crate::registry_invocation::original_procedure_has_execution_trace(
+                    registry, context,
+                    crate::ir::CommandBindingSites::unanimous_statement_source_tokens(
+                        sites.iter(), statement,
+                    ),
+                    &proc.qualified_name, &module.traced_commands,
                 )
             {
                 facts.direct_calls.insert(
@@ -3578,6 +3584,41 @@ mod tests {
             );
             assert_eq!(only_decline(&facts), expected, "{source}");
         }
+    }
+
+    #[test]
+    fn constructed_procedure_calls_require_the_original_native_trace_owner() {
+        // naming.compiler.original-analysis-metadata-context
+        // docs/design/analysis/name-resolution-proofs/original-analysis-metadata-context.md
+        // Real source compilation and original entry; no Native trace execution.
+        let context = tcl_registry::model::ingress::resolve_environment("tcl8.6")
+            .default_context_registry();
+        let plain = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc p {x} {return $x}; p VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        let current = function_facts(
+            &plain.top_level, &plain.ir_module, context.commands(),
+            &plain.command_mutations, true,
+        );
+        assert!(current.direct_calls.is_empty());
+        let tokens = plain.ir_module.top_level.statements.iter().rev()
+            .find_map(crate::ir::Statement::tokens).unwrap();
+        let target = tokens.source_binding.as_ref().unwrap().proved_execution_target().unwrap();
+        assert!(target.identity.as_ref().unwrap().runtime.is_none());
+        assert!(!tokens.source_binding.as_ref().unwrap().unobserved_native_dispatch());
+        let traced = retained_source_unit(
+            std::sync::Arc::clone(&context),
+            "proc cb args {}; proc p {x} {return $x}; proc other args {}; trace add execution other enter cb; p VALUE",
+            tcl_lexer::LexerConfig::for_dialect("tcl8.6"),
+        );
+        assert!(traced.ir_module.traced_commands.contains("other"));
+        let refused = function_facts(
+            &traced.top_level, &traced.ir_module, context.commands(),
+            &traced.command_mutations, true,
+        );
+        assert!(refused.direct_calls.is_empty());
     }
 }
 

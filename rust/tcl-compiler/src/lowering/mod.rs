@@ -6971,10 +6971,11 @@ impl Lowerer<'_> {
 ///
 /// Runs over the top-level script + every procedure body + every `TclOO`
 /// method body (`module.methods`, already populated by
-/// `extract_oo_methods_pass` before this runs).  Literal command names
-/// land in `traced_commands` (`::`-stripped to match the canonical key);
-/// non-literal targets (`$cmd`, `[expr ...]`, command substitutions) flip
-/// `has_dynamic_trace` so GVN treats every call as potentially traced.
+/// `extract_oo_methods_pass` before this runs). Original command operands
+/// contribute source-renderable keys from their retained lookup geometry;
+/// missing or opaque geometry sets `has_dynamic_trace` so GVN treats every
+/// call as potentially traced. Authored compatibility has its separate written
+/// grammar; a descriptor label cannot supply an original trace operand.
 /// Literal variable names targeted by any `Traits::
 /// ESTABLISHES_VARIABLE_TRACE` subcommand — the registry's
 /// `ArgRole::VarWrite` resolution for `trace add|remove|variable|vdelete`,
@@ -7091,11 +7092,13 @@ fn walk_for_trace(
             };
             match target {
                 TraceTarget::Execution(subject) if add => {
-                    if let Some(target) = subject.literal() {
-                        let canonical = target.trim_start_matches("::").to_owned();
-                        if !canonical.is_empty() {
-                            module.traced_commands.insert(canonical);
-                        }
+                    let keys = stmt.tokens().and_then(|tokens| {
+                        crate::registry_invocation::original_execution_trace_keys(
+                            registry, context, tokens, subject,
+                        )
+                    });
+                    if let Some(keys) = keys {
+                        module.traced_commands.extend(keys);
                     } else {
                         module.has_dynamic_trace = true;
                     }

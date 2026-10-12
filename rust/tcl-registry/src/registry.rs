@@ -4298,6 +4298,16 @@ impl CommandRegistry {
         })
     }
 
+    /// Exact pure descriptor keys reached by the existing operation roster.
+    /// This retains its all-release scope and does not resolve written names.
+    pub fn command_descriptor_keys_for_semantic_operation(
+        &self,
+        operation: crate::SemanticOperationId,
+    ) -> impl Iterator<Item = crate::CanonicalCommandDescriptorKey<'_>> {
+        self.command_names_for_semantic_operation(operation)
+            .map(crate::CanonicalCommandDescriptorKey::from_registry_label)
+    }
+
     /// The [`ObjectClassSpec`] for a `TclOO` / megawidget class named
     /// `class_name`, or `None` when it is not a registry-modelled class.
     ///

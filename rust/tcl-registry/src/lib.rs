@@ -214,6 +214,8 @@ pub mod remote_method;
 pub mod repeated;
 pub mod representation;
 pub mod resolved_invocation;
+mod command_descriptor_key;
+pub use command_descriptor_key::CanonicalCommandDescriptorKey;
 pub mod result_stability;
 pub mod return_type;
 pub mod runtime_backing;

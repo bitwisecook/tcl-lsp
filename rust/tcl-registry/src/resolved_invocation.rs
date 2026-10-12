@@ -1809,6 +1809,13 @@ fn selected_variable_receiver_operand_form(
 }
 
 impl InvocationFacts {
+    /// Pure key of the exact descriptor that produced these owned facts.
+    /// This supplies no command-table or source naming authority.
+    #[must_use]
+    pub fn descriptor_key(&self) -> crate::CanonicalCommandDescriptorKey<'_> {
+        crate::CanonicalCommandDescriptorKey::from_registry_label(&self.canonical_command)
+    }
+
     /// Original argv receiver form selected by the actual handler descriptor.
     /// A nominal variable role alone cannot select this protocol. Whole-array
     /// operations still parse a combined name; an element may be a guest error.
@@ -2237,6 +2244,12 @@ pub fn count_invocation_arguments(
 }
 
 impl<'r, 'w> ResolvedInvocation<'r, 'w> {
+    /// Exact selected Registry label, independently of the original written head.
+    #[must_use]
+    pub fn descriptor_key(&self) -> crate::CanonicalCommandDescriptorKey<'static> {
+        crate::CanonicalCommandDescriptorKey::from_registry_label(self.canonical_command)
+    }
+
     /// Completion shape under this exact selected descriptor and frozen source
     /// argument dialect. This supplies no Native handler, successful completion,
     /// entered frame or result value. Missing argument grammar stays unknown.
