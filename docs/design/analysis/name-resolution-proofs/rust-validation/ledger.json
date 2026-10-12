@@ -301676,6 +301676,116 @@
         }
       },
       "limits": "Only the actual owned tcl_lsp_core test executable and immutable source350 supply these 14 passing software assertions. No whole-suite, compiler, Runtime, Server or current-source result is supplied.; The mixed compiler/Core producer exits 101 with no assertions. Its failure supplies no owning Core image authority; the separate actual Core-only producer, own inventory, pin and assertion process are independently retained.; Producer and inventory operations run no assertions. The owned inventory contains 2967 tests, only 14 are selected, and 2953 are filtered out.; All 14 selected bodies exactly equal the independently retained comparator bodies. Equality identifies the assertion purpose and retains inputs/assertions; no outcome is transferred between source maps or executable images.; Every question/body/document correspondence uses genuine original comments and an existing exact catalogue path/selector binding. Current provider answers, implementation hashes and test statuses remain unchanged.; The original run350 wrapper performs full immutable/actual-source before and after checks. Its receipt retains the actual command and source map, but complete inherited subprocess environment and execution-time wrapper-byte pins are not recorded.; The explicit native-test-env file is retained unchanged as observed configuration, not an invented full environment receipt or independent native-provider outcome.; Lossless full-image retention preserves exact original sealed ELF bytes and original same-filesystem/same-inode facts. It supplies no loaded-library/build dependency closure, SDK attestation or execution replay equivalence.; These are bounded Rust software/source-context comparisons. Native Tcl, Jim, BIG-IP, callback chronology and purpose admission remain independent."
+    },
+    {
+      "id": "rust.frozen711.runtime-api-owned-all712-report-pure-map",
+      "receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/receipt.json.gz",
+        "sha256": "a2933aebc39eb54e636ae84195cf16a4159d658fa77736d1d46c23e58eaa4a89",
+        "compression": "gzip",
+        "uncompressed_sha256": "8b4f6524b7a2da60b2544fb505e065354b8ce55b91839b385b9c59460f8f5cc9"
+      },
+      "log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/stdout-stderr.log.gz",
+        "sha256": "527d697c25e9073a4122a23b98b1b1fa231da8c635a5ae2687409f9b39d7fd06",
+        "compression": "gzip",
+        "uncompressed_sha256": "9b6c85c9f173d384e0c1682e98ab5de1d83254cc9948b27a466360afd1fe690a"
+      },
+      "producer_receipt": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/build-receipt.json.gz",
+        "sha256": "5f1d7afdc67d080973b42a6182ee7d7648e8235f52e6006e3f5fdaebbc467e8b",
+        "compression": "gzip",
+        "uncompressed_sha256": "67286e06112ce78a0709958f943d6d24c67c73fc2823fea680fba22ef30424db"
+      },
+      "producer_log": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/producer.log.gz",
+        "sha256": "bbd3e83f0af3db73687b8b41ee173b5929d3267c995677d93aeddccabea18e6b",
+        "compression": "gzip",
+        "uncompressed_sha256": "63f910346af3c002ee9f396743067b867950a72acf0513624c58f48a8a88b844"
+      },
+      "admission": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/admission.json.gz",
+        "sha256": "71251718cbe695db238cd3f4c5029345befbcf6a3f852be6ec09134483fd445a",
+        "compression": "gzip",
+        "uncompressed_sha256": "aa9d8969aca1ae6eacca96fd3bfed5a189a421746f12e8036e67e252f7e15e27"
+      },
+      "discovery": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/discovery.log.gz",
+        "sha256": "cfdda068c5ab13a29b1cd74db24a750fc4783bc8bd6194c9ae1e5f4737f981a5",
+        "compression": "gzip",
+        "uncompressed_sha256": "3a1d42cf74958e2f201c536da27ac7edb629fb615dcc05648a052fe39595732e"
+      },
+      "command": [
+        "/workspace/.proofs/owned-runtime-api712/pinned-runtime-api712.elf",
+        "--test-threads=1",
+        "--nocapture"
+      ],
+      "exit": 0,
+      "seconds": 12.192679063999094,
+      "uniform_source": true,
+      "status": "owning-suite-assertions-passed",
+      "result": {
+        "passed": 88,
+        "failed": 0,
+        "ignored": 0,
+        "measured": 0,
+        "filtered": 0,
+        "question_associations": 1
+      },
+      "source_inventory": {
+        "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/source-snapshot.json.gz",
+        "sha256": "647e2b559eeef960ff871fbdb8ce5673df1e855fb4ddd8b1ec6bb9ee2a91fda4",
+        "compression": "gzip",
+        "uncompressed_sha256": "6579a2b9cc8bc8908222006b54a3733c35347b8b44d43d403d4c418d6aeae872",
+        "json_pointer": "/source",
+        "authority": "Exact actual original711 source inventory, independently joined to all48458 paths in retained producer and immutable roots; no future/current source receives an assertion."
+      },
+      "tests": [
+        {
+          "path": "rust/tcl-runtime-api/src/backing.rs",
+          "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
+          "status": "passed",
+          "proof_ids": [
+            "naming.embedding.original-host-publication-and-fact-transport"
+          ],
+          "original_body_correspondence": [
+            {
+              "question": "naming.embedding.original-host-publication-and-fact-transport",
+              "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md",
+              "operation": "runtime-api-owned-all712",
+              "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
+              "outcome": "passed",
+              "original_source_path": "rust/tcl-runtime-api/src/backing.rs",
+              "whole_original_source_sha256": "6e3efe91879f96f1bcabaf1c7c467fbcb0fe5f14b01e4b092f037f9629fb433e",
+              "original_body_sha256": "6020926bcf3f78c27fc4578f399741c7844be5f74a9f33fed725327fe70c1555",
+              "original_source_definition_line": 199,
+              "raw_start_byte": 92,
+              "raw_end_byte": 176,
+              "raw_excerpt_sha256": "c570d45c7b3400efb1cc77ca194187831f5de92d393f3d3f7a600ea27b25ecde",
+              "current_source_outcome": false,
+              "purpose": "Exact original711 API pure-map diagnostic report control only. No Runtime placed-slot, physical C Tcl, Jim, BIG-IP, command-dispatch or new Native authority outcome."
+            }
+          ],
+          "purpose": "The explicit unrooted BackingReport map preserves run/:run/::run/:::run as four exact keys and the single-root compatibility interface independently selects run. No placed Runtime command, token or native name authority is established."
+        }
+      ],
+      "question_ids": [
+        "naming.embedding.original-host-publication-and-fact-transport"
+      ],
+      "sealed_images": {
+        "runtime_api": {
+          "path": "docs/design/analysis/name-resolution-proofs/rust-validation/frozen711/runtime-api712/pinned-runtime-api712.elf.gz",
+          "sha256": "be559d76b506e7c463de4154a409bfaa3b7b3830464ed05b70e12ae853f4f19f",
+          "compression": "gzip",
+          "uncompressed_sha256": "79720483b85b9d40450798f3ced1780b4d5cbd0483f25d1b857355b71c419301",
+          "whole_bytes": 1491848,
+          "features": [],
+          "package": "tcl-runtime-api",
+          "target": "tcl_runtime_api",
+          "authority": "The actual producer receipt targets lib/test/features[] with debug assertions and overflow checks enabled. Retention preserves original whole bytes; no missing cache executable, historical inode or loaded-dependency closure is inferred."
+        }
+      },
+      "limits": "Only the genuine owned API712 image, original711 full source map, actual discovery and unchanged raw all88 result support this one software pure-map association. Existing catalogue tests remain linked, all Native/provider/frozen/source-anchor/replay fields remain exact, and Runtime actual placed-slot control receives no outcome. Current same body/source equality identifies purpose but transfers no result to another source or image. Root producer/run receipts retain source/image-before-after assertions; independently retained full frozen producer/immutable maps and owned ELF bytes verify. Complete inherited subprocess environment, original execution wrapper byte pins, historical inode facts, build/load closure and external Tcl/Jim/BIG-IP outcomes are not supplied."
     }
   ]
 }

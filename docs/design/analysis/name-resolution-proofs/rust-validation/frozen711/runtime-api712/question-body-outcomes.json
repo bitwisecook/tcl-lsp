@@ -1,0 +1,35 @@
+{
+  "kind": "Exact original-source711 owning Runtime API712 question/body/document outcome correspondence",
+  "owned_image_sha256": "79720483b85b9d40450798f3ced1780b4d5cbd0483f25d1b857355b71c419301",
+  "frozen_source_snapshot_sha256": "6579a2b9cc8bc8908222006b54a3733c35347b8b44d43d403d4c418d6aeae872",
+  "actual_owned_suite": {
+    "discovered": 88,
+    "passed": 88,
+    "failed": 0,
+    "ignored": 0,
+    "measured": 0,
+    "filtered": 0
+  },
+  "linked_question_controls": 1,
+  "by_question": {
+    "naming.embedding.original-host-publication-and-fact-transport": [
+      {
+        "question": "naming.embedding.original-host-publication-and-fact-transport",
+        "document": "docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md",
+        "operation": "runtime-api-owned-all712",
+        "selector": "backing::tests::exact_unrooted_backing_keys_keep_literal_leading_colons",
+        "outcome": "passed",
+        "original_source_path": "rust/tcl-runtime-api/src/backing.rs",
+        "whole_original_source_sha256": "6e3efe91879f96f1bcabaf1c7c467fbcb0fe5f14b01e4b092f037f9629fb433e",
+        "original_body_sha256": "6020926bcf3f78c27fc4578f399741c7844be5f74a9f33fed725327fe70c1555",
+        "original_source_definition_line": 199,
+        "raw_start_byte": 92,
+        "raw_end_byte": 176,
+        "raw_excerpt_sha256": "c570d45c7b3400efb1cc77ca194187831f5de92d393f3d3f7a600ea27b25ecde",
+        "current_source_outcome": false,
+        "purpose": "Exact original711 API pure-map diagnostic report control only. No Runtime placed-slot, physical C Tcl, Jim, BIG-IP, command-dispatch or new Native authority outcome."
+      }
+    ]
+  },
+  "limits": "The all88 owning API process passed for original711. Only this exact body is associated with this question; all other linked source controls remain without a transferred outcome. Pure maps do not authenticate Runtime placed slots, original Native tokens or dispatch."
+}
