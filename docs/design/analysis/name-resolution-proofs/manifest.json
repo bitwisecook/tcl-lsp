@@ -55687,7 +55687,7 @@
       "document": "docs/design/analysis/name-resolution-proofs/core-original-package-source-action-context.md",
       "problem_statement": "Package insertion and suggestions can reparse reporting requirement labels, treat nested/data words or a provide query as an installed root header, or select candidates from a context unrelated to the source. Native and Logical missing-head advice require their independently authenticated source domains.",
       "question": "How do package actions retain the actual complete source context, genuine selected package grammar and root insertion geometry without inferring package installation or falling back between source domains?",
-      "conclusion": "original_package_require_insert_offset owns the current full image, actual input and complete grammar, including BOM policy, and selects only genuine root package-require commands. Split-line, shebang and EOF geometry remain original. W120 and Core actions share that insertion owner. original_source_package_already_named uses selected requirement or version-supplying provision syntax; a provide-name query, nested requirement or literal data cannot create a root package header. package_catalogue selects metadata under the actual ContextRegistry. Native actions require the genuine original unresolved-command subject and lookup; positively sealed Logical actions require their complete vector and shared positioned absence under the actual source input. Reporting names cannot replace those owners, and unsupported Native or hosted inputs do not fall back to Logical advice. Package names and proposals remain source metadata and reviewed insertion geometry, with no installed package, loader success, dispatch, file execution or runtime completion grant.",
+      "conclusion": "original_package_require_insert_offset owns the current full image, actual input and complete grammar, including BOM policy, and selects only genuine root package-require commands. Split-line, shebang and EOF geometry remain original. W120 and Core actions share that insertion owner. original_source_package_already_named uses selected requirement or version-supplying provision syntax; a provide-name query, nested requirement or literal data cannot create a root package header. ContextRegistry::namespace_package_ownership selects unanimous namespace package ownership from actual context-selected command rows. Native actions require the genuine original unresolved-command subject and lookup; positively sealed Logical actions require their complete vector and shared positioned absence under the actual source input. Reporting names cannot replace those owners, and unsupported Native or hosted inputs do not fall back to Logical advice. Package names and proposals remain source metadata and reviewed insertion geometry, with no installed package, loader success, dispatch, file execution or runtime completion grant.",
       "scope": "Three marked Rust controls retain root split-line/shebang/EOF offsets and changed-image refusal; genuine provision/query/escaped requirement distinctions survive mutated requirement/provision reporting labels. The Logical action fixture uses a sealed no-Native-policy Jim0.79 source profile with an independently supplied C8.6 authoring ContextRegistry. It retains its original unresolved head despite changed reporting names and refuses changed BOM configuration and a Native source domain. That fixture is source advice only and supplies no current Jim or C execution observation. Candidate ranking, package installation and successful edit semantics remain independent.",
       "providers": [
         {
@@ -55777,6 +55777,27 @@
           "sha256": "4430bc0a73265f91e97b56507108488bfa9319899dd188babfff8cf17870e7c6",
           "description": "Exact original source350 body/question/document joins to the owned Core image, actual inventory/admission and 14 passing selections. Other source images and external-provider answers receive no outcome.",
           "json_pointer": "/by_question/naming.core.original-package-source-action-context"
+        },
+        {
+          "id": "receiver-selected-source598-1e935e75fa5d0b0d",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "sha256": "0bb2c4810884a10368befdb15c5c9bdb63e422ad3ba58fe6fad3e31230450941",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-1d049f3fab4cedc7",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/assembly.rs",
+          "sha256": "971bdb2ac63b464c43d84541efafd3349b74b763f8e44891bcdfd3ed0383e8fc",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-7c61bded9baa6d7a",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "sha256": "ac64cdc140d737a2cdf2639f64305ecccfe9eb0a205f7bdf7969604203ec3da3",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         }
       ],
       "source_anchors": [],
@@ -55797,9 +55818,9 @@
           "purpose": "Select actual requirement/provision syntax independently of reporting labels and installed package state."
         },
         {
-          "path": "rust/tcl-lsp-core/src/code_actions.rs",
-          "symbol": "package_catalogue",
-          "purpose": "Filter source package metadata through the actual retained ContextRegistry."
+          "path": "rust/tcl-registry/src/model/assembly.rs",
+          "symbol": "ContextRegistry::namespace_package_ownership",
+          "purpose": "Select unanimous namespace package ownership from actual current-context command descriptors; conflicting, unowned or empty namespace rows withhold descriptive source suggestions."
         },
         {
           "path": "rust/tcl-lsp-core/src/code_actions.rs",
@@ -55815,6 +55836,26 @@
           "path": "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs",
           "symbol": "Analyser::emit_missing_package_require_diagnostics",
           "purpose": "Use the shared original root insertion owner for W120 proposals without reporting-label reconstruction."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "symbol": "NamespacePackageOwnership::package_for_namespace",
+          "purpose": "Require exact constructed namespace metadata with unanimous nonempty selected ownership; no generic package spelling inference or runtime namespace."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "symbol": "NamespacePackageOwnership::package_for_flat_key",
+          "purpose": "Use the most-specific actual selected namespace prefix for genuine flat-key metadata, retaining unknown/conflicting blocking behavior; no C tree reconstruction."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "symbol": "package_owned_by_original_input",
+          "purpose": "Use genuine independently retained C component namespace or Jim counted flat-key selection before joining current selected namespace package ownership; reporting projections cannot refresh those lookup owners."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "symbol": "package_owned_by_logical_namespace",
+          "purpose": "Project the canonical whole original Logical written head under existing complete-input, positioned absence and edit guards; join only actual context-selected namespace ownership."
         }
       ],
       "tests": [
@@ -55841,6 +55882,24 @@
           "selector": "code_actions::tests::logical_package_hint_keeps_shared_written_colon_geometry",
           "status": "linked",
           "assertion": "Logical package hint keeps shared written colon geometry. This is a source-defined software control without an attached matching current owned assertion outcome. It grants no external-provider observation, Native chronology, physical reference-count/frame identity or execution permission."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "selector": "code_actions::original_package_suggestion_tests::original_logical_package_hint_uses_selected_namespace_owner_not_package_spelling",
+          "status": "linked",
+          "assertion": "An authentic Logical complete-input action uses actual context-selected command rows to suggest a package whose spelling differs from its namespace. Changed source, operand position and full configuration refuse, while the existing unresolved-head and insertion guards remain independent of package installation. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "selector": "code_actions::original_package_suggestion_tests::original_package_hint_keeps_literal_position_case_and_existing_require_guards",
+          "status": "linked",
+          "assertion": "Authentic Logical source actions retain exact selected namespace case, positioned literal head and actual root require state. Wrong case, inert argument data and an already-required package decline, without inferring package loading or successful edit execution. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/code_actions.rs",
+          "selector": "code_actions::original_package_suggestion_tests::original_package_hint_declines_conflicting_unowned_and_foreign_context_rows",
+          "status": "linked",
+          "assertion": "Authentic Logical source actions with the same actual command store decline conflicting or unowned namespace rows and release-unavailable providers under a foreign ContextRegistry. Namespace ownership is selected descriptor metadata, with no catalogue spelling fallback or Native package grant. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "replay": {
@@ -56407,6 +56466,27 @@
           "sha256": "903b68fc411ccd67d42d0756077e0fe6df85453fcec7cc3d7619374e33cc9f4c",
           "description": "Exact original-source347 body/question joins, closed owning producers, strict actual inventories/admissions and per-selector results. Current implementation source and unselected/new controls receive no result from these images.",
           "json_pointer": "/exact_question_body_outcomes"
+        },
+        {
+          "id": "receiver-selected-source598-cb1b017a5778eb18",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "sha256": "67e823d01ac86d8f4b200df00170873a584b0e4b806d5b08b5cdbe76ec0ec398",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-27ebccec767ad829",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+          "sha256": "450a621ec260f42f81d494c24978cae83ba811892c8ffd23d9ae8e0f5f78d81b",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-fcc49de305f18e82",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/profiles.rs",
+          "sha256": "4febb31ed0924e7d09ddea1e6ca6b694bad41df8eb09b560df6bb8b53a3dba7d",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         }
       ],
       "source_anchors": [],
@@ -56439,7 +56519,7 @@
         {
           "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
           "symbol": "command_text",
-          "purpose": "Enumerate subcommands through the retained availability context and selected package lifecycle floor."
+          "purpose": "Render the already-selected full-context command descriptor and common event metadata under the original source/schema/availability owner."
         },
         {
           "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
@@ -56480,6 +56560,16 @@
           "path": "rust/tcl-lsp-core/src/hover.rs",
           "symbol": "variable_hover",
           "purpose": "Validate CurrentSourceContext, selected source reference root, actual store and authoring availability before special-variable or array-key documentation; optional hints do not replace the complete owner."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "symbol": "append_command_event_metadata",
+          "purpose": "Render actual selected command requirements and inherited selected F5 namespace profile metadata in one shared descriptive renderer; no execution or event grant."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "symbol": "effective_event_requires",
+          "purpose": "Keep nonempty command-owned profile requirements first; inherit namespace profile metadata only through the actual selected descriptor query."
         }
       ],
       "tests": [
@@ -56590,6 +56680,12 @@
           "selector": "hover::original_special_variable_context_tests::original_special_hover_keeps_authored_registry_shadow_rows_and_array_key_availability",
           "assertion": "A genuine shared insertion selects the authored auto_path card over shipped documentation; withdrawal cannot be bypassed by an optional registry hint. Selected C84 versus C91 tcl_platform card independently controls pointerSize documentation, with no installed variable cell implied.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/hover/original_registry.rs",
+          "selector": "hover::original_registry::tests::original_registry_profile_hover_uses_selected_descriptor_and_complete_input",
+          "status": "linked",
+          "assertion": "The actual public hover route uses retained complete F5 analysis input and the already-selected command descriptor to display namespace profile requirements. Changed input, foreign Tcl input and inert data refuse the source card; no event, handler or Native lookup authority is supplied. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "replay": {
@@ -552725,7 +552821,7 @@
         {
           "id": "written-geometry-1",
           "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
-          "sha256": "f910036e09e51d73d3bba87025fa12762658998e9bc4874c7969374e5c949841",
+          "sha256": "9c79d3eb3b6ada04a1ed786e67a07da1152a2869faf84d3b30df66ef4415d696",
           "role": "implementation",
           "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
         },
@@ -552739,9 +552835,16 @@
         {
           "id": "written-geometry-3",
           "path": "rust/tcl-syntax/src/naming.rs",
-          "sha256": "f2f4085e01013fd986beeabba9695c35e101aaa9ac0d486aef727d9a48c4bdcf",
+          "sha256": "26253f02fd1cde4b94d7e195e9aafcb1b96d576360dd6ce8e158d629f770aafa",
           "role": "implementation",
           "description": "Current exact shared written-component/Logical consumer source or authentic module registration; source contract only, with no compiled assertion or external interpreter credit."
+        },
+        {
+          "id": "receiver-selected-source598-40909face5565cfe",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "sha256": "dab421d27ffabf66b110d9ec453c0f266d83d22352fb8fbce7dd74fc6f58a6ba",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         }
       ],
       "source_anchors": [],
@@ -552769,6 +552872,18 @@
           "selector": "namespace_rename::tests::logical_namespace_rename_maps_source_and_refuses_failed_occurrence_coverage",
           "status": "linked",
           "assertion": "The retained Logical analyser/source model defines exact selected replacement extents and keeps failed mappings outside occurrence coverage. Changed source, configuration, occurrence projection and missing original input refuse. Authored C/Jim/F5 model profiles are not external provider executions."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "selector": "rename::tests::logical_rename_preserves_original_separator_runs_unicode_and_array_extent",
+          "status": "linked",
+          "assertion": "Fixed source replacement helpers preserve complete separator runs, Unicode byte geometry and whole array suffixes under the supplied variable grammar. Actual Analyser source replacement retains current-image correspondence and declines changed input. These source extents require independent caller edit permission. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
+          "selector": "namespace_rename::tests::logical_namespace_forget_rename_retains_complete_source_and_hazard_guards",
+          "status": "linked",
+          "assertion": "A genuine Logical Analyser namespace-forget producer returns exact Unicode replacement extents under complete current source and lexical admission. Changed input and deferred callback hazards refuse; the shared constructed qualification helper preserves literal-colon holders and the root marker. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "owners": [
@@ -552801,6 +552916,21 @@
           "path": "rust/tcl-lsp-core/src/namespace_rename.rs",
           "symbol": "original_namespace_rename_span_at_offset",
           "purpose": "Retain the independent Native original operand, source container, current component path and checked original literal extent route. Logical geometry grants no authority to this separate route."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "invocation_replacement",
+          "purpose": "Use shared original written tail geometry for the existing source replacement worker; preserve complete separator runs independently of source edit permission."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/rename.rs",
+          "symbol": "build_var_ref_replacement",
+          "purpose": "Retain actual configured variable header and array extent while projecting only the original written qualifier/tail; no runtime cell or source edit grant."
+        },
+        {
+          "path": "rust/tcl-syntax/src/naming.rs",
+          "symbol": "written_separator_extent",
+          "purpose": "Project the existing shared complete written qualifier extent without parsing another namespace or converting to a constructed key."
         }
       ],
       "replay": {
@@ -591517,6 +591647,62 @@
           "path": "rust/tcl-compiler/src/command_binding/namespace_context.rs",
           "sha256": "f10f446e0076bac46970a2c63d4c28562a16b6d70a6e064734fad17d5aad4268",
           "description": "Current pure reporting/constructed-key projection, its actual analytical consumer or independent retained source/namespace/metadata guard. Source definition only; no software assertion outcome or external Native execution."
+        },
+        {
+          "id": "receiver-selected-source598-4eda8b24595a9447",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "sha256": "32ac7a990c58b855bb61e3e240a8caf4c01bd9b8e3201a321bf015f0d98cba10",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-92b30b6155dd3d48",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "sha256": "3cd445f538f26544985fe18fc392391c98f23049033490529ce4bcfd2b6cd4e4",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-25d2ef4700a35adc",
+          "role": "implementation",
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "sha256": "661b72624473d4255353257b91595b94784f0961bd1afd91f90140663eb5501a",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-b4b47bc24979d9a6",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/profiles.rs",
+          "sha256": "4febb31ed0924e7d09ddea1e6ca6b694bad41df8eb09b560df6bb8b53a3dba7d",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-7ffd1b770d34ce06",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/assembly.rs",
+          "sha256": "971bdb2ac63b464c43d84541efafd3349b74b763f8e44891bcdfd3ed0383e8fc",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-745f40e488371f68",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "sha256": "ac64cdc140d737a2cdf2639f64305ecccfe9eb0a205f7bdf7969604203ec3da3",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-1d35bdad1ac0e388",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/model/mod.rs",
+          "sha256": "8161c9cabfd9a4a25b45cdde5300bb924c03995262828ba3b6761d00203914d1",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
+        },
+        {
+          "id": "receiver-selected-source598-c328394619e17984",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
+          "sha256": "1ec79cf666991bcff2b3e332a1704964211f6ca5154313f7b14ca89edd093056",
+          "description": "Current authored selected-descriptor or source-geometry owner and fixed software source controls. Existing original input, lookup, grammar and edit purposes remain independent; no assertion outcome, Native chronology or loader/callable authority is supplied."
         }
       ],
       "source_anchors": [],
@@ -591544,6 +591730,48 @@
           "selector": "analyser::handlers::constructed_projection_tests::computed_creation_placeholder_preserves_constructed_procedure_holder",
           "status": "linked",
           "assertion": "Fixed actual ParameterisedCreation placeholder helper retains constructed procedure holders and dynamic name text for root/colon/Unicode labels; a static word declines a dynamic placeholder. No call execution, factory, body admission or creation result is asserted. Source definition only; no matched owned executable/assertion result is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "selector": "definition::tests::constructed_itcl_member_projection_preserves_colon_tail_and_actual_family_guard",
+          "status": "linked",
+          "assertion": "Explicit descriptive class rows preserve a literal-colon or Unicode constructed member tail only for the existing Itcl class-procedure family and an actual class-method row. Missing, empty, instance-only, foreign-holder and changed-family rows decline; no original class or dispatch identity is supplied. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "selector": "tests::logical_namespace_rename_collision_uses_constructed_colon_holder",
+          "status": "linked",
+          "assertion": "Actual current Logical server documents retain a colon-named nested namespace. Cross-document rename checks the correct constructed holder and rejects an existing sibling destination, while the independently selected Native original symbol route remains absent. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "selector": "implementation::tests::constructed_implementation_ancestry_keeps_root_marker_distinct_from_colon_segment",
+          "status": "linked",
+          "assertion": "Explicit lexical metadata graph rows distinguish one optional root marker from a literal-colon first component. Constructed equality and ancestry preserve that distinction and terminate on a cycle without fabricating a missing ancestor or Native class identity. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-registry/src/profiles.rs",
+          "selector": "profiles::tests::selected_command_namespace_profiles_keep_surface_case_and_holder_purpose",
+          "status": "linked",
+          "assertion": "The pure ProfileRegistry query accepts namespace profiles only for an actual selected F5 CommandSpec and its exact constructed holder. One optional root is descriptive; case changes, literal-colon or nested holders, absent/foreign surface and an actual plain-Tcl selected context decline. It issues no event execution or Native namespace role. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "selector": "model::namespace_ownership::tests::namespace_package_consensus_keeps_unknown_nested_case_and_literal_colons",
+          "status": "linked",
+          "assertion": "The pure selected-descriptor index joins unanimous nonempty namespace ownership, preserves exact case, Unicode and literal-colon components, and distinguishes package spelling from namespace spelling. Conflicting, empty, unowned or mixed owner fields decline, most-specific unknown flat prefixes block broader hints, and reversed input order preserves consensus. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "selector": "model::namespace_ownership::tests::namespace_package_context_selects_real_rows_and_declines_foreign_release",
+          "status": "linked",
+          "assertion": "Two genuine ContextRegistry instances over the same immutable command store select different available rows and package owners by release. Unavailable release-specific namespaces decline, while existing selected HTTP ownership remains descriptive metadata; no loading, callable or live namespace grant follows. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/hover.rs",
+          "selector": "hover::tests::command_profile_metadata_keeps_foreign_surface_and_own_requirements",
+          "status": "linked",
+          "assertion": "The shared command-hover metadata renderer uses an actual F5 descriptor for namespace profile inheritance, declines foreign or absent surface, and preserves command-owned requirements before namespace defaults. This is descriptive source rendering rather than executed event behavior. Source definition only; no matched owned assertion outcome or new external-provider observation is attached."
         }
       ],
       "owners": [
@@ -591601,6 +591829,46 @@
           "path": "rust/tcl-syntax/src/naming/reporting.rs",
           "symbol": "reported_qname_namespace",
           "purpose": "Literal-prefix reporting purpose retains overlapping literal colon pairs and defaults; constructed-key and written/native-name axes remain separate."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/definition.rs",
+          "symbol": "itcl_class_proc_at",
+          "purpose": "Use the shared constructed holder/tail only after actual class metadata, Itcl grammar and class-method membership selection; no original class or callable identity."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "symbol": "qname_eq",
+          "purpose": "Remove one optional root marker under the existing explicit metadata compatibility purpose; literal-colon first components remain distinct."
+        },
+        {
+          "path": "rust/tcl-lsp-core/src/implementation.rs",
+          "symbol": "is_descendant_of",
+          "purpose": "Traverse the existing constructed metadata graph using the same one-root comparison and cycle guard; actual original hierarchy owners remain separate."
+        },
+        {
+          "path": "rust/tcl-lsp-server/src/lib.rs",
+          "symbol": "Backend::cross_document_namespace_rename",
+          "purpose": "Preserve the original Native-first route, current document and source edit/collision guards while deriving lexical destination holders through the shared constructed projection."
+        },
+        {
+          "path": "rust/tcl-registry/src/profiles.rs",
+          "symbol": "ProfileRegistry::namespace_for_command_spec",
+          "purpose": "Select pure profile metadata from an already-selected F5 descriptor and its exact constructed holder; no name relookup, event or live namespace authority."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/assembly.rs",
+          "symbol": "ContextRegistry::namespace_package_ownership",
+          "purpose": "Enumerate actual current-context selected command rows and join immutable unanimous nonempty namespace package ownership; conflicting or unowned rows withhold."
+        },
+        {
+          "path": "rust/tcl-registry/src/model/namespace_ownership.rs",
+          "symbol": "NamespacePackageOwnership",
+          "purpose": "Preserve exact namespace case/literal-colon geometry and most-specific unanimous flat-key metadata; reports do not issue lookup, callable or loader authority."
+        },
+        {
+          "path": "rust/tcl-compiler/src/analyser/irules_event_checks.rs",
+          "symbol": "Analyser::emit_irule1001_command_event_validity",
+          "purpose": "Keep selected argument-form gating and the existing namespace-hint then command-requirement fallback order while using the shared selected-descriptor Profile query."
         }
       ],
       "replay": {
