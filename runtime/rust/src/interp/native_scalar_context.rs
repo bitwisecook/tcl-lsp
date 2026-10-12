@@ -82,12 +82,22 @@ impl NativeScalarObjectContext {
     fn issue(interpreter: &Interp) -> Result<Rc<Self>, NativeScalarObjectAccessError> {
         let currency = NativeOperationCurrency::issue(interpreter)
             .map_err(NativeScalarObjectAccessError::Execution)?;
+        Self::issue_in_original(interpreter, &currency)
+    }
+
+    fn issue_in_original(
+        interpreter: &Interp,
+        currency: &NativeOperationCurrency,
+    ) -> Result<Rc<Self>, NativeScalarObjectAccessError> {
+        currency
+            .ensure_current_or_refuse()
+            .map_err(NativeScalarObjectAccessError::Execution)?;
         let dialect = interpreter.native_invocation_dialect();
         dialect
             .native_scalar_getter_protocol()
             .ok_or_else(|| unavailable("native scalar C API execution protocol"))?;
         let host = interpreter.host();
-        let abi = selected_abi(&host, &currency)?;
+        let abi = selected_abi(&host, currency)?;
         let epoch = interpreter
             .native_operation_context_epoch()
             .ok_or_else(|| unavailable("native scalar execution context"))?;
@@ -200,6 +210,21 @@ impl Interp {
         &self,
     ) -> Result<Rc<NativeScalarObjectContext>, NativeScalarObjectAccessError> {
         NativeScalarObjectContext::issue(self)
+    }
+
+    /// Query the selected scalar ABI under the existing original command.
+    /// This receipt introduces no new operation or Native object reference.
+    pub(crate) fn native_scalar_object_issuer_for_original(
+        &self,
+        original: &super::native_arguments::OriginalArguments,
+    ) -> Result<Rc<NativeScalarObjectContext>, tcl_cmd_core::CmdError> {
+        original.check_for(self)?;
+        NativeScalarObjectContext::issue_in_original(self, original.currency()).map_err(|error| {
+            match error {
+                NativeScalarObjectAccessError::Execution(error) => error.into(),
+                NativeScalarObjectAccessError::Value(error) => error.into(),
+            }
+        })
     }
 
     /// Bind an original object to this actual engine and Host ABI. The receipt

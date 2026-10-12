@@ -152,6 +152,48 @@ impl NativeIndexOps for Vm {
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError> {
         original.0.currency().check(self)
     }
+    fn index_integer_result(
+        &mut self,
+        original: &Self::IndexOperation,
+        integer: i64,
+    ) -> Result<Value, CmdError> {
+        original.0.check(self)?;
+        if self.index_c_version() != Some(tcl_dialect::TclVersion::V8_4) {
+            return Ok(tcl_syntax::value::ValueOps::new_int(self, integer));
+        }
+        let numeric = OriginalNumericOps::in_original_scope(self, &original.0)?;
+        let dialect = numeric.dialect();
+        i32::try_from(integer).map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original C84 Index Int result width")
+        })?;
+        let cache = tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(integer);
+        let reached = numeric.with_environment(|environment, stage| {
+            stage()?;
+            let environment = environment.ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            let abi = environment
+                .c_integer_abi()
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+            stage()?;
+            let protocol = dialect
+                .native_scalar_getter_protocol()
+                .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+            protocol
+                .validate_cache_abi(&cache, abi.char_bits, abi.int_bytes, abi.long_bytes)
+                .map_err(|_| ValueError::ScalarNumericInputUnavailable)?;
+            Value::from_native_scalar_cache(cache, None, dialect).map_err(CmdError::from)
+        });
+        if let Err(first) = &reached {
+            numeric.retain_failure(first);
+        }
+        if let Err(first) = numeric.current() {
+            numeric.retain_failure(&first);
+            drop(reached);
+            let _ = numeric.current();
+            return Err(first);
+        }
+        reached
+    }
+
     fn retain_index_failure(&mut self, error: &CmdError) {
         if let Some(first) = error.native_execution_refusal() {
             self.retain_tcl_host_failure(crate::error::TclHostFailure::Execution(first.clone()));
@@ -300,7 +342,9 @@ impl NativeIndexOps for Vm {
             .map(VmIndexKey::held)
     }
     fn index_sort_duplicate(
-        &mut self, original: &Value, only_shared: bool,
+        &mut self,
+        original: &Value,
+        only_shared: bool,
     ) -> Result<VmIndexKey, CmdError> {
         let scope = NativeOperationScope::enter(self)?;
         let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
@@ -326,18 +370,24 @@ impl NativeIndexOps for Vm {
         }
     }
 
-    fn index_sort_list(
-        &mut self, members: Vec<Value>, held: bool,
-    ) -> Result<VmIndexKey, CmdError> {
+    fn index_sort_list(&mut self, members: Vec<Value>, held: bool) -> Result<VmIndexKey, CmdError> {
         let scope = NativeOperationScope::enter(self)?;
         scope.check(self)?;
-        let protocol = self.actual_native_invocation_dialect().native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("original sort List issuer"))?;
+        let protocol = self
+            .actual_native_invocation_dialect()
+            .native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original sort List issuer",
+            ))?;
         for member in &members {
             member.check_native_header()?;
         }
         let list = Value::native_list_constructor(members, protocol);
-        if held { Ok(VmIndexKey::held(list)) } else { self.index_created_key(list) }
+        if held {
+            Ok(VmIndexKey::held(list))
+        } else {
+            self.index_created_key(list)
+        }
     }
     fn index_sort_append(&mut self, list: &VmIndexKey, members: &[Value]) -> Result<(), CmdError> {
         let scope = NativeOperationScope::enter(self)?;
@@ -347,16 +397,23 @@ impl NativeIndexOps for Vm {
             ValueError::CommandProtocolUnavailable("original sort List append issuer"),
         )?;
         let reached = original.native_list_append_prepared_elements_checked(
-            members, protocol,
+            members,
+            protocol,
             &mut || numeric.current_for_value(original),
             &mut |value| numeric.string(value, protocol),
         );
-        if let Err(first) = &reached { numeric.retain_failure(first); }
+        if let Err(first) = &reached {
+            numeric.retain_failure(first);
+        }
         numeric.current_for_value(original)?;
         reached
     }
     fn index_sort_replace(
-        &mut self, list: &VmIndexKey, first: usize, delete: usize, members: &[Value],
+        &mut self,
+        list: &VmIndexKey,
+        first: usize,
+        delete: usize,
+        members: &[Value],
     ) -> Result<(), CmdError> {
         let scope = NativeOperationScope::enter(self)?;
         let numeric = OriginalNumericOps::in_original_scope(self, &scope)?;
@@ -365,11 +422,16 @@ impl NativeIndexOps for Vm {
             ValueError::CommandProtocolUnavailable("original sort List replacement issuer"),
         )?;
         let reached = original.native_list_replace_prepared_range_checked(
-            first, delete, members, protocol,
+            first,
+            delete,
+            members,
+            protocol,
             &mut || numeric.current_for_value(original),
             &mut |value| numeric.string(value, protocol),
         );
-        if let Err(first) = &reached { numeric.retain_failure(first); }
+        if let Err(first) = &reached {
+            numeric.retain_failure(first);
+        }
         numeric.current_for_value(original)?;
         reached
     }
@@ -1474,3 +1536,7 @@ mod original_c_string_cache_controls637 {
         assert_eq!(bytes.as_ref(), b"XYZ");
     }
 }
+
+#[cfg(test)]
+#[path = "native_jim_index/c84_integer_result_tests.rs"]
+mod c84_integer_result_tests;

@@ -18,14 +18,14 @@
 
 //! Actual Jim Index conversion on Runtime's original physical headers.
 use crate::{
-    interp::{Interp, native_arguments::OriginalArguments},
+    interp::{native_arguments::OriginalArguments, Interp},
     obj::{self, TclObj, TclObjType},
 };
 use std::rc::Rc;
 use tcl_cmd_core::{
-    CmdError,
     index::NativeIndexOps,
     native_jim_index::{self, NativeJimIndexObjects},
+    CmdError,
 };
 use tcl_syntax::{
     native_jim_index::{JimIndex, JimIndexExpression},
@@ -78,7 +78,9 @@ pub struct RuntimeJimIndexScope(OriginalArguments);
 /// Currency-only complete indexed command entry; no operand getter authority.
 pub struct RuntimeIndexOperation(OriginalArguments);
 impl RuntimeIndexOperation {
-    pub(crate) fn original_currency(&self) -> &crate::interp::native_operation_currency::NativeOperationCurrency {
+    pub(crate) fn original_currency(
+        &self,
+    ) -> &crate::interp::native_operation_currency::NativeOperationCurrency {
         self.0.currency()
     }
 }
@@ -156,6 +158,42 @@ impl NativeIndexOps for Interp {
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError> {
         original.0.check_for(self)
     }
+    fn index_integer_result(
+        &mut self,
+        original: &Self::IndexOperation,
+        integer: i64,
+    ) -> Result<*mut TclObj, CmdError> {
+        original.0.check_for(self)?;
+        if self.index_c_version() != Some(tcl_dialect::TclVersion::V8_4) {
+            return Ok(tcl_syntax::value::ValueOps::new_int(self, integer));
+        }
+        i32::try_from(integer).map_err(|_| {
+            ValueError::CommandProtocolUnavailable("original C84 Index Int result width")
+        })?;
+        let cache = tcl_syntax::scalar_getter::NativeScalarCache::Tcl84Long(integer);
+        let issuer = self.native_scalar_object_issuer_for_original(&original.0)?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_scalar_getter_protocol()
+            .ok_or(ValueError::ScalarNumericInputUnavailable)?;
+        issuer.validate_cache(&cache, protocol)?;
+        original.0.check_for(self)?;
+        let created = obj::Owned::fresh(obj::new_obj());
+        let reached = (|| -> Result<(), CmdError> {
+            obj::bind_scalar_object_context(created.as_ptr(), issuer)?;
+            obj::adopt_native_scalar_cache(created.as_ptr(), cache, protocol)?;
+            obj::invalidate_string(created.as_ptr());
+            original.0.check_for(self)
+        })();
+        if let Err(first) = reached {
+            self.retain_index_failure(&first);
+            drop(created);
+            let _ = original.0.check_for(self);
+            return Err(first);
+        }
+        Ok(created.into_native_unowned())
+    }
+
     fn retain_index_failure(&mut self, error: &CmdError) {
         if let Some(first) = error.native_execution_refusal() {
             self.refuse_native_execution(first.clone());
@@ -326,17 +364,25 @@ impl NativeIndexOps for Interp {
     }
     fn index_sort_copy(&mut self, original: &*mut TclObj) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
-        let protocol = self.native_invocation_dialect().native_string_protocol()
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
             .filter(|protocol| protocol.tcl_version().is_some())
-            .ok_or(ValueError::CommandProtocolUnavailable("original sort List copy issuer"))?;
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original sort List copy issuer",
+            ))?;
         crate::list::native_list_copy_using(
-            *original, protocol,
+            *original,
+            protocol,
             &|| arguments.check_original_for(self, 0, *original),
             &|error| arguments.retain_refusal(error.into()),
-        ).map(RuntimeIndexKey::held)
+        )
+        .map(RuntimeIndexKey::held)
     }
     fn index_sort_duplicate(
-        &mut self, original: &*mut TclObj, only_shared: bool,
+        &mut self,
+        original: &*mut TclObj,
+        only_shared: bool,
     ) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &[*original])?;
         arguments.check_original_for(self, 0, *original)?;
@@ -346,7 +392,9 @@ impl NativeIndexOps for Interp {
         let copied = obj::duplicate_with_stage_check::<CmdError>(
             *original,
             &mut || arguments.check_original_for(self, 0, *original),
-            &mut |error| { arguments.retain_refusal(error.clone()); },
+            &mut |error| {
+                arguments.retain_refusal(error.clone());
+            },
         )?;
         if self.index_jim_sort_selected() {
             // Jim_DuplicateObj is fresh-zero; Eval/result takes its own hold.
@@ -356,12 +404,18 @@ impl NativeIndexOps for Interp {
         }
     }
     fn index_sort_list(
-        &mut self, members: Vec<*mut TclObj>, held: bool,
+        &mut self,
+        members: Vec<*mut TclObj>,
+        held: bool,
     ) -> Result<RuntimeIndexKey, CmdError> {
         let arguments = OriginalArguments::enter(self, &members)?;
         arguments.check_for(self)?;
-        let protocol = self.native_invocation_dialect().native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("original sort List issuer"))?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original sort List issuer",
+            ))?;
         let list = crate::list::new_list_obj_native(&members, protocol);
         if held {
             Ok(RuntimeIndexKey::held(obj::Owned::fresh(list)))
@@ -370,26 +424,45 @@ impl NativeIndexOps for Interp {
         }
     }
     fn index_sort_append(
-        &mut self, list: &RuntimeIndexKey, members: &[*mut TclObj],
+        &mut self,
+        list: &RuntimeIndexKey,
+        members: &[*mut TclObj],
     ) -> Result<(), CmdError> {
         let arguments = OriginalArguments::enter(self, &[list.pointer])?;
-        let protocol = self.native_invocation_dialect().native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("original sort List append issuer"))?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original sort List append issuer",
+            ))?;
         crate::list::append_prepared_native_elements_using(
-            list.pointer, members, protocol,
+            list.pointer,
+            members,
+            protocol,
             &|| arguments.check_original_for(self, 0, list.pointer),
             &|error| arguments.retain_refusal(error.into()),
         )
     }
     fn index_sort_replace(
-        &mut self, list: &RuntimeIndexKey, first: usize, delete: usize,
+        &mut self,
+        list: &RuntimeIndexKey,
+        first: usize,
+        delete: usize,
         members: &[*mut TclObj],
     ) -> Result<(), CmdError> {
         let arguments = OriginalArguments::enter(self, &[list.pointer])?;
-        let protocol = self.native_invocation_dialect().native_string_protocol()
-            .ok_or(ValueError::CommandProtocolUnavailable("original sort List replacement issuer"))?;
+        let protocol = self
+            .native_invocation_dialect()
+            .native_string_protocol()
+            .ok_or(ValueError::CommandProtocolUnavailable(
+                "original sort List replacement issuer",
+            ))?;
         crate::list::replace_prepared_native_range_using(
-            list.pointer, first, delete, members, protocol,
+            list.pointer,
+            first,
+            delete,
+            members,
+            protocol,
             &|| arguments.check_original_for(self, 0, list.pointer),
             &|error| arguments.retain_refusal(error.into()),
         )
@@ -1071,8 +1144,8 @@ mod tests {
         assert_eq!(unsafe { (*original.as_ptr()).ref_count }, 1);
     }
     #[test]
-    fn original_jim_index_getter_and_free_callbacks_preserve_full_cause_without_protective_references()
-     {
+    fn original_jim_index_getter_and_free_callbacks_preserve_full_cause_without_protective_references(
+    ) {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual extension callbacks are software controls; no native hostile-callback chronology claim.
@@ -1914,8 +1987,8 @@ mod original_c_string_stage_controls637 {
         }
     }
     #[test]
-    fn original_count_free_callback_preserves_first_cause_before_any_index_getter_or_string_cache_adoption()
-     {
+    fn original_count_free_callback_preserves_first_cause_before_any_index_getter_or_string_cache_adoption(
+    ) {
         // naming.embedding.original-host-publication-and-fact-transport
         // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
         // Actual original extension free callback, not native adversarial evidence.
@@ -1957,3 +2030,7 @@ mod original_c_string_stage_controls637 {
         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
     }
 }
+
+#[cfg(test)]
+#[path = "native_jim_index/c84_integer_result_tests.rs"]
+mod c84_integer_result_tests;

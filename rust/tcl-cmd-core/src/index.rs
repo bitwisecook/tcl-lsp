@@ -167,6 +167,20 @@ pub trait NativeIndexOps: ValueOps {
     /// The complete first refusal, including change-and-restore.
     fn check_index_operation(&mut self, original: &Self::IndexOperation) -> Result<(), CmdError>;
 
+    /// Construct an integer result under the command's original operation.
+    /// Actual C84 adapters select Tcl_NewIntObj's Long descriptor and queried ABI;
+    /// the explicit neutral default retains its ordinary constructor.
+    ///
+    /// # Errors
+    /// Unavailable selected construction or the original full execution refusal.
+    fn index_integer_result(
+        &mut self,
+        _original: &Self::IndexOperation,
+        integer: i64,
+    ) -> Result<Self::Value, CmdError> {
+        Ok(self.new_int(integer))
+    }
+
     /// Retain an intrinsic first Host refusal before mandatory cleanup.
     /// This latch grants no operation, getter, header or result role. Neutral
     /// adapters explicitly choose a no-op; physical adapters use their actual
@@ -309,35 +323,47 @@ pub trait NativeIndexOps: ValueOps {
     }
 
     /// Actual C85+ command List copy, retaining its genuine temporary hold.
-    fn index_sort_copy(&mut self, _original: &Self::Value) -> Result<Self::IndexKeyOwner, CmdError> {
+    fn index_sort_copy(
+        &mut self,
+        _original: &Self::Value,
+    ) -> Result<Self::IndexKeyOwner, CmdError> {
         Err(ValueError::CommandProtocolUnavailable("original sort List copy").into())
     }
 
     /// Duplicate the genuine prefix or selected Jim input without String rebuilding.
     /// `only_shared` samples the original receiver before a working hold.
     fn index_sort_duplicate(
-        &mut self, _original: &Self::Value, _only_shared: bool,
+        &mut self,
+        _original: &Self::Value,
+        _only_shared: bool,
     ) -> Result<Self::IndexKeyOwner, CmdError> {
         Err(ValueError::CommandProtocolUnavailable("original sort duplication").into())
     }
 
     /// Construct the actual group/parent List; `held` is its source-selected +1.
     fn index_sort_list(
-        &mut self, _members: Vec<Self::Value>, _held: bool,
+        &mut self,
+        _members: Vec<Self::Value>,
+        _held: bool,
     ) -> Result<Self::IndexKeyOwner, CmdError> {
         Err(ValueError::CommandProtocolUnavailable("original sort List constructor").into())
     }
 
     /// Append through the existing checked List worker on the selected header.
     fn index_sort_append(
-        &mut self, _list: &Self::IndexKeyOwner, _members: &[Self::Value],
+        &mut self,
+        _list: &Self::IndexKeyOwner,
+        _members: &[Self::Value],
     ) -> Result<(), CmdError> {
         Err(ValueError::CommandProtocolUnavailable("original sort List append").into())
     }
 
     /// Replace through the existing checked range worker without another COW test.
     fn index_sort_replace(
-        &mut self, _list: &Self::IndexKeyOwner, _first: usize, _delete: usize,
+        &mut self,
+        _list: &Self::IndexKeyOwner,
+        _first: usize,
+        _delete: usize,
         _members: &[Self::Value],
     ) -> Result<(), CmdError> {
         Err(ValueError::CommandProtocolUnavailable("original sort List replacement").into())
@@ -593,6 +619,32 @@ pub(crate) fn run_index_output<O: NativeIndexOps, T, E>(
         }
         let _ = ops.check_index_operation(&original);
         return Err(host_error(first));
+    }
+    reached
+}
+
+/// Construct a selected integer using the already entered command operation.
+/// A reached constructor is retired on refusal before the final original check.
+///
+/// # Errors
+/// Selected construction or the retained first original execution refusal.
+pub fn integer_result<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::IndexOperation,
+    integer: i64,
+) -> Result<O::Value, CmdError> {
+    ops.check_index_operation(original)?;
+    let reached = ops.index_integer_result(original, integer);
+    if let Err(first) = &reached {
+        ops.retain_index_failure(first);
+    }
+    if let Err(first) = ops.check_index_operation(original) {
+        ops.retain_index_failure(&first);
+        if let Ok(created) = reached {
+            ops.discard_owned_index_result(created);
+        }
+        let _ = ops.check_index_operation(original);
+        return Err(first);
     }
     reached
 }

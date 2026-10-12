@@ -50,6 +50,7 @@ use core::cmp::Ordering;
 use crate::index::NativeIndexOps;
 use crate::native_option_index::{OptionCommand, Path, PreparedPath};
 use tcl_dialect::TclVersion;
+#[cfg(test)]
 use tcl_syntax::value::ValueOps;
 
 use tcl_syntax::list::split_list;
@@ -630,7 +631,9 @@ fn lsearch_with<O: NativeIndexOps, R>(
                 .map_err(LsearchError::from_command)?;
             let s = usize::try_from(s.max(0)).unwrap_or(0);
             if s >= listc {
-                return Ok(index::IndexResult::Created(empty_result(ops, &o)));
+                return Ok(index::IndexResult::Created(empty_result(
+                    ops, &original, &o,
+                )?));
             }
             start = s - (s % o.group);
         }
@@ -677,9 +680,9 @@ fn lsearch_with<O: NativeIndexOps, R>(
             number,
         };
         if o.mode == SearchMode::Sorted && !o.all && !o.not {
-            sorted_search(ops, &input)
+            sorted_search(ops, &original, &input)
         } else {
-            linear_search(ops, &input, &mut re, &mut regex_matches)
+            linear_search(ops, &original, &input, &mut re, &mut regex_matches)
         }
     })(ops);
     if let Err(first) = ops.check_index_operation(&original) {
@@ -699,6 +702,7 @@ fn lsearch_with<O: NativeIndexOps, R>(
 
 fn sorted_search<O: NativeIndexOps>(
     ops: &mut O,
+    original: &O::IndexOperation,
     input: &SearchInput<'_, O::Value>,
 ) -> Result<index::IndexResult<O::Value>, LsearchError> {
     let elems = input.elems;
@@ -752,11 +756,21 @@ fn sorted_search<O: NativeIndexOps>(
     if o.bisect && index < 0 {
         index = lower;
     }
-    result_one(ops, elems, index, o, group_offset, key_path, listc)
+    result_one(
+        ops,
+        original,
+        elems,
+        index,
+        o,
+        group_offset,
+        key_path,
+        listc,
+    )
 }
 
 fn linear_search<O: NativeIndexOps, R>(
     ops: &mut O,
+    original: &O::IndexOperation,
     input: &SearchInput<'_, O::Value>,
     re: &mut Option<R>,
     regex_matches: &mut impl FnMut(&mut O, &mut R, &O::Value) -> Result<bool, LsearchError>,
@@ -811,9 +825,27 @@ fn linear_search<O: NativeIndexOps, R>(
         g += o.group;
     }
     if o.all {
-        return result_all(ops, elems, &matches, o, group_offset, key_path, listc);
+        return result_all(
+            ops,
+            original,
+            elems,
+            &matches,
+            o,
+            group_offset,
+            key_path,
+            listc,
+        );
     }
-    result_one(ops, elems, index, o, group_offset, key_path, listc)
+    result_one(
+        ops,
+        original,
+        elems,
+        index,
+        o,
+        group_offset,
+        key_path,
+        listc,
+    )
 }
 
 /// The element used as the search key for logical group base `base`: the
@@ -895,17 +927,22 @@ fn elem_cmp<O: NativeIndexOps>(
 }
 
 /// The empty result for a search that starts past the end.
-fn empty_result<O: ValueOps>(ops: &mut O, o: &Opts) -> O::Value {
+fn empty_result<O: NativeIndexOps>(
+    ops: &mut O,
+    original: &O::IndexOperation,
+    o: &Opts,
+) -> Result<O::Value, LsearchError> {
     if o.all || o.inline {
-        ops.new_list(Vec::new())
+        Ok(ops.new_list(Vec::new()))
     } else {
-        ops.new_int(-1)
+        index::integer_result(ops, original, -1).map_err(LsearchError::from_command)
     }
 }
 
 /// Build the single-match result (`index < 0` = no match).
 fn result_one<O: NativeIndexOps>(
     ops: &mut O,
+    original: &O::IndexOperation,
     elems: &[O::Value],
     index: isize,
     o: &Opts,
@@ -921,24 +958,30 @@ fn result_one<O: NativeIndexOps>(
         return inline_item(ops, elems, base, o, group_offset, key_path);
     }
     if index < 0 {
-        return Ok(index::IndexResult::Created(ops.new_int(-1)));
+        return index::integer_result(ops, original, -1)
+            .map(index::IndexResult::Created)
+            .map_err(LsearchError::from_command);
     }
     let base = usize::try_from(index).unwrap_or(0);
     if o.subindices {
         Ok(index::IndexResult::Created(subindex_obj(
             ops,
+            original,
             base + group_offset,
             key_path,
             listc,
         )?))
     } else {
-        Ok(index::IndexResult::Created(ops.new_int(index as i64)))
+        index::integer_result(ops, original, index as i64)
+            .map(index::IndexResult::Created)
+            .map_err(LsearchError::from_command)
     }
 }
 
 /// Build the `-all` result (every match).
 fn result_all<O: NativeIndexOps>(
     ops: &mut O,
+    original: &O::IndexOperation,
     elems: &[O::Value],
     matches: &[usize],
     o: &Opts,
@@ -958,23 +1001,36 @@ fn result_all<O: NativeIndexOps>(
                 match inline_leaf(ops, elems, base, o, group_offset, key_path) {
                     Ok(member) => out.push(member),
                     Err(error) => {
+                        if let Some(first) = &error.command_error {
+                            ops.retain_index_failure(first);
+                        }
                         discard_search_items(ops, out);
+                        let _ = ops.check_index_operation(original);
                         return Err(error);
                     }
                 }
             }
         } else if o.subindices {
-            match subindex_obj(ops, base + group_offset, key_path, listc) {
+            match subindex_obj(ops, original, base + group_offset, key_path, listc) {
                 Ok(created) => out.push(index::IndexResult::Created(created)),
                 Err(error) => {
+                    if let Some(first) = &error.command_error {
+                        ops.retain_index_failure(first);
+                    }
                     discard_search_items(ops, out);
+                    let _ = ops.check_index_operation(original);
                     return Err(error);
                 }
             }
         } else {
-            out.push(index::IndexResult::Created(
-                ops.new_int(i64::try_from(base).unwrap_or(i64::MAX)),
-            ));
+            match index::integer_result(ops, original, i64::try_from(base).unwrap_or(i64::MAX)) {
+                Ok(created) => out.push(index::IndexResult::Created(created)),
+                Err(error) => {
+                    discard_search_items(ops, out);
+                    let _ = ops.check_index_operation(original);
+                    return Err(LsearchError::from_command(error));
+                }
+            }
         }
     }
     let values = out
@@ -1045,15 +1101,20 @@ fn inline_leaf<O: NativeIndexOps>(
 /// specs resolve against the top-level list count `listc`).
 fn subindex_obj<O: NativeIndexOps>(
     ops: &mut O,
+    original: &O::IndexOperation,
     base: usize,
     key_path: Path<'_>,
     listc: usize,
 ) -> Result<O::Value, LsearchError> {
-    let mut out = vec![ops.new_int(i64::try_from(base).unwrap_or(i64::MAX))];
+    let mut out = vec![
+        index::integer_result(ops, original, i64::try_from(base).unwrap_or(i64::MAX))
+            .map_err(LsearchError::from_command)?,
+    ];
     for ordinal in 0..key_path.len() {
         let v = match key_path.decode(ops, ordinal, listc) {
             Ok(value) => value,
             Err(error) if error.native_execution_refusal().is_some() => {
+                ops.retain_index_failure(&error);
                 for created in out {
                     ops.discard_owned_index_result(created);
                 }
@@ -1061,7 +1122,16 @@ fn subindex_obj<O: NativeIndexOps>(
             }
             Err(_) => 0,
         };
-        out.push(ops.new_int(v));
+        match index::integer_result(ops, original, v) {
+            Ok(created) => out.push(created),
+            Err(error) => {
+                for created in out {
+                    ops.discard_owned_index_result(created);
+                }
+                let _ = ops.check_index_operation(original);
+                return Err(LsearchError::from_command(error));
+            }
+        }
     }
     Ok(ops.new_list(out))
 }
