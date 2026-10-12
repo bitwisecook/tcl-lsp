@@ -5,7 +5,7 @@
 //! Software controls for the shared integer command error boundary.
 //! These controls do not establish external C Tcl/Jim/BIG-IP pointer behaviour.
 
-use super::{ValueError, ValueOps, integer_error};
+use super::{integer_error, ValueError, ValueOps};
 use crate::{
     interp::{Code, Interp},
     obj,

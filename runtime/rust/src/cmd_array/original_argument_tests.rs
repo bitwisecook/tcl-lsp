@@ -372,7 +372,8 @@ fn original_array_operand_refusal_keeps_prefix_effect_and_stops_later_key() {
                 interp.current_ns(),
                 b"arr",
                 b"m",
-            ).is_none());
+            )
+            .is_none());
             assert_eq!(interp.native_execution_refusal(), Some(first_cause));
             assert_eq!(unsafe { (*first.as_ptr()).ref_count }, refs + 1);
             assert_eq!(interp.get_obj_result(), prior);

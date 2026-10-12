@@ -33,7 +33,7 @@
 //! target). Also: the `u` unsigned scan modifier, and `binary encode`/`decode`
 //! (`hex`/`base64`/`uuencode`). Verified against tclsh 9.0.
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::{self, TclObj};
 use tcl_registry::native_binary_usage::NativeBinaryArgumentUsage;
 

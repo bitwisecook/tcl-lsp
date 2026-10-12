@@ -176,7 +176,13 @@ fn captured_compatibility_link_does_not_adopt_missing_or_recreated_target() {
     assert!(PUBLISHED.with(Cell::get));
     assert_eq!(CALLS.with(Cell::get), 1);
     assert_eq!(
-        crate::interp::obj_bytes(interp.namespaces().var_table(GLOBAL).load_scalar(b"root").unwrap()),
+        crate::interp::obj_bytes(
+            interp
+                .namespaces()
+                .var_table(GLOBAL)
+                .load_scalar(b"root")
+                .unwrap()
+        ),
         b"RECREATED"
     );
     assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
@@ -294,7 +300,13 @@ fn captured_compatibility_root_retirement_stops_list_adoption_on_recreated_cell(
     assert!(obj::obj_type_ptr(root.as_ptr()).is_null());
     assert_eq!(crate::interp::obj_bytes(root.as_ptr()), b"k OLD");
     assert_eq!(
-        crate::interp::obj_bytes(interp.namespaces().var_table(GLOBAL).load_scalar(b"root").unwrap()),
+        crate::interp::obj_bytes(
+            interp
+                .namespaces()
+                .var_table(GLOBAL)
+                .load_scalar(b"root")
+                .unwrap()
+        ),
         b"RECREATED"
     );
     assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);

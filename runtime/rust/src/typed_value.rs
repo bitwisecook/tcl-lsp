@@ -1205,28 +1205,24 @@ mod tests {
             obj::internal_rep(value.as_ptr())
         );
         assert_eq!(obj::bytes_of(duplicate.as_ptr()), b"::opaque\0\xff");
-        assert!(
-            obj::install_native_command_name_cache(
-                value.as_ptr(),
-                cache.clone(),
-                tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
-            )
-            .is_err()
-        );
+        assert!(obj::install_native_command_name_cache(
+            value.as_ptr(),
+            cache.clone(),
+            tcl_registry::InvocationDialect::for_version(TclVersion::V8_6)
+        )
+        .is_err());
         assert_eq!(obj::native_command_name_cache(alias.as_ptr()), Some(cache));
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         obj::retire_native_command_name_cache(value.as_ptr()).unwrap();
         assert!(obj::native_command_name_cache(alias.as_ptr()).is_none());
         assert_eq!(unsafe { (*alias.as_ptr()).bytes }, original_bytes);
         let plain = obj::Owned::fresh(obj::new_wide_int_obj(7));
-        assert!(
-            obj::install_native_command_name_cache(
-                plain.as_ptr(),
-                command_cache(version, b"7"),
-                dialect
-            )
-            .is_err()
-        );
+        assert!(obj::install_native_command_name_cache(
+            plain.as_ptr(),
+            command_cache(version, b"7"),
+            dialect
+        )
+        .is_err());
         assert!(!obj::has_string_rep(plain.as_ptr()));
     }
     const WIDE: [&str; 5] = [
@@ -1397,7 +1393,9 @@ mod tests {
                 }
                 // The fresh C84 numeric branch owns actual strtol/strtod and
                 // its independently supplied C target, not a profile default.
-                let environment = host.numeric_environment().expect("actual fixture Host numeric environment");
+                let environment = host
+                    .numeric_environment()
+                    .expect("actual fixture Host numeric environment");
                 let boolean = native_scalar_getter_with_environment(
                     value.as_ptr(),
                     dialect,
@@ -1750,11 +1748,9 @@ mod tests {
         let bits = 0xfff8_0000_0000_0042;
         let value = obj::Owned::fresh(obj::new_double_obj(f64::from_bits(bits)));
         assert!(!obj::has_string_rep(value.as_ptr()));
-        assert!(
-            native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
-                .unwrap()
-                .is_err()
-        );
+        assert!(native_scalar_probe(value.as_ptr(), dialect, Kind::Int)
+            .unwrap()
+            .is_err());
         assert!(!obj::has_string_rep(value.as_ptr()));
         assert_eq!(obj::double_of(value.as_ptr()).to_bits(), bits);
         assert!(matches!(
@@ -1798,13 +1794,11 @@ mod tests {
             completion_code_cache(value.as_ptr()),
             Some(CompletionCodeCache::Jim(7))
         );
-        assert!(
-            completion_code_string_bytes(
-                value.as_ptr(),
-                tcl_syntax::native_string::NativeStringProtocol::Jim084
-            )
-            .is_err()
-        );
+        assert!(completion_code_string_bytes(
+            value.as_ptr(),
+            tcl_syntax::native_string::NativeStringProtocol::Jim084
+        )
+        .is_err());
         assert!(!obj::has_string_rep(value.as_ptr()));
         let duplicate = obj::Owned::fresh(obj::duplicate(value.as_ptr()));
         assert_eq!(
@@ -1879,14 +1873,12 @@ mod tests {
             } else {
                 TclVersion::V9_0
             };
-            assert!(
-                obj::native_character_count(
-                    copied.as_ptr(),
-                    NativeStringProtocol::C(other),
-                    representation
-                )
-                .is_err()
-            );
+            assert!(obj::native_character_count(
+                copied.as_ptr(),
+                NativeStringProtocol::C(other),
+                representation
+            )
+            .is_err());
         }
     }
 }

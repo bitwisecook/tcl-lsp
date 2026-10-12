@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Software bounds at the original List primary retirement/adoption stage.
 use super::*;
-use crate::interp::{Interp, native_arguments::OriginalArguments};
+use crate::interp::{native_arguments::OriginalArguments, Interp};
 use tcl_cmd_core::CmdError;
 use tcl_runtime_api::NativeExecutionError;
 use tcl_syntax::raw_string::NativeValueAccessRefusal;
@@ -545,11 +545,9 @@ fn original_ordinary_list_projection_retirement_refuses_before_new_backing() {
     assert_eq!(failure.native_execution_refusal(), Some(&first));
     assert_eq!(MEMBER_FREES.with(Cell::get), 1);
     assert_eq!(MEMBER_REFS.with(Cell::get), 0);
-    assert!(
-        old_members
-            .iter()
-            .all(|member| !obj::allocation_is_live(member.as_ptr()))
-    );
+    assert!(old_members
+        .iter()
+        .all(|member| !obj::allocation_is_live(member.as_ptr())));
     assert_eq!(
         crate::counters::live_objs(),
         objects_before - cached.len() as i64
@@ -592,19 +590,15 @@ fn original_list_copy_projection_keeps_shared_members_and_lazy_abstract_length()
         assert_eq!(FREES.with(Cell::get), 1);
         assert_eq!(unsafe { (*value.as_ptr()).ref_count }, 1);
         assert_eq!(unsafe { (*copy.as_ptr()).ref_count }, 1);
-        assert!(
-            original_members
-                .iter()
-                .all(|&member| unsafe { (*member).ref_count == 1 })
-        );
+        assert!(original_members
+            .iter()
+            .all(|&member| unsafe { (*member).ref_count == 1 }));
         assert_eq!(obj::bytes_of(value.as_ptr()), b"a b");
         assert!(!obj::has_string_rep(copy.as_ptr()));
         drop(copy);
-        assert!(
-            original_members
-                .iter()
-                .all(|&member| unsafe { (*member).ref_count == 1 })
-        );
+        assert!(original_members
+            .iter()
+            .all(|&member| unsafe { (*member).ref_count == 1 }));
         arguments.check_for(&interpreter).unwrap();
     }
     let length = tcl_cmd_core::lseq::MAX_MATERIALIZE as usize + 1;

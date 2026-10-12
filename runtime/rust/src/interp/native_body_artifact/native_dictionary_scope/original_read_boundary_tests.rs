@@ -198,7 +198,11 @@ struct ReadFrame {
 }
 impl NativeVariableObserver<Interp> for ReadFrame {
     type Error = tcl_cmd_core::CmdError;
-    fn observe(&self, actual: &mut Interp, access: NativeVariableTraceAccess<'_>) -> Result<(), Self::Error> {
+    fn observe(
+        &self,
+        actual: &mut Interp,
+        access: NativeVariableTraceAccess<'_>,
+    ) -> Result<(), Self::Error> {
         assert_eq!(access.operation, NativeVariableTraceOperation::Read);
         self.calls.set(self.calls.get() + 1);
         if self.withdraw {
@@ -217,37 +221,76 @@ fn original_compiled_scope_read_checks_original_frame_before_selected_read_and_m
     for profile in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         for withdraw in [false, true] {
             let mut interp = fixture::native(profile);
-            assert_eq!(interp.eval_str(b"proc p {} {set d {K A}; dict update d K v {set v B}; return $d}"), Code::Ok);
+            assert_eq!(
+                interp.eval_str(b"proc p {} {set d {K A}; dict update d K v {set v B}; return $d}"),
+                Code::Ok
+            );
             assert_eq!(interp.eval_str(b"p"), Code::Ok);
             let procedure = interp.proc_def(b"p").unwrap();
             let artifact = cache(procedure.body.as_ptr()).unwrap();
-            let instruction = artifact.scripts.values().flat_map(|script| &script.commands).find_map(|command| match &command.operation {
-                Operation::DictionaryScope(operation) => Some(operation), _ => None,
-            }).expect("actual original Dictionary Update");
+            let instruction = artifact
+                .scripts
+                .values()
+                .flat_map(|script| &script.commands)
+                .find_map(|command| match &command.operation {
+                    Operation::DictionaryScope(operation) => Some(operation),
+                    _ => None,
+                })
+                .expect("actual original Dictionary Update");
             {
                 let mut frames = interp.frames.borrow_mut();
                 frames.push(crate::namespace::GLOBAL);
-                frames.install_native_compiled_local_layout(artifact.compiled_local_layout().unwrap()).unwrap();
+                frames
+                    .install_native_compiled_local_layout(artifact.compiled_local_layout().unwrap())
+                    .unwrap();
             }
             let _current = fixture::install(&mut interp, 0);
             let initial = fixture::string(b"K A");
             let target = local_target(instruction.root_name.as_deref().unwrap());
-            interp.body_store_value(&target, instruction.root_slot, &initial).unwrap();
+            interp
+                .body_store_value(&target, instruction.root_slot, &initial)
+                .unwrap();
             let original = BodyObjectOperation::capture(&interp).unwrap();
-            let observer = Rc::new(ReadFrame { withdraw, calls: Cell::new(0) });
+            let observer = Rc::new(ReadFrame {
+                withdraw,
+                calls: Cell::new(0),
+            });
             let name = fixture::string(&target.root);
-            let token = interp.add_native_variable_observer(name.as_ptr(), &[NativeVariableTraceOperation::Read], observer.clone()).unwrap();
+            let token = interp
+                .add_native_variable_observer(
+                    name.as_ptr(),
+                    &[NativeVariableTraceOperation::Read],
+                    observer.clone(),
+                )
+                .unwrap();
             interp.set_result_bytes(b"PRIOR");
             interp.set_c_error_code(b"PRIOR CODE");
             let prior_result = interp.get_obj_result();
-            let prior_code = { let exception = interp.exc.borrow(); (exception.code.clone(), exception.native.code.as_ref().unwrap().as_ptr()) };
-            let reached = interp.compiled_dictionary_read(&original, &target, instruction.root_slot, false);
+            let prior_code = {
+                let exception = interp.exc.borrow();
+                (
+                    exception.code.clone(),
+                    exception.native.code.as_ref().unwrap().as_ptr(),
+                )
+            };
+            let reached =
+                interp.compiled_dictionary_read(&original, &target, instruction.root_slot, false);
             assert_eq!(observer.calls.get(), 1);
             assert_eq!(interp.get_obj_result(), prior_result);
-            { let exception = interp.exc.borrow(); assert_eq!(exception.code, prior_code.0); assert_eq!(exception.native.code.as_ref().unwrap().as_ptr(), prior_code.1); }
+            {
+                let exception = interp.exc.borrow();
+                assert_eq!(exception.code, prior_code.0);
+                assert_eq!(
+                    exception.native.code.as_ref().unwrap().as_ptr(),
+                    prior_code.1
+                );
+            }
             if withdraw {
                 assert!(matches!(reached, Err(Code::Error)));
-                assert!(matches!(interp.native_execution_refusal(), Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(_))));
+                assert!(matches!(
+                    interp.native_execution_refusal(),
+                    Some(tcl_runtime_api::NativeExecutionError::ValueAccessRefusal(_))
+                ));
                 assert_eq!(unsafe { (*initial.as_ptr()).ref_count }, 1);
             } else {
                 let (_, current) = reached.unwrap().unwrap();

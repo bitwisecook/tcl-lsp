@@ -235,7 +235,9 @@ impl Interp {
             .then(|| obj::Owned::retain(original));
             let stored = captured.receiver.store(original);
             stage().map_err(|error| self.report_cmd_error_using(error, Some(&stage)))?;
-            stored.map_err(|error| crate::builtins::var_error_using(self, name, error, Some(&stage)))?;
+            stored.map_err(|error| {
+                crate::builtins::var_error_using(self, name, error, Some(&stage))
+            })?;
             if traced {
                 let access = self.trace_access(name, name, None, &captured.home, false);
                 let traced = self
@@ -246,7 +248,8 @@ impl Interp {
                     return Err(crate::builtins::var_error_using(
                         self,
                         name,
-                        crate::frame::VarError::TraceError, Some(&stage)
+                        crate::frame::VarError::TraceError,
+                        Some(&stage),
                     ));
                 }
             }

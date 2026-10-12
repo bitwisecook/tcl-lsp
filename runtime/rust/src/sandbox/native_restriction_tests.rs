@@ -63,31 +63,23 @@ fn only_original_expression_registration_keeps_shared_worker_inventory() {
     original.eval_completion(b"rename ::expr ::renamed_expr; rename ::tcl::mathfunc::abs ::moved_abs; proc ::tcl::mathfunc::impostor {} {set ::impostor_ran 1}").unwrap();
     original.restrict_to_tokens(&["renamed_expr"], &[]).unwrap();
     assert_eq!(original.resolve_cmd_token(b"::moved_abs"), Some(absolute));
-    assert!(
-        original
-            .resolve_cmd_token(b"::tcl::mathfunc::rand")
-            .is_none()
-    );
-    assert!(
-        original
-            .resolve_cmd_token(b"::tcl::mathfunc::srand")
-            .is_none()
-    );
-    assert!(
-        original
-            .resolve_cmd_token(b"::tcl::mathfunc::impostor")
-            .is_none()
-    );
+    assert!(original
+        .resolve_cmd_token(b"::tcl::mathfunc::rand")
+        .is_none());
+    assert!(original
+        .resolve_cmd_token(b"::tcl::mathfunc::srand")
+        .is_none());
+    assert!(original
+        .resolve_cmd_token(b"::tcl::mathfunc::impostor")
+        .is_none());
     let mut replaced = core();
     replaced
         .eval_completion(b"rename ::expr {}; proc ::expr {} {return REPLACED}")
         .unwrap();
     replaced.restrict_to_tokens(&["expr"], &[]).unwrap();
-    assert!(
-        replaced
-            .resolve_cmd_token(b"::tcl::mathfunc::abs")
-            .is_none()
-    );
+    assert!(replaced
+        .resolve_cmd_token(b"::tcl::mathfunc::abs")
+        .is_none());
 }
 
 #[test]
@@ -192,11 +184,9 @@ fn changed_stock_mapping_cannot_donate_original_worker_retention() {
     interp.eval_completion(b"proc ::replacement {} {set ::replacement_ran 1}; namespace ensemble configure ::dict -map {size ::replacement}").unwrap();
     interp.restrict_to_tokens(&["dict"], &[]).unwrap();
     assert!(interp.resolve_cmd_token(b"::replacement").is_none());
-    assert!(
-        interp
-            .namespaces()
-            .native_command_slot_at_node(original)
-            .is_none()
-    );
+    assert!(interp
+        .namespaces()
+        .native_command_slot_at_node(original)
+        .is_none());
     assert!(interp.resolve_cmd_token(b"dict").is_some());
 }

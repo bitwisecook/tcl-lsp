@@ -32,12 +32,12 @@ use std::io::{BufRead, BufReader, Cursor, Read, Seek, Write};
 use std::rc::Rc;
 
 use tcl_cmd_core::channel::{
-    ChannelConfig, OpenAccess, StandardChannelConfigs, channel_output_error, config_list,
-    config_value, encode_output_bytes, resolve_open_access_mode, set_config_value,
+    channel_output_error, config_list, config_value, encode_output_bytes, resolve_open_access_mode,
+    set_config_value, ChannelConfig, OpenAccess, StandardChannelConfigs,
 };
 use tcl_platform::SystemEncoding;
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// A seekable read source for a channel: a real file (native) or an in-memory

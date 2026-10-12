@@ -30,10 +30,10 @@
 //! Path handling is `/`-separated (Tcl's portable convention); fine on Unix /
 //! WASI.
 
-use tcl_dialect::model::{SurfaceQuery, surface_admits};
+use tcl_dialect::model::{surface_admits, SurfaceQuery};
 use tcl_platform::{Filesystem, HostError};
 
-use crate::interp::{Code, Interp, new_string, obj_bytes};
+use crate::interp::{new_string, obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// Register `source`, `file`, `glob`, `pwd`, `cd`.
@@ -1639,13 +1639,11 @@ mod tests {
         );
         let created = std::path::PathBuf::from(String::from_utf8(created).unwrap());
         assert_eq!(created.parent(), Some(root.as_path()));
-        assert!(
-            created
-                .file_name()
-                .unwrap()
-                .to_string_lossy()
-                .starts_with("gorp_")
-        );
+        assert!(created
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("gorp_"));
         std::fs::remove_dir(&created).unwrap();
         std::fs::remove_dir(&root).unwrap();
     }

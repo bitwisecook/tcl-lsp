@@ -741,7 +741,10 @@ fn original_unknown_result_primary_retirement_refuses_before_list_adoption() {
         assert_eq!(REFS.with(|value| value.borrow()[2]), 1);
         assert!(BORROWS.with(Cell::get));
         assert!(NESTED.with(Cell::get));
-        assert!(!core::ptr::eq(obj::obj_type_ptr(original), &crate::list::TCL_LIST_TYPE));
+        assert!(!core::ptr::eq(
+            obj::obj_type_ptr(original),
+            &crate::list::TCL_LIST_TYPE
+        ));
         assert_eq!(unsafe { (*original).ref_count }, 0);
         assert_eq!(
             obj::native_object_snapshot(interpreter.get_obj_result())
@@ -789,7 +792,10 @@ fn original_unknown_returned_string_refusal_stops_result_list_and_guest_context(
         assert_eq!(UNKNOWN_CALLS.with(Cell::get), 1);
         assert_eq!(GETS.with(|value| *value.borrow()), [1, 0, 0, 0]);
         assert_eq!(REFS.with(|value| value.borrow()[0]), 1);
-        assert!(!core::ptr::eq(obj::obj_type_ptr(original), &crate::list::TCL_LIST_TYPE));
+        assert!(!core::ptr::eq(
+            obj::obj_type_ptr(original),
+            &crate::list::TCL_LIST_TYPE
+        ));
         assert_eq!(unsafe { (*original).ref_count }, 0);
         assert_eq!(
             obj::native_object_snapshot(interpreter.get_obj_result())

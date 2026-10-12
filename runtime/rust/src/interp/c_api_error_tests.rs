@@ -114,10 +114,7 @@ fn original_result_retirement_stops_later_exception_and_counter_publication() {
                 b"STAMP BEFORE"
             };
             assert_eq!(interpreter.snapshot_error().code_bytes(), expected);
-            assert_eq!(
-                interpreter.c_api_errors.get(),
-                count + u64::from(mode == 0)
-            );
+            assert_eq!(interpreter.c_api_errors.get(), count + u64::from(mode == 0));
             assert_refusal(interpreter, mode);
         });
     }
@@ -147,10 +144,7 @@ fn original_exception_retirement_observes_reached_state_without_a_live_borrow() 
                 assert_eq!(calls.get(), 1);
                 assert_eq!(&*observed.borrow(), b"FRESH CODE");
                 assert_eq!(interpreter.snapshot_error().code_bytes(), b"FRESH CODE");
-                assert_eq!(
-                    interpreter.c_api_errors.get(),
-                    count + u64::from(mode == 0)
-                );
+                assert_eq!(interpreter.c_api_errors.get(), count + u64::from(mode == 0));
                 if with_result {
                     assert_eq!(obj::bytes_of(interpreter.get_obj_result()), b"FRESH RESULT");
                 } else {
@@ -202,8 +196,8 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
                 assert!(interpreter.exc.borrow().already_logged);
                 let snapshot = interpreter.snapshot_error();
                 let result = interpreter.get_obj_result();
-                let scope = native_operation_currency::NativeOperationScope::enter(interpreter)
-                    .unwrap();
+                let scope =
+                    native_operation_currency::NativeOperationScope::enter(interpreter).unwrap();
                 let (value, calls, observed) = original(interpreter, mode);
                 let memory = obj::NativeObjectLifetime::retain(value);
                 interpreter.retain_native_error_option(info, value);
@@ -217,7 +211,10 @@ fn original_error_snapshot_restoration_retires_native_options_after_full_state_p
                 assert_eq!(interpreter.snapshot_error().code_bytes(), b"SNAPSHOT CODE");
                 assert!(interpreter.exc.borrow().already_logged);
                 assert_eq!(interpreter.get_obj_result(), result);
-                assert_eq!(scope.currency().ensure_current_or_refuse().is_ok(), mode == 0);
+                assert_eq!(
+                    scope.currency().ensure_current_or_refuse().is_ok(),
+                    mode == 0
+                );
                 assert_refusal(interpreter, mode);
                 drop(scope);
                 assert_eq!(interpreter.entered_native_operation_count(), 0);

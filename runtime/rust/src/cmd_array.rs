@@ -851,10 +851,12 @@ mod tests {
         leak_free_native(
             tcl_registry::model::resolve_environment("jim").unit_profile(),
             |_| {
-                assert!(
-                    !crate::environment::release_subcommands("jim", "array", super::SUBCOMMANDS)
-                        .contains(&b"startsearch".as_slice())
-                );
+                assert!(!crate::environment::release_subcommands(
+                    "jim",
+                    "array",
+                    super::SUBCOMMANDS
+                )
+                .contains(&b"startsearch".as_slice()));
             },
         );
     }

@@ -23,7 +23,7 @@
 //! store because this runtime does not load encoding files. C ref
 //! `tclEncoding.c`.
 
-use crate::interp::{Code, Interp, obj_bytes};
+use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 
 /// Register the misc bootstrap commands.

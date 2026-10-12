@@ -7,8 +7,8 @@ use crate::list::append_list_element;
 use crate::obj::TclObjType;
 use tcl_cmd_core::prefix::{self, Resolution};
 use tcl_cmd_core::CmdError;
-use tcl_registry::native_index_lookup::NativeIndexLookupProtocol;
 use tcl_core_types::NativeIndexLookupFlags;
+use tcl_registry::native_index_lookup::NativeIndexLookupProtocol;
 use tcl_syntax::{native_string::NativeStringProtocol, value::ValueError};
 
 struct Operation {

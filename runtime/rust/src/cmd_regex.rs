@@ -22,7 +22,7 @@
 //! object headers, variable writes and completion publication.
 
 use crate::interp::{Code, Interp};
-use crate::obj::{self, TclObj, new_string_bytes, new_wide_int_obj};
+use crate::obj::{self, new_string_bytes, new_wide_int_obj, TclObj};
 use tcl_cmd_core::regex::{self as core_re, RegexpResult, RegsubError};
 
 /// The `errorInfo` frame C appends when a `regsub -command` prefix fails
@@ -402,7 +402,11 @@ impl core_re::NativeRegsubObjects for Interp {
             .map_err(|error| self.report_cmd_error(error.into()))?;
         call.extend(arguments.iter().map(Self::Object::as_ptr));
         let code = self.dispatch(&call);
-        if code == Code::Ok { Ok(()) } else { Err(code) }
+        if code == Code::Ok {
+            Ok(())
+        } else {
+            Err(code)
+        }
     }
     fn regex_reset_result(&mut self) -> Result<(), tcl_syntax::value::ValueError> {
         self.set_result_bytes(b"");

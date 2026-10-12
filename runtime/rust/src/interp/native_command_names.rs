@@ -451,9 +451,12 @@ impl Interp {
         original: *mut TclObj,
         extra: Option<&dyn Fn(&Interp) -> Result<(), ValueError>>,
     ) -> Result<std::rc::Rc<[u8]>, ValueError> {
-        let Some(extra) = extra else { return self.native_object_string_bytes(original); };
+        let Some(extra) = extra else {
+            return self.native_object_string_bytes(original);
+        };
         let reached = self.native_object_string_bytes_using(
-            original, &|| extra(self).map_err(|error| self.original_command_stage_refusal(error)),
+            original,
+            &|| extra(self).map_err(|error| self.original_command_stage_refusal(error)),
             &|error| self.original_command_stage_refusal(error),
         );
         extra(self)?;
@@ -472,7 +475,9 @@ impl Interp {
                 ValueError::CommandProtocolUnavailable("original command lookup entry")
             },
         )?;
-        if let Some(check) = extra { check(self)?; }
+        if let Some(check) = extra {
+            check(self)?;
+        }
         obj::check_native_liveness(original)?;
         let _allocation = obj::NativeObjectLifetime::retain(original);
         let dialect = self.native_invocation_dialect();
@@ -550,11 +555,17 @@ impl Interp {
         let binding = self.native_command_name_from_binding(origin, &bytes)?;
         if let Some(cache) = binding {
             let check = || {
-                if let Some(check) = extra { check(self)?; }
+                if let Some(check) = extra {
+                    check(self)?;
+                }
                 self.original_command_cache_current(scope.currency(), original, &cache, origin)
-                    .map_err(|error| if extra.is_some() {
-                        self.original_command_stage_refusal(error)
-                    } else { error })
+                    .map_err(|error| {
+                        if extra.is_some() {
+                            self.original_command_stage_refusal(error)
+                        } else {
+                            error
+                        }
+                    })
             };
             let reached = obj::install_native_command_name_cache_with_stage_check(
                 original,
@@ -580,13 +591,19 @@ impl Interp {
         } else {
             let reference = self.namespaces.borrow().native_command_reference(origin);
             let check = || {
-                if let Some(check) = extra { check(self)?; }
+                if let Some(check) = extra {
+                    check(self)?;
+                }
                 scope.currency().ensure_current_or_refuse().map_err(|_| {
                     ValueError::CommandProtocolUnavailable("original unresolved command currency")
                 })?;
-                obj::check_native_liveness(original).map_err(|error| if extra.is_some() {
-                    self.original_command_stage_refusal(error)
-                } else { error })?;
+                obj::check_native_liveness(original).map_err(|error| {
+                    if extra.is_some() {
+                        self.original_command_stage_refusal(error)
+                    } else {
+                        error
+                    }
+                })?;
                 if self.namespaces.borrow().native_command_reference(origin) != reference {
                     return Err(ValueError::CommandProtocolUnavailable(
                         "original unresolved command reference",
@@ -641,11 +658,9 @@ mod tests {
     fn origin_string_result_requires_actual_native_core_issuer() {
         let mut interp = Interp::new();
         interp.set_dialect_profile(tcl_dialect::DialectProfile::irules());
-        assert!(
-            interp
-                .native_namespace_origin_result(b"::selected")
-                .is_err()
-        );
+        assert!(interp
+            .native_namespace_origin_result(b"::selected")
+            .is_err());
     }
 
     #[test]
@@ -832,12 +847,10 @@ mod tests {
             .ensure_namespace(GLOBAL, b"n");
         interp.set_current_ns(namespace);
         let original = head(b"p\0original");
-        assert!(
-            interp
-                .resolve_original_command(original.as_ptr())
-                .unwrap()
-                .is_some()
-        );
+        assert!(interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .is_some());
         let global_cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert_eq!(global_cache.namespace_token, GLOBAL as u64);
         interp.bind_command_replacement(namespace, b"p", Command::Builtin(worker));
@@ -923,13 +936,11 @@ mod tests {
             interp.hide_command(b"p", b"hidden"),
             super::super::CommandVisibilityOutcome::Moved
         );
-        assert!(
-            interp
-                .native_command_name_lookup_state(&initial)
-                .unwrap()
-                .target
-                .is_none()
-        );
+        assert!(interp
+            .native_command_name_lookup_state(&initial)
+            .unwrap()
+            .target
+            .is_none());
         assert_eq!(
             interp.expose_command(b"hidden", b"p"),
             super::super::CommandVisibilityOutcome::Moved
@@ -960,27 +971,23 @@ mod tests {
             during.target.as_ref().unwrap().namespace_token,
             namespace as u64
         );
-        assert!(
-            interp
-                .native_invocation_dialect()
-                .native_command_name_protocol()
-                .unwrap()
-                .cache_is_current(&refreshed, &during)
-        );
+        assert!(interp
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .unwrap()
+            .cache_is_current(&refreshed, &during));
         interp
             .namespaces
             .borrow_mut()
             .retire_rename_source(&publication);
-        assert!(
-            !interp
-                .native_invocation_dialect()
-                .native_command_name_protocol()
-                .unwrap()
-                .cache_is_current(
-                    &refreshed,
-                    &interp.native_command_name_lookup_state(&refreshed).unwrap()
-                )
-        );
+        assert!(!interp
+            .native_invocation_dialect()
+            .native_command_name_protocol()
+            .unwrap()
+            .cache_is_current(
+                &refreshed,
+                &interp.native_command_name_lookup_state(&refreshed).unwrap()
+            ));
     }
 
     #[test]
@@ -1002,12 +1009,10 @@ mod tests {
                 .unwrap();
             let initial = obj::native_command_name_cache(original.as_ptr()).unwrap();
             interp.namespaces.borrow_mut().delete(GLOBAL, b"p");
-            assert!(
-                interp
-                    .resolve_original_command(original.as_ptr())
-                    .unwrap()
-                    .is_none()
-            );
+            assert!(interp
+                .resolve_original_command(original.as_ptr())
+                .unwrap()
+                .is_none());
             if version < TclVersion::V9_0 {
                 assert_eq!(obj::native_command_name_cache(original.as_ptr()), None);
                 assert_eq!(
@@ -1035,12 +1040,10 @@ mod tests {
         let worker = std::rc::Rc::downgrade(&procedure.declaration());
         drop(procedure);
         let original = head(b"p");
-        assert!(
-            interp
-                .resolve_original_command(original.as_ptr())
-                .unwrap()
-                .is_some()
-        );
+        assert!(interp
+            .resolve_original_command(original.as_ptr())
+            .unwrap()
+            .is_some());
         let cache = obj::native_command_name_cache(original.as_ptr()).unwrap();
         assert!(interp.namespaces.borrow_mut().delete(GLOBAL, b"p"));
         assert!(worker.upgrade().is_none());
@@ -1048,13 +1051,11 @@ mod tests {
             obj::native_command_name_cache(original.as_ptr()),
             Some(cache.clone())
         );
-        assert!(
-            interp
-                .native_command_name_lookup_state(&cache)
-                .unwrap()
-                .target
-                .is_none()
-        );
+        assert!(interp
+            .native_command_name_lookup_state(&cache)
+            .unwrap()
+            .target
+            .is_none());
     }
 }
 

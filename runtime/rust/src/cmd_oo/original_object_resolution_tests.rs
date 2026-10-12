@@ -271,7 +271,9 @@ fn original_jim_alias_lookup_uses_the_stored_list_and_keeps_absent_context_termi
         interpreter
             .install_alias_objects(
                 b"originalAlias",
-                Rc::new(crate::interp::NativeAliasHeader::new(word(b"originalAlias"))),
+                Rc::new(crate::interp::NativeAliasHeader::new(word(
+                    b"originalAlias",
+                ))),
                 Rc::clone(&list),
             )
             .unwrap();

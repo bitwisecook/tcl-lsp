@@ -406,12 +406,10 @@ mod tests {
         let options =
             Owned::fresh(crate::cmd_error::completion_options(&mut interp, Code::Ok).unwrap());
         let pairs = crate::dict::dict_pairs(options.as_ptr()).unwrap();
-        assert!(
-            pairs
-                .iter()
-                .any(|&(stored_key, stored_value)| stored_key == key.as_ptr()
-                    && stored_value == value.as_ptr())
-        );
+        assert!(pairs
+            .iter()
+            .any(|&(stored_key, stored_value)| stored_key == key.as_ptr()
+                && stored_value == value.as_ptr()));
     }
 
     #[test]

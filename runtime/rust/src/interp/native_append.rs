@@ -44,7 +44,6 @@ pub(super) struct OriginalAppendVariable {
     pub(super) refuse: std::rc::Rc<dyn Fn(tcl_syntax::value::ValueError) -> tcl_cmd_core::CmdError>,
 }
 
-
 /// Earliest physical append operation and existing actual frame observation.
 struct OriginalAppendCommand {
     arguments: super::native_arguments::OriginalArguments,
@@ -1793,5 +1792,5 @@ mod original_c84_pending_scalar_tests {
 }
 
 #[cfg(test)]
-#[path="native_append/original_command_boundary_tests.rs"]
+#[path = "native_append/original_command_boundary_tests.rs"]
 mod original_command_boundary_tests;

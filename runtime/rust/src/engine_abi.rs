@@ -29,8 +29,8 @@
 use core::ffi::{c_char, c_int};
 
 use crate::budget::LimitKind;
-use crate::interp::{Code, Interp, new_string};
-use crate::obj::{TclObj, decr_ref_count, incr_ref_count};
+use crate::interp::{new_string, Code, Interp};
+use crate::obj::{decr_ref_count, incr_ref_count, TclObj};
 
 const TCL_OK: c_int = 0;
 const TCL_ERROR: c_int = 1;
