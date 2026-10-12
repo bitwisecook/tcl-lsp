@@ -36351,14 +36351,14 @@
           "id": "current-original-source-purpose-e66cef51bd36355e",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/command_binding.rs",
-          "sha256": "924e7447dc103d9a4b71a5a32a106228835dabaed48675b71fdf8e6b1aff49e2",
+          "sha256": "eb570751f7f0465ffcbab002f3458533ddcef010fc670e25dee540014fadfb32",
           "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         },
         {
           "id": "current-original-source-purpose-fb3e7931d5591f1c",
           "role": "implementation",
           "path": "rust/tcl-compiler/src/registry_invocation.rs",
-          "sha256": "7c6db6339422484816da5ee8d1aae1c55f1fc203b82f2ea086405f4a29bc4184",
+          "sha256": "4c78580ab0c59db1246b98162fb5e44e12559b35c5aaf3d6a134a257583f69f1",
           "description": "Current original physical cleanup, selected source topology or Logical source operand-layout owner and its finite software controls. These source definitions supply no new Native/provider observation, runtime authority, object-reference equivalence or executed compiler/body assertion."
         },
         {
@@ -36374,6 +36374,90 @@
           "path": "rust/tcl-compiler/src/command_binding/compiler_inventory.rs",
           "sha256": "4edfc6c2aa7c128cb35902ba3e434bf4cd874e3a4f67088a44a6b791b0bca5ac",
           "description": "Current original source/software control definitions and independent retained owner purpose; no executed assertion, external Native observation or provider grant."
+        },
+        {
+          "id": "authored-original-command-purpose-097f369b8c2a2257",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+          "sha256": "9f444e91e93da5314a22ad323926e9ed6292328a6e5fc06ba91c055f634a7919",
+          "description": "Actual selected descriptor/procedure planning uses the original token trace owner and retained CFG/Module metadata before direct-call emission; constructed source procedure names do not supply captured runtime rows. Independent AOT admission and the same current local-bind status/Host cleanup remain required. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-f854470805bfad63",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "sha256": "2aa9e5f263a7e3b4816beb7925dfd8df0e12144f69af66aa7d9df8cea07e115f",
+          "description": "Central retained binding/Module purpose joins complete actual source/input/config/registry. Supplied Native entry is first, actual Logical and explicit Standalone are separate; AuthoredSimulation requires the real retained policy authority and grants model advice only. Independently joined declaration/layout state may classify a request purpose, which grants no reached invocation; actual target and trace consumers retain their independent reached receiver/observer gates. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-5d25e5f2db38f584",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/source_name_lookup.rs",
+          "sha256": "dae95e74209be38cf1d3e04ce5622cc352120045687c62fb9218f0717da1aed0",
+          "description": "The selected non-head transition lookup uses its original frozen operand, source index and the same current post-operand lookup state; a head, synthetic/root-variable or rebuilt label cannot substitute. Returned slots are candidate lookup keys, not trace-owner absence. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-f50258c3a83174b2",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/common_aot_plan.rs",
+          "sha256": "41c8945767dfad125213a75c4222e28c235c08e9d99fde9725bb4a2afe7a4c6b",
+          "description": "Actual retained direct-expression and direct-procedure candidates use selected descriptor keys, original invocation/CFG receiver and shared trace owner. Missing original rows or implicit-only operations cannot gain absence from constructed keys or an empty spelling inventory. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-2dcd5b4c240a71e1",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/environment_ingress.rs",
+          "sha256": "bf9d288a2a0f7f5d664a4f6b83b548238f138be994920ee2c47544e1db4310b7",
+          "description": "The supplied control setup captures real held VM registration/token/trace metadata and retains its owner. This fixture ingress supplies software entry purpose without an external provider outcome or extra Native reference role. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-0b9d7c1be7326621",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/gvn.rs",
+          "sha256": "d0c6202c7a9bddb20ec0a3c3a543e1b38a5dada09995a930068d7f28bcf7218a",
+          "description": "Actual purity candidates consume selected descriptor facts and the original full-vector trace owner rather than trimming raw command names or reading a module spelling inventory as physical absence. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-988bbc66f107f40a",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/lowering/mod.rs",
+          "sha256": "79ab0f92b376eafa87fedd8de1ea7df4181ec523aba14fa94b3366f907ec04f4",
+          "description": "Actual trace source facts use selected descriptor vocabulary and the shared original non-head key projection. Missing, opaque or noninjective owner stays a dynamic trace hazard; candidate keys do not create a physical token or trace-free receiver. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-a3b12cb0645cf3cf",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "sha256": "63d24e95ece5ed55bbb1c1589174b2f71cdd1e17197cdc4e660369a149a48a27",
+          "description": "The three shared trace consumers first use genuine retained purpose. Execution requires the canonical original current-token observer owner; Logical and explicit Standalone retain separate source models, AuthoredSimulation declines trace absence. Initial captured trace bit, target generation, frame and complete argv/context remain authoritative. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-c5534d26d3151aec",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "sha256": "a813cd6be686d087e807d9468b256c5dd16d94bfef83d7093c3537b57adb2379",
+          "description": "An exact authored selected descriptor label is borrowed as pure data, preserving punctuation and granting no root encoding, written lookup, source operand, runtime token or trace identity. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-3f6d6a231118ac65",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/lib.rs",
+          "sha256": "51e694f4609dd94828b00d3cac9d9aff73d723d97677e9cb537aa573f5b2e593",
+          "description": "The public descriptor vocabulary exports the same pure CanonicalCommandDescriptorKey owner; module registration grants no Native naming or dispatch authority. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-1bf7377fae679956",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a",
+          "description": "The stock semantic-operation query projects exact already-authored descriptor keys without stripping labels into written Tcl names or selecting a runtime binding. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-7fe66f3e56bab7ac",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd",
+          "description": "Selected InvocationFacts and ResolvedInvocation borrow the exact descriptor key from their original selected facts/spec label. Current selected alias-role projection is separately scoped to authored positions and supplies no runtime link. Software source definitions attach no new Native/provider observation or asserted outcome."
         }
       ],
       "source_anchors": [],
@@ -37822,6 +37906,46 @@
           "path": "rust/tcl-compiler/src/command_binding/logical_operation.rs",
           "symbol": "SourceInvocationBinding::conditional_logical_scalar_store",
           "purpose": "Existing Logical source scalar modelling uses the same captured conditional layout and exact source-variable context; this is not a physical Native store or Normal proof."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "OriginalInvocationSourcePurpose",
+          "purpose": "Retain a request/binding purpose, never execution or trace-absence permission; Native, Logical, explicit Standalone and policy-owned AuthoredSimulation remain separate."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "SourceInvocationBinding::original_invocation_source_purpose",
+          "purpose": "Validate the complete original source vector/input/config/registry before retained request purpose, using only independently joined lookup or declaration/layout state. Purpose grants no reached invocation, target or trace absence; actual consumers retain their independent target/observer requirements."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "ModuleCommandBindings::retained_original_source_purpose",
+          "purpose": "Project the same genuine retained baseline and complete metadata into source-only purpose; AuthoredSimulation requires its actual policy, not a profile or raw Logical eligibility."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "Module::original_invocation_source_purpose",
+          "purpose": "Join complete actual Module source/config/metadata and retained entry fields before the same Native-first request purpose."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "symbol": "SourceInvocationBinding::original_unobserved_native_dispatch_for_tokens",
+          "purpose": "Join the complete original argv, exact target implementation/frame and same existing observer owner before Native trace absence."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "symbol": "original_invocation_has_execution_trace",
+          "purpose": "Use selected descriptor correspondence and the genuine original invocation token/observer owner; absent or refused ownership keeps a hazard."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "symbol": "original_procedure_has_execution_trace",
+          "purpose": "Require an actual original receiver and runtime row for Execution procedure trace absence; source-published or constructed keys alone cannot supply it."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "symbol": "trace_set_requires_original_owner",
+          "purpose": "Keep implicit operations without an actual receiver conservative under Execution or AuthoredSimulation purpose."
         }
       ],
       "tests": [
@@ -40182,6 +40306,60 @@
           "selector": "command_binding::compiler_inventory::original_inline_control_source_tests::original_inline_control_accepts_the_same_cached_complete_input_owner",
           "status": "linked",
           "assertion": "Actual repeated cached ContextRegistry generation retains the same full input Arc and original Inline Control source metadata. Independent Native execution and provider/handler purposes are not issued."
+        },
+        {
+          "path": "rust/tcl-compiler/src/codegen/wasm/backend.rs",
+          "selector": "codegen::wasm::backend::tests::constructed_procedure_calls_require_the_original_native_trace_owner",
+          "status": "linked",
+          "assertion": "Actual retained C8.6 software source units contain a constructed procedure target with no captured runtime token row. The original unobserved-dispatch owner refuses it, and the WASM function-facts consumer emits no direct call, both with an empty spelling trace inventory and an unrelated traced source procedure. A published source procedure or unrelated roster cannot substitute for an original Native token trace owner. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_trace_subject_requires_its_actual_non_head_operand_and_context",
+          "status": "linked",
+          "assertion": "The selected trace subject retains its effective non-head ordinal and original source binding/context. The two fixed target spellings project the actual source lookup candidate key; an equal unlocated string, the head ordinal, missing binding or foreign context returns unavailable. This is a readonly candidate-key projection, not physical target identity or absence of execution traces. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_native_token_observers_follow_add_remove_and_rename",
+          "status": "linked",
+          "assertion": "Genuine held software C9 entry and original source points distinguish an unrelated trace, add/remove on the selected token, and token-preserving rename followed by removal. The canonical unobserved-dispatch and selected trace-hazard queries follow that original token/observer state; unobserved cases reach the actual GVN purity query. This source control records no external C execution or blanket optimisation permission. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::captured_native_trace_flag_is_reached_before_empty_module_inventory",
+          "status": "linked",
+          "assertion": "The actual held VM entry is captured after ordinary trace add/remove/rename setup, with the selected token generation preserved through rename. Its retained initial has_execution_trace bit governs the actual original trace hazard even when the Module spelling inventory is empty. An empty inventory does not grant trace absence. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_native_trace_owner_survives_alias_and_root_fallback_without_label_substitution",
+          "status": "linked",
+          "assertion": "Actual original aliases and root lookup fallback retain the selected runtime token and observer correspondence rather than treating the descriptor label or written candidate slot as the traced owner. The fixed held-software source cases exercise the original selected hazard query; descriptor punctuation supplies no trace-absence authority. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_native_trace_absence_requires_full_vector_target_and_actual_receiver",
+          "status": "linked",
+          "assertion": "The genuine original selected C9 llength receiver with complete vector/context/target passes the existing unobserved-dispatch owner. Changed implementation generation, unknown frame, withdrawn source binding, changed argv, foreign or Standalone metadata refuse; a descriptor-only implicit operation and constructed procedure query retain the hazard. This does not grant absence without the actual receiver. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::genuine_jim_entry_cannot_borrow_raw_logical_metadata_for_trace_absence",
+          "status": "linked",
+          "assertion": "A genuine held Jim software entry has raw Logical assistance eligibility and no Native name protocol, but its retained binding and Module purpose are Execution. Trace absence and key projection remain unavailable; foreign Logical metadata cannot downgrade that original receiver. A separate genuine same-input Logical driver keeps Logical purpose, while supplying its metadata to the Native original vector retains Execution. No fabricated Jim trace bit or external Jim outcome is supplied. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/origin_inventory.rs",
+          "selector": "command_binding::origin_inventory::original_math_body_purpose_tests::retained_authored_simulation_requires_its_actual_policy_and_supplied_input",
+          "status": "linked",
+          "assertion": "A complete original supplied-source entry retaining the explicit AuthoredSimulation naming policy and no Native or Logical owner issues AuthoredSimulation source purpose. Withdrawing the actual policy through the real cloned baseline, supplying foreign metadata or substituting Standalone input refuses. The dialect/profile alone cannot restore this model source-advice purpose. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::authored_simulation_source_advice_keeps_trace_absence_unavailable",
+          "status": "linked",
+          "assertion": "The complete Module source and explicit retained authored policy issue AuthoredSimulation, with no Native or Logical owner. The implicit owner requirement stays active, invocation/procedure trace hazards stay conservative and trace keys remain unavailable. Missing policy, unknown entry and missing supplied-source tag decline rather than recover from the requested profile. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
         }
       ],
       "replay": {
@@ -51788,7 +51966,43 @@
           "evidence": []
         }
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "id": "authored-original-command-purpose-409461ede0362ff5",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "sha256": "a813cd6be686d087e807d9468b256c5dd16d94bfef83d7093c3537b57adb2379",
+          "description": "An exact authored selected descriptor label is borrowed as pure data, preserving punctuation and granting no root encoding, written lookup, source operand, runtime token or trace identity. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-f5a3d9bd52713542",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/registry.rs",
+          "sha256": "e1a5885d0e0e8a312240f35f283f618a32f794a6c4d80490607deaf67fe33d4a",
+          "description": "The stock semantic-operation query projects exact already-authored descriptor keys without stripping labels into written Tcl names or selecting a runtime binding. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-8cd77de2feb97b9a",
+          "role": "implementation",
+          "path": "rust/tcl-registry/src/resolved_invocation.rs",
+          "sha256": "a83d715a322d2d1b852d1271c2c1182183117bf5e0b7b5e766d0f1e72065fffd",
+          "description": "Selected InvocationFacts and ResolvedInvocation borrow the exact descriptor key from their original selected facts/spec label. Current selected alias-role projection is separately scoped to authored positions and supplies no runtime link. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-c00c3d787fd6d4ae",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/command_binding/source_name_lookup.rs",
+          "sha256": "dae95e74209be38cf1d3e04ce5622cc352120045687c62fb9218f0717da1aed0",
+          "description": "The selected non-head transition lookup uses its original frozen operand, source index and the same current post-operand lookup state; a head, synthetic/root-variable or rebuilt label cannot substitute. Returned slots are candidate lookup keys, not trace-owner absence. Software source definitions attach no new Native/provider observation or asserted outcome."
+        },
+        {
+          "id": "authored-original-command-purpose-daec57d4b69d9fd6",
+          "role": "implementation",
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "sha256": "63d24e95ece5ed55bbb1c1589174b2f71cdd1e17197cdc4e660369a149a48a27",
+          "description": "The three shared trace consumers first use genuine retained purpose. Execution requires the canonical original current-token observer owner; Logical and explicit Standalone retain separate source models, AuthoredSimulation declines trace absence. Initial captured trace bit, target generation, frame and complete argv/context remain authoritative. Software source definitions attach no new Native/provider observation or asserted outcome."
+        }
+      ],
       "source_anchors": [],
       "tests": [
         {
@@ -51886,6 +52100,24 @@
           "selector": "registry_invocation::source_structure::tests::original_conditional_operand_keeps_its_static_word_and_list_lineage",
           "assertion": "Conditional foreach operands preserve original static word/list-child lineage and spans; derived list children do not manufacture a written word key or original lookup permission.",
           "status": "linked"
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_trace_subject_requires_its_actual_non_head_operand_and_context",
+          "status": "linked",
+          "assertion": "The selected trace subject retains its effective non-head ordinal and original source binding/context. The two fixed target spellings project the actual source lookup candidate key; an equal unlocated string, the head ordinal, missing binding or foreign context returns unavailable. This is a readonly candidate-key projection, not physical target identity or absence of execution traces. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "selector": "registry_invocation::execution_trace::tests::original_opaque_trace_target_keeps_the_hazard_dynamic",
+          "status": "linked",
+          "assertion": "A selected original execution-trace subject carrying non-Unicode bytes cannot be repaired into a reporting label: original trace-key projection remains unavailable, and lowering retains the dynamic trace hazard. Opaque source-name refusal does not establish an empty physical trace table. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
+        },
+        {
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "selector": "command_descriptor_key::tests::selected_descriptor_key_preserves_colons_and_grants_no_written_name_recipe",
+          "status": "linked",
+          "assertion": "The pure selected descriptor key preserves each authored label exactly, including leading and internal colons. The fixed colon-rich label differs from written-command canonicalisation and one-root constructed-key projection; descriptor bytes grant neither a written NameKey, lookup recipe nor runtime command identity. Definition-linked software source coverage only; this association attaches no asserted pass or new Native/provider observation."
         }
       ],
       "owners": [
@@ -51968,6 +52200,26 @@
           "path": "rust/tcl-compiler/src/registry_invocation/source_structure.rs",
           "symbol": "conditional_source_operands",
           "purpose": "Retain original static word and list-child ancestry for conditional source operands, with no invented written word or lookup receipt."
+        },
+        {
+          "path": "rust/tcl-registry/src/command_descriptor_key.rs",
+          "symbol": "CanonicalCommandDescriptorKey",
+          "purpose": "Preserve the exact selected authored descriptor label; punctuation supplies no constructed-root contract or written-name receipt."
+        },
+        {
+          "path": "rust/tcl-registry/src/registry.rs",
+          "symbol": "CommandRegistry::command_descriptor_keys_for_semantic_operation",
+          "purpose": "Project the same authored semantic-operation descriptors into exact keys without selecting a written runtime command."
+        },
+        {
+          "path": "rust/tcl-compiler/src/command_binding/source_name_lookup.rs",
+          "symbol": "SourceInvocationBinding::original_transition_command_lookup",
+          "purpose": "Resolve only the actual retained non-head operand/source ordinal in the same post-operand lookup state, with existing NameKey and availability owner."
+        },
+        {
+          "path": "rust/tcl-compiler/src/registry_invocation/execution_trace.rs",
+          "symbol": "original_execution_trace_keys",
+          "purpose": "Render readonly candidate trace keys from the actual original subject/source owner; opaque or missing correspondence stays unavailable and supplies no trace absence."
         }
       ],
       "replay": {
