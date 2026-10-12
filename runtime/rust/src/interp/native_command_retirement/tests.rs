@@ -192,6 +192,9 @@ fn install_chain(actual: &mut Interp, p: &Probe, records: &mut [Record; 2]) {
 
 #[test]
 fn original_active_object_deletion_separates_callback_from_dispatch_role_and_recreation() {
+    // naming.embedding.original-active-object-command-deletion
+    // docs/design/analysis/name-resolution-proofs/embedding-original-active-object-command-deletion.md
+    // Software callback timing and later fresh-script replacement only; no Native held-word/client-data lifetime grant.
     // naming.embedding.original-host-publication-and-fact-transport
     // docs/design/analysis/name-resolution-proofs/embedding-original-host-publication-and-fact-transport.md
     for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "jim"] {
