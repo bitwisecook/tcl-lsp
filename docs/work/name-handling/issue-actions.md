@@ -15,7 +15,14 @@ program still reports0versus2 at C8.4, so #2286 remains open.
 retain final9, graph20 at17pass/3fail, two loop failures reproduced with exact
 before-source under the same dependency snapshot, and an unclassified procedure
 lookup refusal. Source advice grants no Native entry, completed store, Normal
-execution or edit permission. [Published receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132969379) identifies `5e6be644b`; GitHub readback confirms OPEN.
+execution or edit permission. The [cleanup receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6132969379) identifies `5e6be644b`.
+
+The current [factory-prefix diagnostic](../../../experiments/name-handling/results/w210-original-program-admission/inner-predicate-question/actual/README.md)
+passes metadata/binding/site/image/configuration/source-purpose checks for all
+four headers, with matching original input and `NonLogical`. A later declaration
+guard remains unmeasured; no semantic repair is established. The latest
+[published issue receipt](https://github.com/bitwisecook/tcl-lsp/issues/2286#issuecomment-6133830042)
+identifies `6ad1d5196`; GitHub readback confirms OPEN.
 
 ## #2287 — verified and closed
 

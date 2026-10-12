@@ -20,13 +20,9 @@ cd "$here"
 scope=small
 out=results
 only=""
-# External backstop only, now that bench.py enforces its own outer
-# `--deadline` (default 240s — see bench.py's DEFAULT_DEADLINE_S
-# and BENCH_DEADLINE_S). This external `timeout --foreground` still exists
-# for the case bench.py's own watchdog cannot cover — the interpreter itself
-# wedged, or a `--deadline` misconfigured below the true need — so it stays
-# generous rather than tight: a healthy version takes well under a minute,
-# but one whose workspace scan never settles burns 120s on that alone.
+# External backstop for an interpreter hang or a disabled/misconfigured
+# bench.py watchdog. Keep it above bench.py's default 240s `--deadline`
+# so the watchdog can report the phase, binary and last request first.
 per_version_timeout=600
 # Forwarded to `bench.py --deadline`. Independent knob from the external
 # backstop above: this is what actually produces the phase/binary/last-
@@ -76,14 +72,9 @@ for tag in "${tags[@]}"; do
   fi
   echo
   echo "########## $tag ##########"
-  # Hard wall-clock cap per version, as a *backstop* behind bench.py's own
-  # `--deadline`: `lsp_client.py`'s transport bounds a blocking write to a
-  # server that stops draining stdin (client stuck in write(), server idle
-  # in read()), and bench.py's own watchdog reports which phase/binary/request
-  # died and exits cleanly well inside this window — so a hit here means
-  # bench.py's own deadline didn't fire (misconfigured, or a fault outside
-  # even its coverage), not a silent multi-hour wedge such as the 8h45m one
-  # this cap was sized against.
+  # The LSP transport bounds writes to a server that stops draining stdin
+  # (client stuck in write(), server idle in read()). This wall-clock cap
+  # covers failures that prevent bench.py's own watchdog from firing.
   bench_args=(
     python3 bench.py --server "$bin" --version "$version"
     --scope "$scope" --out "$out"
