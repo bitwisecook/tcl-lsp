@@ -1,0 +1,47 @@
+    Finished `test` profile [unoptimized] target(s) in 0.13s
+     Running unittests src/lib.rs (tmp/name-target-issues/debug/deps/tcl_compiler-f9d97fcba7ed4a1f)
+
+running 9 tests
+
+thread 'analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque' (152794) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13479:13:
+assertion `left == right` failed: tcl8.4/package require tcltest
+namespace import -force ::tcltest::*
+interp alias {} report_test {} ::tcltest::test
+proc exercise {} {report_test t shared -setup {set prepared 1} -body {puts $prepared; puts $absent} -cleanup {puts $prepared} -result {[puts $data_only]}}
+exercise
+
+[]
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque ... FAILED
+
+thread 'analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque' (152798) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13305:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 1
+test analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque ... FAILED
+test analyser::diagnostics::tests::tcltest_import_is_namespace_scoped ... ok
+
+thread 'analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion' (152797) panicked at rust/tcl-compiler/src/analyser/diagnostics/tests.rs:13340:9:
+assertion `left == right` failed: tcl8.4/[]
+  left: 0
+ right: 2
+test analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion ... FAILED
+test lowering::tests::immediate_tcltest_body_remains_a_runtime_barrier ... ok
+test ssa::tests::structural_body_indices_tcltest_via_registry ... ok
+test analyser::diagnostics::tests::tcltest_test_body_is_walked_when_imported ... ok
+test analyser::diagnostics::tests::tcltest_shared_frame_preserves_the_reported_setup_body_cleanup_reads ... ok
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads has been running for over 60 seconds
+test analyser::diagnostics::tests::tcltest_aliases_preserve_the_reported_setup_body_cleanup_reads ... ok
+
+failures:
+
+failures:
+    analyser::diagnostics::tests::tcltest_aliases_keep_genuine_undefined_reads_and_result_data_opaque
+    analyser::diagnostics::tests::tcltest_oracle_program_keeps_missing_reads_and_setup_completion
+    analyser::diagnostics::tests::tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque
+
+test result: FAILED. 6 passed; 3 failed; 0 ignored; 0 measured; 9548 filtered out; finished in 126.01s
+
+error: test failed, to rerun pass `-p tcl-compiler --lib`

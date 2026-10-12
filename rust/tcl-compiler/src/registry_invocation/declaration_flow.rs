@@ -85,67 +85,78 @@ pub(crate) fn declaration_lifecycle_invocation(
     registry: &CommandRegistry,
     tokens: &CommandTokens,
 ) -> Option<DeclarationLifecycleInvocation> {
-    use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec};
     let advice = tokens
         .source_binding
         .as_ref()?
         .declaration_operand_layout_advice(tokens)?;
-    let metadata = advice
-        .original_declaration_metadata_context(registry, tokens)
-        .ok()?;
-    let dialect = advice.dialect();
-    let mut agreed = None;
-    for target in advice.targets() {
-        let effective = effective_words_for_target(tokens, target)?;
-        let values = declared_argument_words(tokens, &effective, dialect);
-        let mut words = vec![InvocationWord::Literal(&target.command)];
-        words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
-        let RegistryInvocationResolution::Resolved(facts) =
-            resolve_registry_words_in_realm_with_metadata_context(
-                registry,
-                metadata,
-                &words,
-                Some(dialect),
-                advice.realm(),
+    DeclarationLifecycleInvocation::for_layout(registry, tokens, &advice)
+}
+
+impl DeclarationLifecycleInvocation {
+    pub(crate) fn for_layout(
+        registry: &CommandRegistry,
+        tokens: &CommandTokens,
+        advice: &crate::command_binding::OriginalCompilationLookupAdvice,
+    ) -> Option<DeclarationLifecycleInvocation> {
+        use tcl_registry::body_execution::{BodyExecutionSelection, BodyExecutionSpec};
+        let metadata = advice
+            .original_declaration_metadata_context(registry, tokens)
+            .ok()?;
+        let dialect = advice.dialect();
+        let mut agreed = None;
+        for target in advice.targets() {
+            let effective = effective_words_for_target(tokens, target)?;
+            let values = declared_argument_words(tokens, &effective, dialect);
+            let mut words = vec![InvocationWord::Literal(&target.command)];
+            words.extend(values.iter().map(EffectiveInvocationWord::as_registry_word));
+            let RegistryInvocationResolution::Resolved(facts) =
+                resolve_registry_words_in_realm_with_metadata_context(
+                    registry,
+                    metadata,
+                    &words,
+                    Some(dialect),
+                    advice.realm(),
+                )
+                .ok()?
+            else {
+                return None;
+            };
+            let BodyExecutionSpec::CapturedLifecycle(contract) = facts.body_execution? else {
+                return None;
+            };
+            let arguments = tcl_registry::InvocationArguments::structured(
+                words.get(facts.argument_offset + 1..)?,
             )
-            .ok()?
-        else {
-            return None;
-        };
-        let BodyExecutionSpec::CapturedLifecycle(contract) = facts.body_execution? else {
-            return None;
-        };
-        let arguments =
-            tcl_registry::InvocationArguments::structured(words.get(facts.argument_offset + 1..)?)
-                .with_dialect(dialect);
-        if contract.has_unmodelled_pre_phase_effects(arguments) {
-            return None;
+            .with_dialect(dialect);
+            if contract.has_unmodelled_pre_phase_effects(arguments) {
+                return None;
+            }
+            let BodyExecutionSelection::CapturedLifecycle(selection) = contract.select(arguments)
+            else {
+                return None;
+            };
+            let selected = DeclarationLifecycleInvocation {
+                command: target.command.clone(),
+                contract: *contract,
+                selection,
+                effective,
+                arguments: values
+                    .iter()
+                    .map(|word| match word {
+                        EffectiveInvocationWord::Literal(value) => Some(value.clone()),
+                        _ => None,
+                    })
+                    .collect(),
+                argument_offset: facts.argument_offset,
+                dialect,
+            };
+            if agreed.as_ref().is_some_and(|old| old != &selected) {
+                return None;
+            }
+            agreed = Some(selected);
         }
-        let BodyExecutionSelection::CapturedLifecycle(selection) = contract.select(arguments)
-        else {
-            return None;
-        };
-        let selected = DeclarationLifecycleInvocation {
-            command: target.command.clone(),
-            contract: *contract,
-            selection,
-            effective,
-            arguments: values
-                .iter()
-                .map(|word| match word {
-                    EffectiveInvocationWord::Literal(value) => Some(value.clone()),
-                    _ => None,
-                })
-                .collect(),
-            argument_offset: facts.argument_offset,
-            dialect,
-        };
-        if agreed.as_ref().is_some_and(|old| old != &selected) {
-            return None;
-        }
-        agreed = Some(selected);
+        agreed
     }
-    agreed
 }
 
 pub(crate) fn declaration_invocation_flow(

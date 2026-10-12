@@ -1,0 +1,6 @@
+
+running 1 test
+test command_binding::original_command_table::advice_slot_tests::conditional_catalogue_imports_follow_retained_original_implementations ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9557 filtered out; finished in 0.64s
+

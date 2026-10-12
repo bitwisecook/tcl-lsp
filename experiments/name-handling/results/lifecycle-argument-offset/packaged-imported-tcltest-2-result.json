@@ -1,0 +1,28 @@
+{
+  "kind": "packaged-consumer-validation",
+  "command": "source /tmp/name-env.sh\nCARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test --offline -j2 -p tcl-lsp-server --test e2e imported_tcltest_test_structure_recognised -- --nocapture",
+  "cwd": "/workspace/tcl-lsp",
+  "started_utc": "2026-10-12T17:48:44.230787+00:00",
+  "elapsed_seconds": 116.378,
+  "exit_code": 0,
+  "counts": {
+    "passed": 2,
+    "failed": 0
+  },
+  "source_hashes": {
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+    "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d"
+  },
+  "streams": {
+    "packaged-imported-tcltest-2.stdout": {
+      "path": "packaged-imported-tcltest-2.stdout",
+      "sha256": "fa49e271f3b60f43f7a3c96d229d53cfd405b45a2b74e1c85868f3c268af08e9"
+    },
+    "packaged-imported-tcltest-2.stderr": {
+      "path": "packaged-imported-tcltest-2.stderr",
+      "sha256": "f2a9f73e2650785b380697883e34103b24cb6fb48c5988f0ea72c08c3c983e93"
+    }
+  },
+  "final_source_after_matches_frozen": true
+}

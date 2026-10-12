@@ -88,6 +88,9 @@ impl crate::command_binding::SourceCommandBindings {
             logical_input: Some(input.clone()),
             declaration: Some(declaration),
             logical_body: None,
+            c_source_body: None,
+            c_source_namespace: None,
+            c_source_path: None,
             procedure_body: None,
         })
     }

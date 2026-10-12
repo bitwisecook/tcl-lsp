@@ -18,6 +18,30 @@ Reporting labels and whole-file declarations cannot replace these receipts.
 See the [consumer matrix](naming-consumer-matrix.md) and
 [implementer guide](../compiler/name-resolution-implementer-guide.md).
 
+The authored source-transition owner retains conditional Logical Tcl imports,
+export patterns and namespace paths using the shared source geometry, list and
+analysis-glob helpers. Imported Registry schemas retain their original provider
+coordinate and written transition lineage. Exact forget, deletion or replacement
+withdraws those schemas; a provider move retains its source association. Unknown
+effects remain explicit applicability obligations and never establish a current
+import, executing handler or edit permission. Paths require complete static lists
+and retained namespace coordinates; unknown path changes decline non-local
+candidates. Native source catalogue queries follow independently retained import
+objects through the existing command table, without borrowing Logical geometry.
+
+Conditional C source transitions use independently retained Native name-pattern
+purposes, native glob matching and counted list decoding. Their current namespace
+and ordered path are source coordinates; an unretained path provider remains an
+explicit applicability obligation and is not installed into a native namespace
+table. Accepted Structural `CapturedLifecycle` descriptors can retain isolated
+caller-source body and expression-command schemas when the interpreter is
+Current, the phase descriptor is caller `Uplevel`, and the provider family matches
+the selected Tcl C source policy. Source expression parsing leaves unknown Native syntax unknown. These inventories grant
+no provider installation, phase entry, frame, effect, Normal completion or edit
+authority. Authentic Native baseline inventory keeps its separate admission;
+Jim, hosted, foreign-interpreter and non-caller contracts cannot borrow this
+source-coordinate route.
+
 ## The algorithm (C Tcl 9, `Tcl_FindCommand`, `generic/tclNamesp.c`)
 
 Given a call to `name` from current namespace `ns` whose

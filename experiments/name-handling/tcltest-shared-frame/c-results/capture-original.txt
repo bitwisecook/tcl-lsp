@@ -1,0 +1,77 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook)
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+"""Capture caller-frame observations using each real C Tcl distribution."""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+
+
+def sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("output", type=Path)
+    args = parser.parse_args()
+    root = Path(__file__).resolve().parents[3]
+    source = Path(__file__).with_name("probe.tcl")
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    records = []
+    for release in ["8.4.20", "8.5.19", "8.6.18", "9.0.4", "9.1.0"]:
+        tree = root / "tmp" / f"tcl{release}"
+        binary = tree / "unix" / "tclsh"
+        environment = os.environ.copy()
+        environment.pop("TCL_LIBRARY", None)
+        environment.pop("TCLLIBPATH", None)
+        metadata = subprocess.run(
+            [str(binary)],
+            input=b"puts [list [info patchlevel] [info library] [package require tcltest]]\n",
+            env=environment,
+            capture_output=True,
+            check=True,
+            timeout=30,
+        )
+        result = subprocess.run(
+            [str(binary), str(source)],
+            env=environment,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        destination = output / release
+        destination.mkdir()
+        for name, data in [
+            ("stdout", result.stdout),
+            ("stderr", result.stderr),
+            ("metadata.stdout", metadata.stdout),
+            ("metadata.stderr", metadata.stderr),
+            ("input.tcl", source.read_bytes()),
+        ]:
+            (destination / name).write_bytes(data)
+        record = {
+            "release": release,
+            "command": [str(binary), str(source)],
+            "process_returncode": result.returncode,
+            "binary_sha256": sha256(binary),
+            "input_sha256": sha256(source),
+            "init_sha256": sha256(tree / "library" / "init.tcl"),
+            "tcltest_sha256": sha256(tree / "library" / "tcltest" / "tcltest.tcl"),
+            "stdout_sha256": sha256(destination / "stdout"),
+            "stderr_sha256": sha256(destination / "stderr"),
+        }
+        (destination / "record.json").write_text(json.dumps(record, indent=2) + "\n")
+        records.append(record)
+    (output / "records.json").write_text(json.dumps(records, indent=2) + "\n")
+    (output / "capture-original.txt").write_bytes(Path(__file__).read_bytes())
+
+
+if __name__ == "__main__":
+    main()

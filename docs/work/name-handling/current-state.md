@@ -1,6 +1,6 @@
 # Current state
 
-Branch: `work`. Latest published checkpoint at this snapshot: `1b3a01d66`.
+Branch: `work`. Latest published checkpoint at this snapshot: `2d1f5a73b`.
 Inspect git for subsequent commits and uncommitted ownership. This document is
 current coordination material; delete it and its references before merge.
 
@@ -24,7 +24,7 @@ currency matters; labels cannot reconstruct slots, frames or recreated objects.
 | Real C8.5 suites | Frozen native var69 pass/17 skip/0 fail; compiled alias controls pass | Namespace failures and unreached cases; broader VM/runtime suite census |
 | C8.6 clock registration | Runtime scalar and registry controls each pass1; original map/hooks/epochs retained | Real init refuses; mathfunc topology/hooks, missing support workers and map/worker ordering |
 | Native compiled foreach | Same exact input aborts SIGABRT; stock C8.5–9.1/Jim complete; C8.4 missing namespace stops publication | Original iterator ownership; no runtime conformance claim |
-| Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Publish accepted checkpoint and update #2287; broader consumer census |
+| Packaged LSP | Both complete default-C8.6 imported Tcltest regressions pass; two direct C-source controls pass | Current post-offset packaged checks pass2/2; publish and close #2287; broader consumer census |
 | Tcltest diagnostics | Final frozen source: six controls pass; three genuine-missing-read controls fail at C8.4 | Repair actual declared-read/selection boundary; #2286 open |
 | Compiler residual fixtures | Three constructors now forward their genuine source inputs; build completes; six seeded-parameter controls fail | Shared procedure lookup fails before SCCP/handler assertions; baseline status unknown; no fallback |
 | Backing/generation | 392-command selected-release backing gate,12 backing/21 owner controls, AI drift pass | 165 manifest scope/gate obligations; full required Rust/PR gates |
@@ -55,7 +55,8 @@ has50 questions/eight contexts, all400 rows pending at the last check. General
 controls remain separate. Ingest only exact release/input/channel/reached-event
 answers from the appliance chat. Do independent work while answers are pending.
 
-Five verified stale F5CLI/editor prose passages have been corrected. The final
+Five verified stale F5CLI/editor prose passages and five correction groups in
+three F5 architecture documents have been corrected. The final
 cleanup remains repository-wide: authored docs, comments, scripts, templates,
 generated copies and links, including pre-existing material outside this issue.
 Preserve current contracts, minimal how/why, experiments, raw oracle provenance

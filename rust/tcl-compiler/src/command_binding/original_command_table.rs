@@ -411,6 +411,16 @@ pub(super) fn classify_catalogue_source_cell(
     bindings: &[&MayBinding],
     catalogue: Option<&str>,
 ) -> CatalogueSourceCell {
+    classify_catalogue_source_cell_with(bindings, catalogue, |target, descriptor| {
+        target == descriptor
+    })
+}
+
+fn classify_catalogue_source_cell_with(
+    bindings: &[&MayBinding],
+    catalogue: Option<&str>,
+    same_descriptor: impl Fn(&str, &str) -> bool,
+) -> CatalogueSourceCell {
     #[cfg(test)]
     if std::env::var_os("TCL_LSP_TRACE_SOURCE_CATALOGUE").is_some() && !bindings.is_empty() {
         eprintln!("SOURCE_CATALOGUE candidate={catalogue:?} cells={bindings:?}");
@@ -424,7 +434,7 @@ pub(super) fn classify_catalogue_source_cell(
     let compatible = |binding: &&MayBinding| {
         matches!(binding,MayBinding::Target(target)
         if catalogue.is_some_and(|name| target.registry_backed && target.kind==BindingKind::Builtin
-            && target.prepended.is_empty() && target.command==name))
+            && target.prepended.is_empty() && same_descriptor(&target.command, name)))
     };
     if bindings.is_empty() {
         return CatalogueSourceCell::Pass;
@@ -1951,7 +1961,7 @@ impl ModuleCommandBindings {
             .index(policy, &self.baseline.declared_commands);
         let mut selected = None;
         for slot in path {
-            let candidate = if let Some(index) = &index {
+            let mut candidate = if let Some(index) = &index {
                 match index.slots.get(slot) {
                     Some(Some((metadata, name))) => Some((metadata, name)),
                     Some(None) => return None,
@@ -1968,9 +1978,58 @@ impl ModuleCommandBindings {
                 first
             };
             let bindings = self.original_catalogue_bindings_for_slot(slot, policy);
-            match classify_catalogue_source_cell(
-                &bindings,
+            let mut implementations = Vec::new();
+            for binding in bindings {
+                if let MayBinding::Imported(imported) = binding {
+                    implementations.extend(self.objects.get(&imported.origin)?.iter());
+                } else {
+                    implementations.push(binding);
+                }
+            }
+            if candidate.is_none() {
+                let mut imported_name = None;
+                for binding in &implementations {
+                    let MayBinding::Target(target) = binding else {
+                        continue;
+                    };
+                    if !target.registry_backed
+                        || target.kind != BindingKind::Builtin
+                        || !target.prepended.is_empty()
+                        || imported_name.is_some_and(|name| name != target.command)
+                    {
+                        return None;
+                    }
+                    imported_name = Some(target.command.as_str());
+                }
+                if let Some(name) = imported_name {
+                    let origin = original_registry_metadata_slot(policy, name)?;
+                    candidate = if let Some(index) = &index {
+                        index
+                            .slots
+                            .get(&origin)?
+                            .as_ref()
+                            .map(|(metadata, name)| (metadata, name))
+                    } else {
+                        let mut candidates =
+                            self.baseline.catalogue_commands.iter().filter(|(name, _)| {
+                                original_registry_metadata_slot(policy, name).as_ref()
+                                    == Some(&origin)
+                            });
+                        let first = candidates.next();
+                        if candidates.next().is_some() {
+                            return None;
+                        }
+                        first
+                    };
+                }
+            }
+            match classify_catalogue_source_cell_with(
+                &implementations,
                 candidate.map(|(_, name)| name.as_str()),
+                |target, descriptor| {
+                    let slot = original_registry_metadata_slot(policy, target);
+                    slot.is_some() && slot == original_registry_metadata_slot(policy, descriptor)
+                },
             ) {
                 CatalogueSourceCell::Barrier => return None,
                 CatalogueSourceCell::Alternative if candidate.is_some() => {

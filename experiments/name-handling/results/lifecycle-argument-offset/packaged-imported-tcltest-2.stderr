@@ -1,0 +1,44 @@
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-version v0.1.0 (/workspace/tcl-lsp/rust/tcl-version)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-db v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-db)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+   Compiling tcl-explorer v0.1.0 (/workspace/tcl-lsp/rust/tcl-explorer)
+warning: function `known_profile_for_dialect` is never used
+  --> rust/tcl-explorer/src/environment.rs:94:8
+   |
+94 | pub fn known_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `catalogue_profile_for_dialect` is never used
+   --> rust/tcl-explorer/src/environment.rs:110:8
+    |
+110 | pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfile> {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `tcl-explorer` (lib) generated 2 warnings
+   Compiling f5-xc v0.1.0 (/workspace/tcl-lsp/rust/f5-xc)
+   Compiling tcl-bigip-query v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip-query)
+   Compiling tcl-diagram v0.1.0 (/workspace/tcl-lsp/rust/tcl-diagram)
+   Compiling tcl-lsp-server v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-server)
+warning: method `fresh_index_seed_is_current` is never used
+     --> rust/tcl-lsp-server/src/lib.rs:11754:14
+      |
+ 9348 | impl Backend {
+      | ------------ method in this implementation
+...
+11754 |     async fn fresh_index_seed_is_current(&self, source: &str, seed: &FreshAnalysisSeed) -> bool {
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+      |
+      = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `tcl-lsp-server` (lib) generated 1 warning
+    Finished `test` profile [unoptimized] target(s) in 1m 49s
+     Running tests/e2e.rs (tmp/name-target-issues/debug/deps/e2e-4086e7b269cda8d6)

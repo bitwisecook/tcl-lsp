@@ -1,0 +1,80 @@
+{
+  "question": "Does nonzero lifecycle argument_offset select the intended original phase scripts?",
+  "answer": "Yes in the single authored compiler registry subcommand fixture.",
+  "source_before": "source-before.json",
+  "source_frozen": "source-frozen.json",
+  "source_after": "source-after.json",
+  "head_correspondence": "Coordinator reports HEAD changed during builds due only to documentation/proof commits; no identical-HEAD or independently captured HEAD claim is made.",
+  "checks": [
+    {
+      "name": "regression",
+      "receipt": "regression-result.json",
+      "kind": "compiler-regression",
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 182.321
+    },
+    {
+      "name": "tcltest-9",
+      "receipt": "tcltest-9-result.json",
+      "kind": "compiler-check",
+      "counts": {
+        "passed": 6,
+        "failed": 3
+      },
+      "exit_code": 101,
+      "elapsed_seconds": 129.219
+    },
+    {
+      "name": "logical-namespace-4",
+      "receipt": "logical-namespace-4-result.json",
+      "kind": "compiler-check",
+      "counts": {
+        "passed": 5,
+        "failed": 0
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 2.908
+    },
+    {
+      "name": "retained-original-import-1",
+      "receipt": "retained-original-import-1-result.json",
+      "kind": "compiler-check",
+      "counts": {
+        "passed": 0,
+        "failed": 0
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.168
+    },
+    {
+      "name": "retained-original-import-selected-1",
+      "receipt": "retained-original-import-selected-1-result.json",
+      "kind": "compiler-check",
+      "counts": {
+        "passed": 1,
+        "failed": 0
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 0.863
+    },
+    {
+      "name": "packaged-imported-tcltest-2",
+      "receipt": "packaged-imported-tcltest-2-result.json",
+      "kind": "packaged-consumer-validation",
+      "counts": {
+        "passed": 2,
+        "failed": 0
+      },
+      "exit_code": 0,
+      "elapsed_seconds": 116.378
+    }
+  ],
+  "known_blocker": "Three existing C8.4 W210 missing-read controls remain actual 0 versus expected 1/1/2.",
+  "empty_selection": "Wrong module-qualified exact filter selected zero tests. This is retained separately and is not counted as validation; the intended retained-original import test executed once under the corrected exact name.",
+  "scope": "Compiler regression/checks and packaged LSP consumer validation only. No native oracle was executed; no W210 fix or full gate pass is claimed.",
+  "scoped_owner_hashes_checked_before_each_command_and_after_all_checks": true
+}

@@ -1,0 +1,28 @@
+{
+  "kind": "compiler-check",
+  "command": "source /tmp/name-env.sh\nCARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test --offline -j2 -p tcl-compiler --lib logical_namespace_ -- --nocapture",
+  "cwd": "/workspace/tcl-lsp",
+  "started_utc": "2026-10-12T17:48:13.086469+00:00",
+  "elapsed_seconds": 2.908,
+  "exit_code": 0,
+  "counts": {
+    "passed": 5,
+    "failed": 0
+  },
+  "source_hashes": {
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+    "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d"
+  },
+  "streams": {
+    "logical-namespace-4.stdout": {
+      "path": "logical-namespace-4.stdout",
+      "sha256": "dcca0b2be5c4725c3c5ceb3c7428f92c8002d7a0136b449b0d0698e478bb0938"
+    },
+    "logical-namespace-4.stderr": {
+      "path": "logical-namespace-4.stderr",
+      "sha256": "6665e0c013ea3d90bdb4c815b50bc511a8a3efeae9659c4157415c95dcd93e01"
+    }
+  },
+  "final_source_after_matches_frozen": true
+}

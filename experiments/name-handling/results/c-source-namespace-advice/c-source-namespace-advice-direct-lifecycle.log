@@ -1,0 +1,46 @@
+   Compiling tcl-registry v0.1.0 (/workspace/tcl-lsp/rust/tcl-registry)
+   Compiling tcl-compiler v0.1.0 (/workspace/tcl-lsp/rust/tcl-compiler)
+   Compiling tcl-vm v0.1.0 (/workspace/tcl-lsp/rust/tcl-vm)
+   Compiling tcl-irules v0.1.0 (/workspace/tcl-lsp/rust/tcl-irules)
+   Compiling tcl-sslictcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-sslictcl)
+   Compiling tcl-bigip v0.1.0 (/workspace/tcl-lsp/rust/tcl-bigip)
+   Compiling tcl-engine-tclvm v0.1.0 (/workspace/tcl-lsp/rust/tcl-engine-tclvm)
+   Compiling tcl-spec-hooks v0.1.0 (/workspace/tcl-lsp/rust/tcl-spec-hooks)
+   Compiling tcl-lsp-core v0.1.0 (/workspace/tcl-lsp/rust/tcl-lsp-core)
+   Compiling tcl-spectcl v0.1.0 (/workspace/tcl-lsp/rust/tcl-spectcl)
+error[E0599]: `SubcommandResolution<'_>` is not an iterator
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs:490:18
+    |
+488 |               words.with_source_schema(input.borrowed_context_registry(), |schema| schema
+    |  __________________________________________________________________________________-
+489 | |                 .subcommand
+490 | |                 .map(|subcommand| subcommand.name)),
+    | |                 -^^^ `SubcommandResolution<'_>` is not an iterator
+    | |_________________|
+    |
+    |
+   ::: rust/tcl-registry/src/resolved_invocation.rs:458:1
+    |
+458 |   pub enum SubcommandResolution<'w> {
+    |   --------------------------------- doesn't satisfy `SubcommandResolution<'_>: Iterator`
+    |
+    = note: the following trait bounds were not satisfied:
+            `SubcommandResolution<'_>: Iterator`
+            which is required by `&mut SubcommandResolution<'_>: Iterator`
+
+error[E0308]: mismatched types
+   --> rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs:550:81
+    |
+550 |                 std::sync::Arc::new(base.with_command_store(std::sync::Arc::new(registry)));
+    |                                                             ------------------- ^^^^^^^^ expected `CommandRegistry`, found `Arc<CommandRegistry>`
+    |                                                             |
+    |                                                             arguments to this function are incorrect
+    |
+    = note: expected struct `CommandRegistry`
+               found struct `std::sync::Arc<CommandRegistry>`
+note: associated function defined here
+   --> /rustc/b940084d7eb6a299eb4bfeb8e34901bc051e7ac4/library/alloc/src/sync.rs:437:11
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `tcl-compiler` (lib test) due to 2 previous errors

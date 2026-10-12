@@ -1,0 +1,32 @@
+{
+  "question": "Can exact C-policy source inputs supply conditional imported command/body schemas to the actual source_registry_words consumer without entered-world authority?",
+  "policies": [
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1"
+  ],
+  "positive": [
+    "top-level import",
+    "nested namespace import after package uncertainty",
+    "namespace path to moved generic if descriptor (C8.5+)",
+    "unretained tclopt source path with explicit residual, without provider insertion",
+    "captured caller-source expression child dict schema"
+  ],
+  "negative": [
+    "known local shadow",
+    "namespace forget",
+    "origin deletion",
+    "cleared path",
+    "dynamic path",
+    "unknown earlier effect withdrawing fallback path",
+    "changed complete source image",
+    "authentic NativeBaseline missing imported package refusal",
+    "foreign lifecycle interpreter",
+    "deferred global lifecycle",
+    "procedure phase compilation",
+    "foreign provider family"
+  ],
+  "authority": "Original whole words, C policy, immutable source/config/context/registry, descriptor transitions and explicit conditional C namespace/body applicability only"
+}

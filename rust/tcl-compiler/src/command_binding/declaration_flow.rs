@@ -729,7 +729,7 @@ impl Builder<'_> {
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
     ) -> Option<(String, tcl_lexer::Span)> {
-        let selected = self.selection(tokens, site)?;
+        let (selected, _) = self.selection(tokens, site)?;
         let [(name, _)] = selected.literal_stores.as_slice() else {
             return None;
         };
@@ -766,7 +766,10 @@ impl Builder<'_> {
         &self,
         tokens: &CommandTokens,
         site: &CommandAllocationSite,
-    ) -> Option<crate::registry_invocation::DeclarationInvocationFlow> {
+    ) -> Option<(
+        crate::registry_invocation::DeclarationInvocationFlow,
+        Option<super::lifecycle_advice::SourceScopedLifecycleAdvice>,
+    )> {
         let observations = super::declaration_layout::original_declaration_layouts(
             self.inventory.layouts.get(site)?,
         )?;
@@ -806,13 +809,26 @@ impl Builder<'_> {
                         && point.state.current_source_origin.as_ref() == Some(&site.source)
                         && point.state.variable_frame == observation.snapshot.state.variable_frame
                 });
-            retained.source_binding =
-                Some(super::SourceCommandBindings::query_dispatch_points(points));
+            let mut points = points.peekable();
+            if points.peek().is_some() {
+                retained.source_binding =
+                    Some(super::SourceCommandBindings::query_dispatch_points(points));
+            }
             let selected = crate::registry_invocation::declaration_invocation_flow(
                 self.registry,
                 &retained,
                 &advice,
             )?;
+            let lifecycle = if selected.flow == ScriptBodyFlow::CapturedLifecycle {
+                Some(advice.scoped_declaration_lifecycle_advice(
+                    &retained,
+                    self.registry,
+                    self.entry,
+                )?)
+            } else {
+                None
+            };
+            let selected = (selected, lifecycle);
             if agreed.as_ref().is_some_and(|old| old != &selected) {
                 return None;
             }
@@ -836,7 +852,7 @@ impl Builder<'_> {
         }
         let next = self.events_before(operands, dispatch, exits);
         self.nodes[id].successors = vec![next];
-        let Some(selected) = selected else {
+        let Some((selected, lifecycle)) = selected else {
             self.unknown(dispatch, exits.normal);
             return;
         };
@@ -874,7 +890,7 @@ impl Builder<'_> {
             .clone_from(&selected.accumulator_writes);
         self.nodes[after].removes.clone_from(&selected.removes);
         self.nodes[after].successors = vec![exits.normal];
-        let successors = self.command_flow(site, &selected, after, exits);
+        let successors = self.command_flow(site, &selected, lifecycle.as_ref(), after, exits);
         self.nodes[dispatch].successors = successors;
     }
 
@@ -882,6 +898,7 @@ impl Builder<'_> {
         &mut self,
         site: &CommandAllocationSite,
         selected: &crate::registry_invocation::DeclarationInvocationFlow,
+        lifecycle: Option<&super::lifecycle_advice::SourceScopedLifecycleAdvice>,
         after: usize,
         exits: Exits,
     ) -> Vec<usize> {
@@ -962,6 +979,14 @@ impl Builder<'_> {
             ScriptBodyFlow::Expressions(arguments) => {
                 self.expressions(site, &selected.effective, arguments, after, exits)
             }
+            ScriptBodyFlow::CapturedLifecycle => {
+                let Some(lifecycle) = lifecycle else {
+                    let unknown = self.placeholder();
+                    self.unknown(unknown, after);
+                    return vec![unknown];
+                };
+                self.lifecycle_flow(site, selected, lifecycle, after, exits)
+            }
             ScriptBodyFlow::ConcatenatedExpression { argument_offset }
                 if selected.effective.words.len() == argument_offset + 2 =>
             {
@@ -976,6 +1001,79 @@ impl Builder<'_> {
             }
         };
         vec![flow_entry]
+    }
+
+    fn lifecycle_flow(
+        &mut self,
+        site: &CommandAllocationSite,
+        selected: &crate::registry_invocation::DeclarationInvocationFlow,
+        lifecycle: &super::lifecycle_advice::SourceScopedLifecycleAdvice,
+        after: usize,
+        exits: Exits,
+    ) -> usize {
+        let complete = self.placeholder();
+        self.nodes[complete].successors = Exits {
+            normal: after,
+            ..exits
+        }
+        .route(selected.completion);
+        let repeat = self.placeholder();
+        self.nodes[repeat].successors = vec![complete];
+        let captured = |normal| Exits {
+            normal,
+            error: normal,
+            returned: normal,
+            broken: normal,
+            continued: normal,
+            other: exits.other,
+        };
+        let phases = &lifecycle.invocation.selection;
+        let phase_body = |builder: &mut Self, operand: BodyOperand, exits: Exits| {
+            let Some(argument) = operand
+                .argument
+                .checked_add(lifecycle.invocation.argument_offset)
+            else {
+                let unknown = builder.placeholder();
+                builder.unknown(unknown, exits.normal);
+                return unknown;
+            };
+            builder.body(
+                site,
+                &selected.effective,
+                BodyOperand {
+                    argument,
+                    ..operand
+                },
+                exits,
+            )
+        };
+        let cleanup = phases.cleanup.map_or(repeat, |operand| {
+            phase_body(self, operand, captured(repeat))
+        });
+        let body = phases.body.map_or(cleanup, |operand| {
+            phase_body(self, operand, captured(cleanup))
+        });
+        let setup = phases.setup.map_or(body, |operand| {
+            phase_body(
+                self,
+                operand,
+                Exits {
+                    normal: body,
+                    ..captured(cleanup)
+                },
+            )
+        });
+        if lifecycle
+            .invocation
+            .contract
+            .repetition(lifecycle.loader.version.as_deref())
+            == tcl_registry::body_execution::BodyRepetition::MayRepeat
+        {
+            self.nodes[repeat].successors.push(setup);
+        }
+        let choice = self.placeholder();
+        self.nodes[choice].successors = vec![setup, complete];
+        choice
     }
 
     fn conditional_flow(
@@ -2113,6 +2211,168 @@ fn strict_expression_owner(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn lifecycle_subcommand_schedules_its_original_phase_scripts() {
+        let profile = tcl_dialect::DialectProfile::find("tcl8.6").unwrap();
+        let mut registry =
+            tcl_registry::CommandRegistry::build_default().project_for_profile(profile);
+        let mut descriptor = registry.get("tcltest::test").unwrap().clone();
+        descriptor.name = "offset-lifecycle";
+        descriptor.required_package = None;
+        descriptor.subcommands = Box::leak(Box::new([tcl_registry::SubCommand {
+            name: "run",
+            arity: descriptor.arity,
+            arg_role_resolver: descriptor.arg_role_resolver,
+            arg_role_resolver_roles: descriptor.arg_role_resolver_roles,
+            body_kind: descriptor.body_kind,
+            body_execution: descriptor.body_execution,
+            completion: descriptor.completion,
+            ..tcl_registry::SubCommand::DEFAULT
+        }]));
+        registry.insert(descriptor);
+        let loader = crate::lowering::stock_body_provider_loader(
+            tcl_registry::body_execution::TCLTEST_STOCK_PROVIDER,
+            None,
+        )
+        .unwrap();
+        let wrapper = "offset-lifecycle run n d -cleanup {puts CLEANUP} -body {puts BODY} -setup {puts SETUP}";
+        let source = format!("package require tcltest\nproc p {{}} {{{wrapper}}}");
+        let config = tcl_lexer::LexerConfig::for_profile(Some(profile));
+        let bindings = super::super::SourceCommandBindings::analyse_with_options(
+            &source,
+            config,
+            &registry,
+            super::super::SourceAnalysisOptions {
+                invocation_dialect: Some(tcl_registry::InvocationDialect::of_profile(profile)),
+                trusted_package_loaders: std::slice::from_ref(&loader),
+                native_compilation: crate::environment_ingress::authoring_native_compilation(),
+                ..Default::default()
+            },
+        );
+        let offset = u32::try_from(source.find(wrapper).unwrap()).unwrap();
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(wrapper, offset, config)
+                .remove(0);
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceImage::document(&source).source_map(),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let mut builder = Builder {
+            inventory,
+            registry: &registry,
+            config,
+            dialect: tcl_registry::InvocationDialect::of_profile(profile),
+            entry: &observation.entry,
+            nodes: Vec::new(),
+            jobs: Vec::new(),
+            conditional_overwrites: Vec::new(),
+        };
+        let (selected, lifecycle) = builder.selection(&tokens, site).unwrap();
+        let lifecycle = lifecycle.unwrap();
+        assert_eq!(lifecycle.invocation.argument_offset, 1);
+        let after = builder.placeholder();
+        builder.lifecycle_flow(site, &selected, &lifecycle, after, Exits::all(after));
+        let scripts = builder
+            .jobs
+            .iter()
+            .map(|job| job.source.text.try_text().unwrap())
+            .collect::<Vec<_>>();
+        assert_eq!(scripts, ["puts CLEANUP", "puts BODY", "puts SETUP"]);
+    }
+
+    #[test]
+    fn declaration_selection_keeps_absent_dispatch_separate_from_invalid_reached_owner() {
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
+        let config = tcl_lexer::LexerConfig::for_profile(registry.profile());
+        let source = "set anchor 1; puts $absent";
+        let bindings = super::super::SourceCommandBindings::analyse(source, config, registry);
+        let segment =
+            crate::segmenter::segment_commands_with_offset_and_config(source, 0, config).remove(0);
+        let mut tokens = CommandTokens::from_segmented(
+            &tcl_lexer::SourceImage::document(source).source_map(),
+            config,
+            &segment,
+        );
+        bindings.stamp_original_tokens(&mut tokens);
+        let binding = tokens.source_binding.as_ref().unwrap();
+        let site = binding.invocation_site().unwrap();
+        let inventory = binding.declaration_flow_inventory.as_ref().unwrap();
+        let observation = super::super::declaration_layout::original_declaration_layouts(
+            inventory.layouts.get(site).unwrap(),
+        )
+        .unwrap()
+        .next()
+        .unwrap();
+        let dialect = observation
+            .snapshot
+            .state
+            .source_variables
+            .invocation_dialect
+            .unwrap();
+        let selection = |inventory| {
+            let builder = Builder {
+                inventory,
+                registry,
+                config,
+                dialect,
+                entry: &observation.entry,
+                nodes: Vec::new(),
+                jobs: Vec::new(),
+                conditional_overwrites: Vec::new(),
+            };
+            let mut raw = tokens.clone();
+            raw.source_binding = None;
+            builder.selection(&raw, site)
+        };
+        assert!(
+            selection(inventory).is_some(),
+            "genuine original reached owner"
+        );
+        let absent = DeclarationFlowInventory::new(
+            Arc::clone(&inventory.layouts),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::new(Vec::new()),
+            Arc::new(BTreeMap::new()),
+        );
+        assert!(
+            selection(&absent).is_some(),
+            "sealed raw declaration without dispatch"
+        );
+        let mut invalid = inventory.points.as_ref().clone();
+        assert!(
+            invalid
+                .iter()
+                .any(|point| point.dispatch && point.offset == site.offset)
+        );
+        for point in &mut invalid {
+            point.original_written_words = None;
+            point.compiled_execution.original_words = None;
+        }
+        let invalid = DeclarationFlowInventory::new(
+            Arc::clone(&inventory.layouts),
+            Arc::clone(&inventory.accesses),
+            Arc::clone(&inventory.origin_accesses),
+            Arc::new(invalid),
+            Arc::new(BTreeMap::new()),
+        );
+        assert!(
+            selection(&invalid).is_none(),
+            "invalid reached owner remains terminal"
+        );
+    }
 
     fn report(source: &str) -> Arc<DeclarationFlowReport> {
         let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();

@@ -49,7 +49,8 @@ Current independent checks and outstanding work:
   order and native compiled-foreach SIGABRT remain open. Exact questions:
   `experiments/name-handling/clock-bootstrap-epoch/registration-repair/`.
 - Conditional C source namespace/path/caller-lifecycle advice passes2 direct and2
-  full packaged highlighting regressions. Exact source and limits:
+  full packaged highlighting regressions after operand-offset correction; five
+  Logical namespace controls and one retained-original import control pass. Exact source and limits:
   `experiments/name-handling/results/c-source-namespace-advice/`. Coordinator
   must publish the checkpoint and update/close #2287 against its exact reproduction.
 - Final W210 filter has6 passing controls and3 genuine-missing-read failures at
@@ -61,10 +62,11 @@ Current independent checks and outstanding work:
   `experiments/name-handling/results/fixture-source-input/`. Trace independently;
   do not fabricate None inputs or claim a pre-existing defect without comparison.
 - Scoped Syntax/LSP proof reviews and renewals are in `evidence-review/`.
-  The last full gate had348 implementation-digest errors before36 further
+  The last full gate had348 implementation-digest errors before39 further
   reviewed renewals. No pending candidates/unlinked tests. Review exact invariants
   before renewing remaining bindings; never blanket-rehash or alter oracle bytes.
-- Five unrelated F5/editor prose passages were cleaned. Whole-repository docs,
+- Five unrelated F5/editor prose passages and five F5-document correction groups
+  were cleaned. Whole-repository docs,
   comments and generated-copy/link audit remains unfinished. Preserve current
   semantics/minimal how/why and oracle evidence; remove stale claims, migration
   diaries, abandoned plans and completed TODOs. Remove this whole temporary work

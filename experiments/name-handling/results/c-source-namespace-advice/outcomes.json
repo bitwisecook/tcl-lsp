@@ -1,0 +1,172 @@
+{
+  "baseline_packaged": {
+    "passed": 0,
+    "failed": 2,
+    "log": "/tmp/source-advice-packaged-lsp-regressions.log",
+    "scope": "settled actual default server consumer"
+  },
+  "pre_existing_owner_failures": {
+    "count": 6,
+    "scope": "unchanged counterfactual-reproduced owner failures; excluded from this fix",
+    "evidence": "/tmp/source-advice-counterfactual-snapshot/"
+  },
+  "v1": {
+    "direct": {
+      "passed": 0,
+      "failed": 1,
+      "log": "/tmp/c-source-namespace-advice-direct-lib.log",
+      "trace": "/tmp/c-source-namespace-advice-direct-trace.log",
+      "refusal": "nested same-line cursor-tail query includes enclosing closer; retained exact vector differs although tape/context/source pass"
+    },
+    "packaged": {
+      "passed": 1,
+      "failed": 1,
+      "log": "/tmp/c-source-namespace-advice-packaged-v1.log",
+      "positive": "top-level imported test",
+      "remaining": "namespaced source path points to unrepresented ::tclopt provider"
+    },
+    "source_hashes": {
+      "before": "/tmp/c-source-namespace-advice-before.sha256",
+      "after": "/tmp/c-source-namespace-advice-v1-after.sha256",
+      "identical": true
+    },
+    "integration_compile": {
+      "status": "blocked before selection",
+      "log": "/tmp/c-source-namespace-advice-direct.log",
+      "cause": "three existing compiler_analysis_residual.rs initialisers omit source_metadata_input; root owns exact forwarding correction",
+      "retained_log": "experiments/name-handling/results/c-source-namespace-advice/v1-integration-compile.log"
+    }
+  },
+  "v2": {
+    "direct": {
+      "passed": 1,
+      "failed": 0,
+      "log": "/tmp/c-source-namespace-advice-direct-final.log",
+      "runtime_seconds": 24.59
+    },
+    "packaged": {
+      "passed": 1,
+      "failed": 1,
+      "log": "/tmp/c-source-namespace-advice-packaged-final.log",
+      "progress": "Both imported option/body schemas retained; namespaced nested expression dict schema still missing"
+    },
+    "tcltest": {
+      "passed": 6,
+      "failed": 3,
+      "total": 9,
+      "log": "/tmp/c-source-namespace-advice-tcltest-v2.log",
+      "remaining": "same C8.4 direct/alias/real-oracle W210 read controls"
+    },
+    "source_hashes": {
+      "before": "/tmp/c-source-namespace-advice-final-before.sha256",
+      "scope": "pre-rename v2 six source owners; earlier paths intentionally preserved"
+    }
+  },
+  "lifecycle_source": {
+    "status": "bounded SOURCE consumer fix complete: direct 2/2, complete packaged 2/2, same existing tcltest 6/9",
+    "before_hashes": "/tmp/c-source-namespace-advice-lifecycle-before.sha256",
+    "boundary": "checked Structural CapturedLifecycle grammar, Current interpreter, compatible Tcl provider family, Uplevel caller phase descriptor; isolated conditional SOURCE body inventory only",
+    "source_snapshot": "source-snapshot/",
+    "duplicate_inventory_guard": "Suppression only after marked SOURCE regions retain represented original children; real effect coverage remains incomplete and root graph widens",
+    "direct": {
+      "passed": 2,
+      "failed": 0,
+      "runtime_seconds": 24.1,
+      "log": "/tmp/c-source-namespace-advice-direct-lifecycle-v4-final.log",
+      "retained_log": "c-source-namespace-advice-direct-lifecycle-v4-final.log",
+      "command": "source /tmp/name-env.sh; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test -j2 -p tcl-compiler --lib c_source_namespace_consumer -- --nocapture",
+      "scope": "C5 source control and C8.6 caller-lifecycle child schema / four foreign scope refusals; no oracle/runtime entry claim"
+    },
+    "packaged": {
+      "passed": 2,
+      "failed": 0,
+      "runtime_seconds": 7.73,
+      "log": "/tmp/c-source-namespace-advice-packaged-lifecycle-v4.log",
+      "retained_log": "c-source-namespace-advice-packaged-lifecycle-v4.log",
+      "command": "source /tmp/name-env.sh; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test -j2 -p tcl-lsp-server --test e2e imported_tcltest_test_structure_recognised -- --nocapture",
+      "scope": "Both existing complete actual default C8.6 packaged semantic-token assertions, including nested dict get"
+    },
+    "authority_review": "docs/work/name-handling/evidence-review/c-source-authority-review.md",
+    "tcltest": {
+      "passed": 6,
+      "failed": 3,
+      "total": 9,
+      "exit": 101,
+      "runtime_seconds": 126.01,
+      "log": "/tmp/c-source-namespace-advice-tcltest-lifecycle-v4.log",
+      "retained_log": "c-source-namespace-advice-tcltest-lifecycle-v4.log",
+      "command": "source /tmp/name-env.sh; CARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test -j2 -p tcl-compiler --lib tcltest_ -- --nocapture",
+      "remaining": "same C8.4 direct/alias/real-oracle-program warning controls as v2; no new failures"
+    },
+    "source_hashes": {
+      "before": "c-source-namespace-advice-lifecycle-before.sha256",
+      "after": "c-source-namespace-advice-lifecycle-after.sha256",
+      "owner_count": 6,
+      "identical": true,
+      "scope": "complete six compiler/core source owners including explicit diagnostic obligation transport"
+    }
+  },
+  "lifecycle_v3": {
+    "direct": {
+      "passed": 1,
+      "failed": 1,
+      "log": "/tmp/c-source-namespace-advice-direct-lifecycle-final.log"
+    },
+    "trace": "/tmp/c-source-namespace-advice-direct-lifecycle-trace.log",
+    "refusal": "Independent conditional caller inventory and generic immediate-phase inventory differed at exact same source offsets; exact merge correctly raised registry barriers",
+    "source_hashes": "/tmp/c-source-namespace-advice-lifecycle-v3-before.sha256",
+    "source_snapshot": "source-snapshot-v3/"
+  },
+  "lifecycle_v4_intermediate": {
+    "status": "rebuild cancelled after 34s to narrow suppression to actual retained inventory, no tests executed",
+    "log": "/tmp/c-source-namespace-advice-direct-lifecycle-v4.log",
+    "exit": 143
+  },
+  "proof_limits": [
+    "Conditional SOURCE schemas only; no real Native runtime entered",
+    "Actual source image, lexer configuration, registry/context, original word geometry and parent containment remain guarded",
+    "Missing path providers remain explicit obligations, never native namespace rows",
+    "Original NativeBaseline missing-provider/import refusal remains authoritative",
+    "Lifecycle provider installation, phase entry, frame, effects and Normal completion unavailable",
+    "No Logical fallback, Jim/F5 extrapolation, runtime/declaration execution or unsafe edit authority",
+    "Nested opaque commands retain UnknownEarlierMutation; no blanket nested runtime path withdrawal claim",
+    "Six pre-existing counterfactual owner failures excluded; separate C8.4 warning failures remain measured, not fixed here"
+  ],
+  "cargo_lease": {
+    "released": true,
+    "active_cargo_rustc_processes": 0,
+    "scope": "four prior rustc zombies have zero RSS; no active builds"
+  },
+  "issues": "2286 and 2287 remain open; parent owns final acceptance/commit/ledger",
+  "source_owners": [
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice.rs",
+      "sha256": "3fb97aa3c6b14e68d572ccda28ffc81fc310bb4341a5680e862bff724910ac60"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/c_namespace.rs",
+      "sha256": "db0c3d35a4ddb7807c61aec73db08d30b8f42d2f4aa080fb6762bc212bf0c0d3"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/source_namespace.rs",
+      "sha256": "29feecc952902f504a0926fd84df5281143038244f8574d19ed403e80186aa7e"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/body_effects.rs",
+      "sha256": "3ca22ca95f7ac9e4ac835f4e8020287985fc69b70b5c27aaf0d15daa926f37c4"
+    },
+    {
+      "path": "rust/tcl-compiler/src/command_binding/source_transition_advice/logical_declaration.rs",
+      "sha256": "605a67ee3f1ac0163b9e621cf8de5ba71cd03bfe7e7d5f26bcdfd01dec928373"
+    },
+    {
+      "path": "rust/tcl-lsp-core/src/diagnostic_subject.rs",
+      "sha256": "6a049fb96949fffa7cb125b769d50f51c279ed005ba1bf08c6cfa8c2254ae852"
+    }
+  ],
+  "original_e0063": {
+    "original_log": "/tmp/c-source-namespace-advice-direct.log",
+    "retained_log": "v1-integration-compile.log",
+    "byte_identical": true
+  }
+}

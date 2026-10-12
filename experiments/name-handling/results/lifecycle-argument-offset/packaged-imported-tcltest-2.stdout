@@ -1,0 +1,7 @@
+
+running 2 tests
+test semantic_tokens::test_imported_tcltest_test_structure_recognised ... ok
+test semantic_tokens::test_namespaced_imported_tcltest_test_structure_recognised ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 1632 filtered out; finished in 6.51s
+

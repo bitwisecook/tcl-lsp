@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Software descriptor indexes retain their original lookup barriers.
 
+use super::super::CommandToken;
 use super::*;
 use std::sync::Arc;
 use tcl_lexer::{LexerConfig, SourceImage, Span};
@@ -280,6 +281,61 @@ fn conditional_catalogue_index_preserves_actual_live_binding_obligations() {
         changed.replace(key, BTreeSet::from([MayBinding::Target(custom)]));
         assert!(
             changed
+                .original_catalogue_source_candidate(&root, &scope, &name)
+                .is_none()
+        );
+    }
+}
+
+#[test]
+fn conditional_catalogue_imports_follow_retained_original_implementations() {
+    for version in tcl_dialect::TclVersion::ALL {
+        let (mut original, config, policy) = state(version);
+        let root = original.source_root_namespace_key().unwrap();
+        let scope = original.original_namespace_geometry(&root, policy).unwrap();
+        let target = original
+            .original_registry_metadata_target(&root, "proc", policy)
+            .unwrap();
+        let token = CommandToken {
+            runtime: None,
+            origin: "::proc".to_owned(),
+            declaration: 0,
+            allocation: None,
+        };
+        let key = SourceCommandKey::Slot {
+            namespace: root.clone(),
+            simple: tcl_core_types::NameBytes::from(&b"imported"[..]),
+        };
+        Arc::make_mut(&mut original.objects).insert(
+            token.clone(),
+            BTreeSet::from([MayBinding::Target(target.clone())]),
+        );
+        original.replace(
+            key.clone(),
+            BTreeSet::from([MayBinding::Imported(token.clone().into())]),
+        );
+        let name = input("imported", config, policy);
+        let selected = original
+            .original_catalogue_source_candidate(&root, &scope, &name)
+            .unwrap();
+        assert_eq!(selected.0.name, "proc");
+        for alternative in [MayBinding::Unknown, MayBinding::Missing] {
+            let mut changed = original.clone();
+            Arc::make_mut(&mut changed.objects)
+                .insert(token.clone(), BTreeSet::from([alternative]));
+            assert!(
+                changed
+                    .original_catalogue_source_candidate(&root, &scope, &name)
+                    .is_none()
+            );
+        }
+        let mut custom = target;
+        custom.registry_backed = false;
+        custom.kind = BindingKind::Proc;
+        Arc::make_mut(&mut original.objects)
+            .insert(token, BTreeSet::from([MayBinding::Target(custom)]));
+        assert!(
+            original
                 .original_catalogue_source_candidate(&root, &scope, &name)
                 .is_none()
         );

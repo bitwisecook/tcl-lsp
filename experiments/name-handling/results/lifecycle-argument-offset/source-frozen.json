@@ -1,0 +1,5 @@
+{
+  "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+  "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea",
+  "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d"
+}

@@ -336,6 +336,10 @@ enum RegisteredInstanceObligationDescription {
     ConditionalDeclarationApplicability,
     DeferredLogicalBodyApplicability,
     ConditionalLogicalBodyApplicability,
+    ConditionalCNamespaceApplicability,
+    ConditionalCBodyApplicability,
+    UnretainedCSourcePathProviderApplicability,
+    ConditionalCapturedLifecycleSourceApplicability,
     AuthoredCommandPrefixApplicability,
     ProducedCommandPrefixApplicability,
     RegisteredFactoryApplicability,
@@ -374,6 +378,16 @@ impl From<&tcl_compiler::command_binding::SourceCommandTransitionObligation>
             Obligation::DeferredLogicalBodyApplicability => Self::DeferredLogicalBodyApplicability,
             Obligation::ConditionalLogicalBodyApplicability => {
                 Self::ConditionalLogicalBodyApplicability
+            }
+            Obligation::ConditionalCNamespaceApplicability => {
+                Self::ConditionalCNamespaceApplicability
+            }
+            Obligation::ConditionalCBodyApplicability => Self::ConditionalCBodyApplicability,
+            Obligation::UnretainedCSourcePathProviderApplicability => {
+                Self::UnretainedCSourcePathProviderApplicability
+            }
+            Obligation::ConditionalCapturedLifecycleSourceApplicability => {
+                Self::ConditionalCapturedLifecycleSourceApplicability
             }
             Obligation::AuthoredCommandPrefixApplicability => {
                 Self::AuthoredCommandPrefixApplicability

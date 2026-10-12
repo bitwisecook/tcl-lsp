@@ -9,6 +9,7 @@ mod interpreter_handle;
 pub use interpreter_handle::OriginalSourceInterpreterHandleBody;
 mod interpreter_path;
 pub use interpreter_path::OriginalSourceInterpreterPathBinding;
+mod c_namespace;
 mod logical_body;
 mod logical_declaration;
 mod native_baseline;
@@ -19,6 +20,7 @@ mod source_class;
 mod source_class_publications;
 mod source_class_reference;
 mod source_configured_class;
+mod source_namespace;
 pub use source_callback::{
     OriginalSourceCallbackProcedureLookup, OriginalSourceCallbackProcedureRefusal,
     OriginalSourceCallbackProcedureTarget, OriginalSourceCallbackProcedureTargetKind,
@@ -237,6 +239,18 @@ pub enum SourceCommandTransitionObligation {
     /// A selected original immediate body supplies conditional source syntax,
     /// without complete operand effects, an entered frame or execution facts.
     ConditionalLogicalBodyApplicability,
+    /// C-policy source coordinates describe conditional namespace syntax;
+    /// they supply no actual namespace token, path or entered world.
+    ConditionalCNamespaceApplicability,
+    /// An original C-policy body retains its source parent and applicability,
+    /// independently of a runtime activation or successful body entry.
+    ConditionalCBodyApplicability,
+    /// A projected source path names an unretained provider. Its existence,
+    /// successful path installation and runtime command contents are unknown.
+    UnretainedCSourcePathProviderApplicability,
+    /// A source lifecycle uses its authored caller-scope descriptor only
+    /// conditionally; provider installation, phase entry and effects are unknown.
+    ConditionalCapturedLifecycleSourceApplicability,
     /// Original list data describes a conditional target without a deferred parent.
     AuthoredCommandPrefixApplicability,
     /// A selected list builder describes a possible future invocation only.
@@ -352,6 +366,9 @@ pub struct OriginalSourceCommandTransitionAdvice {
     logical_input: Option<crate::analyser::ResolvedAnalysisInput>,
     declaration: Option<Arc<[super::declaration_layout::DeclarationLayoutObservation]>>,
     logical_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    c_source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+    c_source_namespace: Option<ByteNamespacePath>,
+    c_source_path: Option<Vec<ByteNamespacePath>>,
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
 }
 impl OriginalSourceCommandTransitionAdvice {
@@ -431,6 +448,13 @@ impl OriginalSourceCommandTransitionAdvice {
                             && word.span().end() <= body.content_span().end()
                     })
             })
+            && self.c_source_body.as_ref().is_none_or(|body| {
+                body.matches_source(image, config)
+                    && self.original.iter().all(|word| {
+                        word.span().start() >= body.content_span().start()
+                            && word.span().end() <= body.content_span().end()
+                    })
+            })
             && self.declaration.as_ref().is_none_or(|rows| {
                 rows.iter().all(|row| {
                     row.config == config
@@ -459,6 +483,10 @@ impl OriginalSourceCommandTransitionAdvice {
                 .as_ref()
                 .is_none_or(|body| body.matches_context(context))
             && self
+                .c_source_body
+                .as_ref()
+                .is_none_or(|body| body.matches_context(context))
+            && self
                 .logical_input
                 .as_ref()
                 .is_none_or(|input| std::ptr::eq(Arc::as_ptr(&input.context_registry()), context))
@@ -477,6 +505,17 @@ impl OriginalSourceCommandTransitionAdvice {
         &self,
     ) -> Option<&crate::registry_invocation::OriginalSourceScriptBody> {
         self.procedure_body.as_deref()
+    }
+    /// Conditional C source coordinates, without a native namespace token.
+    #[must_use]
+    pub fn conditional_c_source_namespace(&self) -> Option<&ByteNamespacePath> {
+        self.c_source_namespace.as_ref()
+    }
+    /// Ordered source path geometry. Unretained providers remain obligations;
+    /// an unavailable path stays None rather than becoming an empty path.
+    #[must_use]
+    pub fn conditional_c_source_path(&self) -> Option<&[ByteNamespacePath]> {
+        self.c_source_path.as_deref()
     }
     pub(crate) fn arguments(&self) -> &[SourceAdviceWord] {
         &self.arguments
@@ -664,8 +703,14 @@ struct AdviceGraph {
     native_baseline: bool,
     cells: HashMap<ByteCommandSlot, AdviceCell>,
     namespaces: BTreeSet<ByteNamespacePath>,
+    namespace_exports: BTreeMap<ByteNamespacePath, Vec<NameBytes>>,
+    namespace_paths: BTreeMap<ByteNamespacePath, Vec<ByteNamespacePath>>,
+    namespace_imports: HashMap<ByteCommandSlot, ByteCommandSlot>,
+    unknown_exports: BTreeSet<ByteNamespacePath>,
+    unknown_paths: BTreeSet<ByteNamespacePath>,
     policy: AdviceNamingPolicy,
     logical_namespace: Option<ByteNamespacePath>,
+    c_source_namespace: Option<ByteNamespacePath>,
     dialect: InvocationDialect,
     uncertain_operations: Vec<Arc<[NativeWord]>>,
     procedure_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
@@ -723,9 +768,20 @@ impl AdviceGraph {
             native_baseline: false,
             cells: HashMap::new(),
             namespaces: BTreeSet::from([ByteNamespacePath::root()]),
+            namespace_exports: BTreeMap::new(),
+            namespace_paths: BTreeMap::new(),
+            namespace_imports: HashMap::new(),
+            unknown_exports: BTreeSet::new(),
+            unknown_paths: BTreeSet::new(),
             policy: policy.clone(),
             logical_namespace: matches!(policy, AdviceNamingPolicy::Logical(_))
                 .then(ByteNamespacePath::root),
+            c_source_namespace: (dialect.family() == Some(tcl_dialect::model::Family::Tcl)
+                && matches!(
+                    policy.native().map(NamePolicyProtocol::recipe),
+                    Some(NativeNameProtocol::C(_))
+                ))
+            .then(ByteNamespacePath::root),
             dialect,
             uncertain_operations: Vec::new(),
             handles: Vec::new(),
@@ -761,6 +817,17 @@ impl AdviceGraph {
                 None => AdviceNamingPolicy::logical_slot(command.as_bytes())?,
             };
             graph.namespaces.insert(key.namespace.clone());
+            if context
+                .commands()
+                .get(command)
+                .is_some_and(|spec| spec.is_namespace_exported)
+            {
+                graph
+                    .namespace_exports
+                    .entry(key.namespace.clone())
+                    .or_default()
+                    .push(key.simple.clone());
+            }
             graph
                 .cells
                 .insert(key, AdviceCell::Descriptor(command.to_owned(), Vec::new()));
@@ -775,6 +842,12 @@ impl AdviceGraph {
         )
     }
     fn lookup_head_key(&self, bytes: &[u8]) -> Option<ByteCommandSlot> {
+        if self.c_source_namespace.is_some()
+            && !self.native_baseline
+            && self.procedure_namespace.is_none()
+        {
+            return self.c_source_head_key(bytes);
+        }
         if let Some(namespace) = &self.procedure_namespace {
             let native = self.policy.native()?;
             let local = native
@@ -790,11 +863,30 @@ impl AdviceGraph {
         let Some(namespace) = &self.logical_namespace else {
             return lookup_key(&self.policy, bytes);
         };
-        let candidates =
-            tcl_syntax::naming::authored_source_command_candidates(namespace, &[], bytes)?;
+        let local = tcl_syntax::naming::authored_source_command_slot(namespace, bytes)?;
+        if !bytes.starts_with(b"::")
+            && self.unknown_paths.contains(namespace)
+            && !self
+                .cells
+                .get(&local)
+                .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+        {
+            return None;
+        }
+        let candidates = tcl_syntax::naming::authored_source_command_candidates(
+            namespace,
+            self.namespace_paths
+                .get(namespace)
+                .map_or(&[], Vec::as_slice),
+            bytes,
+        )?;
         candidates
             .iter()
-            .find(|key| self.cells.contains_key(*key))
+            .find(|key| {
+                self.cells
+                    .get(*key)
+                    .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
+            })
             .cloned()
             .or_else(|| candidates.last().cloned())
     }
@@ -804,6 +896,12 @@ impl AdviceGraph {
         bytes: &[u8],
         purpose: AdvicePublicationPurpose,
     ) -> Option<ByteCommandSlot> {
+        if self.c_source_namespace.is_some()
+            && !self.native_baseline
+            && self.procedure_namespace.is_none()
+        {
+            return self.c_source_publication_key(bytes, purpose);
+        }
         if let Some(namespace) = &self.procedure_namespace {
             let recipe = self.policy.native()?.recipe();
             let context = NativeNameContext::new(namespace);
@@ -866,8 +964,11 @@ impl AdviceGraph {
     fn widen(&mut self, original: &[NativeWord]) {
         self.uncertain_operations.push(Arc::from(original));
         self.handles.clear();
-        self.cells.retain(|_, cell| match cell {
-            AdviceCell::Descriptor(_, lineage) => lineage.is_empty(),
+        self.withdraw_namespace_advice();
+        self.cells.retain(|slot, cell| match cell {
+            AdviceCell::Descriptor(_, lineage) => {
+                lineage.is_empty() || self.namespace_imports.contains_key(slot)
+            }
             AdviceCell::Shadowed
             | AdviceCell::Deleted
             | AdviceCell::Declared(_)
@@ -986,15 +1087,20 @@ impl AdviceGraph {
                         self.policy.native().map(NamePolicyProtocol::recipe),
                         Some(NativeNameProtocol::Jim084)
                     ) {
-                        let mut path = self.logical_namespace.as_ref().map_or_else(
-                            || self.policy.namespace_path(receipt.selected_input(subject)?),
-                            |namespace| {
-                                tcl_syntax::naming::authored_source_namespace_path(
-                                    namespace,
-                                    receipt.selected_input(subject)?,
-                                )
-                            },
-                        )?;
+                        let mut path = if self.c_source_namespace.is_some() && !self.native_baseline
+                        {
+                            self.c_source_namespace_path(receipt.input(subject)?)?
+                        } else {
+                            self.logical_namespace.as_ref().map_or_else(
+                                || self.policy.namespace_path(receipt.selected_input(subject)?),
+                                |namespace| {
+                                    tcl_syntax::naming::authored_source_namespace_path(
+                                        namespace,
+                                        receipt.selected_input(subject)?,
+                                    )
+                                },
+                            )?
+                        };
                         loop {
                             self.namespaces.insert(path.clone());
                             let Some(parent) = path.parent() else {
@@ -1004,7 +1110,9 @@ impl AdviceGraph {
                         }
                     }
                 }
-                StateTransition::Namespace(_) => return None,
+                StateTransition::Namespace(transition) => {
+                    self.apply_source_namespace(receipt, transition)?
+                }
                 _ => {}
             }
         }
@@ -1025,6 +1133,8 @@ impl AdviceGraph {
             return None;
         }
         if selected.is_empty() {
+            self.remove_namespace_import_origin(&from_key);
+            self.namespace_imports.remove(&from_key);
             self.cells.insert(from_key, AdviceCell::Deleted);
             return Some(());
         }
@@ -1038,6 +1148,10 @@ impl AdviceGraph {
             .is_some_and(|cell| !matches!(cell, AdviceCell::Deleted))
         {
             return None;
+        }
+        self.move_namespace_import_origin(&from_key, &to_key, receipt);
+        if let Some(origin) = self.namespace_imports.remove(&from_key) {
+            self.namespace_imports.insert(to_key.clone(), origin);
         }
         self.cells.insert(from_key, AdviceCell::Deleted);
         let moved = match cell {
@@ -1091,6 +1205,8 @@ impl AdviceGraph {
             CommandBindingTransition::Define { name, .. } => {
                 let key =
                     self.publication_key(input(name)?.bytes(), AdvicePublicationPurpose::Define)?;
+                self.remove_namespace_import_origin(&key);
+                self.namespace_imports.remove(&key);
                 self.cells.insert(key, AdviceCell::Shadowed);
             }
             CommandBindingTransition::Move { from, to } => {
@@ -1103,10 +1219,10 @@ impl AdviceGraph {
                 {
                     return None;
                 }
-                self.cells.insert(
-                    self.lookup_head_key(input(name)?.bytes())?,
-                    AdviceCell::Deleted,
-                );
+                let key = self.lookup_head_key(input(name)?.bytes())?;
+                self.remove_namespace_import_origin(&key);
+                self.namespace_imports.remove(&key);
+                self.cells.insert(key, AdviceCell::Deleted);
             }
             CommandBindingTransition::Alias {
                 source_interpreter,
@@ -1121,6 +1237,8 @@ impl AdviceGraph {
                 }
                 let alias = input(alias)?;
                 let key = self.publication_key(alias.bytes(), AdvicePublicationPurpose::Alias)?;
+                self.remove_namespace_import_origin(&key);
+                self.namespace_imports.remove(&key);
                 if !self.namespaces.contains(&key.namespace)
                     || !receipt.is_current_interpreter(target_interpreter)?
                 {
@@ -1280,6 +1398,36 @@ fn transition_subjects(transitions: &tcl_registry::StateTransitions) -> Vec<Tran
             | StateTransition::Namespace(tcl_registry::NamespaceTransition::Ensure {
                 namespace: tcl_registry::NamespaceTransitionTarget::Named(subject),
             }) => subjects.push(subject.clone()),
+            StateTransition::Namespace(transition) => {
+                use tcl_registry::{NamespaceTransition, NamespaceTransitionTarget};
+                let namespace = match transition {
+                    NamespaceTransition::Export {
+                        namespace,
+                        patterns,
+                    }
+                    | NamespaceTransition::Import {
+                        namespace,
+                        patterns,
+                        ..
+                    }
+                    | NamespaceTransition::Forget {
+                        namespace,
+                        patterns,
+                    } => {
+                        subjects.extend(patterns.iter().cloned());
+                        namespace
+                    }
+                    NamespaceTransition::SetPath { namespace, path } => {
+                        subjects.push(path.clone());
+                        namespace
+                    }
+                    NamespaceTransition::Delete { namespace } => namespace,
+                    _ => continue,
+                };
+                if let NamespaceTransitionTarget::Named(subject) = namespace {
+                    subjects.push(subject.clone());
+                }
+            }
             _ => {}
         }
     }
@@ -1464,6 +1612,7 @@ impl AdviceInvocationContext<'_> {
         schema: &tcl_registry::ResolvedInvocation<'_, '_>,
     ) -> Option<()> {
         self.retain_schema_advice(tape, invocation, graph, schema)?;
+        self.retain_c_source_lifecycle_inventory(tape, graph, invocation, schema, None, 0);
         self.retain_authored_command_prefix(tape, invocation, graph, schema, None);
         self.retain_source_callback_targets(tape, invocation, graph, schema);
         self.retain_produced_command_prefixes(tape, invocation, graph, schema, None);
@@ -1544,6 +1693,29 @@ impl AdviceInvocationContext<'_> {
         if matches!(self.policy, AdviceNamingPolicy::Logical(_)) {
             obligations.push(SourceCommandTransitionObligation::ExplicitLogicalSourceApplicability);
         }
+        if graph.c_source_namespace.is_some() && !graph.native_baseline {
+            obligations.push(SourceCommandTransitionObligation::ConditionalCNamespaceApplicability);
+        }
+        let c_source_namespace = (!graph.native_baseline)
+            .then(|| graph.c_source_namespace.clone())
+            .flatten();
+        let c_source_path = c_source_namespace.as_ref().and_then(|namespace| {
+            (!graph.unknown_paths.contains(namespace)).then(|| {
+                graph
+                    .namespace_paths
+                    .get(namespace)
+                    .cloned()
+                    .unwrap_or_default()
+            })
+        });
+        if c_source_path.as_ref().is_some_and(|path| {
+            path.iter()
+                .any(|namespace| !graph.namespaces.contains(namespace))
+        }) {
+            obligations.push(
+                SourceCommandTransitionObligation::UnretainedCSourcePathProviderApplicability,
+            );
+        }
         if !graph.uncertain_operations.is_empty() {
             obligations.push(SourceCommandTransitionObligation::UnknownEarlierMutation);
         }
@@ -1566,6 +1738,9 @@ impl AdviceInvocationContext<'_> {
             uncertain_operations: graph.uncertain_operations.clone(),
             declaration: None,
             logical_body: None,
+            c_source_body: None,
+            c_source_namespace,
+            c_source_path,
             procedure_body: graph.procedure_body.clone(),
             logical_input: match self.policy {
                 AdviceNamingPolicy::Logical(input) => Some(input.clone()),

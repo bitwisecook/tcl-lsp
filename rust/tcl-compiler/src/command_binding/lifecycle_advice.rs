@@ -9,6 +9,7 @@ use super::{
 };
 use crate::ir::CommandTokens;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SourceScopedLifecycleAdvice {
     pub(crate) invocation: crate::registry_invocation::DeclarationLifecycleInvocation,
     pub(crate) loader: super::TrustedPackageLoader,
@@ -57,6 +58,53 @@ impl SourceCommandBindings {
         }
         let invocation =
             crate::registry_invocation::declaration_lifecycle_invocation(registry, tokens)?;
+        SourceScopedLifecycleAdvice::retained(invocation, state, site, entry.frame(), namespace)
+    }
+}
+
+impl super::OriginalCompilationLookupAdvice {
+    pub(super) fn scoped_declaration_lifecycle_advice(
+        &self,
+        tokens: &CommandTokens,
+        registry: &tcl_registry::CommandRegistry,
+        entry: &super::declaration_layout::OriginalDiagnosticFrameEntry,
+    ) -> Option<SourceScopedLifecycleAdvice> {
+        if !entry.owns_source(&self.site.source, self.site.offset)
+            || entry.frame() != self.frame()
+            || tokens
+                .source_binding
+                .as_ref()
+                .is_some_and(|binding| binding.entered_execution_observer.observed())
+        {
+            return None;
+        }
+        let invocation = crate::registry_invocation::DeclarationLifecycleInvocation::for_layout(
+            registry, tokens, self,
+        )?;
+        SourceScopedLifecycleAdvice::retained(
+            invocation,
+            &self.snapshot.state,
+            &self.site,
+            entry.frame(),
+            &self.namespace,
+        )
+    }
+}
+
+impl SourceScopedLifecycleAdvice {
+    fn retained(
+        invocation: crate::registry_invocation::DeclarationLifecycleInvocation,
+        state: &super::ModuleCommandBindings,
+        site: &CommandAllocationSite,
+        frame: &crate::var_resolve::VariableExecutionFrame,
+        namespace: &super::SourceNamespaceKey,
+    ) -> Option<Self> {
+        if state.has_opaque_domain()
+            || state.source_step_observed()
+            || state.source_execution_observed(None)
+        {
+            return None;
+        }
         let provider = invocation.contract.provider;
         let loader = state.loaded_provider(provider.package)?;
         if loader.implementation_id != provider.implementation_id
@@ -101,7 +149,7 @@ impl SourceCommandBindings {
             invocation,
             loader: loader.clone(),
             site: site.clone(),
-            frame: entry.frame().clone(),
+            frame: frame.clone(),
             namespace: namespace.clone(),
         })
     }
@@ -228,10 +276,31 @@ impl SourceScopedLifecycleAdvice {
         let argument = operand
             .argument
             .checked_add(self.invocation.argument_offset)?;
+        let original = (|| {
+            let written = self.invocation.effective.written_argument(argument)?;
+            let word = self.invocation.effective.words.get(argument + 1)?;
+            let value = self.invocation.arguments.get(argument)?.as_deref()?;
+            let source = super::ExecutedScriptSource::from_word(
+                self.site.clone(),
+                written,
+                word,
+                value,
+                tcl_lexer::LexerConfig::from_grammar(self.invocation.dialect.lexer_grammar),
+            );
+            matches!(
+                source.mapping,
+                super::ExecutedScriptMapping::Contiguous { .. }
+            )
+            .then_some(source)
+        })();
         let observations = bindings.entered_scripts.get(&self.site)?.get(&argument)?;
         let mut selected = None;
         for observation in observations {
-            if observation.frame.as_ref() != Some(&self.frame) {
+            // Declaration observations retain source selection without an
+            // entered frame. The independently checked phase owns the caller.
+            let declared =
+                observation.frame.is_none() && original.as_ref() == Some(&observation.source);
+            if observation.frame.as_ref() != Some(&self.frame) && !declared {
                 continue;
             }
             if selected

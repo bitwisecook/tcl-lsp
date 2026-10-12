@@ -1,0 +1,28 @@
+{
+  "kind": "compiler-regression",
+  "command": "source /tmp/name-env.sh\nCARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test --offline -j2 -p tcl-compiler --lib command_binding::declaration_flow::tests::lifecycle_subcommand_schedules_its_original_phase_scripts -- --exact --nocapture",
+  "cwd": "/workspace/tcl-lsp",
+  "started_utc": "2026-10-12T17:42:29.413332+00:00",
+  "elapsed_seconds": 182.321,
+  "exit_code": 0,
+  "source_hashes": {
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+    "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d"
+  },
+  "streams": {
+    "regression.stdout": {
+      "path": "regression.stdout",
+      "sha256": "edeb4a256e7eb09683c710b1e4afc981fb4b1cb8322a29833133c83d959ca16f"
+    },
+    "regression.stderr": {
+      "path": "regression.stderr",
+      "sha256": "123c9412b089f123bdb8ea8e58f990a3e40621c9426a1e4efe00e0a112533c25"
+    }
+  },
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  },
+  "final_source_after_matches_frozen": true
+}

@@ -5840,7 +5840,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_command_substitution_value() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_skips_expr_with_command_call() {
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("set x [expr {[clock seconds] + 1}]\nset x 2\nputs $x");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "set x [expr {[clock seconds] + 1}]\nset x 2\nputs $x",
+    );
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -6016,7 +6018,9 @@ fn emit_cfg_ssa_diagnostics_w220_skips_unreachable_block() {
     let mut a = Analyser::new();
     // ``if {0} { ... }`` makes the then-branch unreachable
     // under SCCP.  Any dead store inside is suppressed.
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("if {0} {\n  set x 1\n  set x 2\n  puts $x\n}\nputs done");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "if {0} {\n  set x 1\n  set x 2\n  puts $x\n}\nputs done",
+    );
     let w220s: Vec<_> = a
         .result
         .diagnostics
@@ -6179,7 +6183,9 @@ fn emit_cfg_ssa_diagnostics_w211_skipped_for_textually_referenced() {
     // textual-reference filter should suppress W211 because
     // the def-use builder doesn't track ``"$msg"`` reads.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc foo {} { set msg hello; puts \"got $msg\" }");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "proc foo {} { set msg hello; puts \"got $msg\" }",
+    );
     let w211s: Vec<_> = a
         .result
         .diagnostics
@@ -6776,7 +6782,9 @@ fn emit_cfg_ssa_diagnostics_w210_read_after_unset() {
     // (the killed real version is undef at its use, like a version-0
     // origin).
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc f {} {\n    set a 1\n    unset a\n    puts $a\n}");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "proc f {} {\n    set a 1\n    unset a\n    puts $a\n}",
+    );
     assert!(
         a.result
             .diagnostics
@@ -7142,7 +7150,9 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
     // so the top-level read should not flag W210 — the proc
     // may run before the read.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc init {} { set ::counter 0 }\nputs $counter");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "proc init {} { set ::counter 0 }\nputs $counter",
+    );
     assert!(
         !a.result
             .diagnostics
@@ -7159,7 +7169,9 @@ fn emit_cfg_ssa_diagnostics_w210_suppressed_via_global_alias() {
     // ``global`` declaration aliases the proc-local ``counter``
     // to the global.  Top-level read should not flag W210.
     let mut a = Analyser::new();
-    a.emit_cfg_ssa_diagnostics_standalone_for_test("proc init {} { global counter; set counter 0 }\nputs $counter");
+    a.emit_cfg_ssa_diagnostics_standalone_for_test(
+        "proc init {} { global counter; set counter 0 }\nputs $counter",
+    );
     assert!(
         !a.result
             .diagnostics
@@ -13307,6 +13319,28 @@ fn tcltest_shared_frame_keeps_genuine_undefined_reads_and_data_opaque() {
             unattested_undefined.is_empty(),
             "{profile}: a package requirement alone cannot authenticate callback entry: {unattested_undefined:?}"
         );
+    }
+}
+
+#[test]
+fn tcltest_oracle_program_keeps_missing_reads_and_setup_completion() {
+    let source =
+        include_str!("../../../../../experiments/name-handling/tcltest-shared-frame/probe.tcl");
+    for profile in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let result = crate::provider_fixtures::analyse(
+            source,
+            profile,
+            &[crate::provider_fixtures::Provider::Tcltest],
+        );
+        let undefined = result
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| diagnostic.code == DiagCode::W210)
+            .collect::<Vec<_>>();
+        assert_eq!(undefined.len(), 2, "{profile}/{undefined:?}");
+        for diagnostic in undefined {
+            assert_eq!(&source[diagnostic.span.as_range()], "$absent", "{profile}");
+        }
     }
 }
 

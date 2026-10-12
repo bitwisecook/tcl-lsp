@@ -34,6 +34,7 @@ pub(super) struct BodyEffectProjection {
 struct BodyWalk<'context, 'source> {
     context: &'context AdviceInvocationContext<'source>,
     visited: usize,
+    unavailable_lifecycle_effects: bool,
     inventory: Option<OriginalSourceTransitionAdviceTape>,
     authored_prefixes: OriginalSourceTransitionAdviceTape,
     source_body: Option<Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
@@ -70,6 +71,47 @@ pub(super) fn original_operand_effects(native: &[NativeWord]) -> Vec<OriginalOpe
 }
 
 impl AdviceInvocationContext<'_> {
+    /// Caller coordinates describe source phases under the selected stock
+    /// descriptor, independently of actual provider, entry or phase effects.
+    pub(super) fn retain_c_source_lifecycle_inventory(
+        &self,
+        tape: &mut OriginalSourceTransitionAdviceTape,
+        graph: &AdviceGraph,
+        invocation: AdviceInvocation<'_>,
+        schema: &tcl_registry::ResolvedInvocation<'_, '_>,
+        parent: Option<&Arc<crate::registry_invocation::OriginalSourceScriptBody>>,
+        depth: usize,
+    ) -> bool {
+        if depth > MAX_DEPTH || self.c_source_lifecycle_selection(graph, schema).is_none() {
+            return false;
+        }
+        let Some(mut advice) = self.schema_advice(invocation, graph, schema) else {
+            return false;
+        };
+        advice.c_source_body = parent.cloned();
+        advice.obligations.push(
+            SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability,
+        );
+        let mut branch = graph.clone();
+        branch.record_uncertainty(invocation.native);
+        let mut walk = BodyWalk {
+            context: self,
+            visited: 0,
+            unavailable_lifecycle_effects: false,
+            inventory: Some(OriginalSourceTransitionAdviceTape::default()),
+            authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
+            source_body: None,
+        };
+        if walk.regions(&mut branch, &advice, schema, depth).is_some()
+            && let Some(inventory) = walk.inventory
+        {
+            let retained = !inventory.represented.is_empty();
+            tape.extend_inventory(inventory);
+            return retained;
+        }
+        false
+    }
+
     /// Reuse the original executable arena before selecting source head advice.
     /// Known child transitions are processed; unresolved variable/observer
     /// effects stay separate from the post-operand execution lookup.
@@ -89,6 +131,7 @@ impl AdviceInvocationContext<'_> {
             let mut walk = BodyWalk {
                 context: self,
                 visited: 0,
+                unavailable_lifecycle_effects: false,
                 inventory: matches!(self.policy, AdviceNamingPolicy::Logical(_))
                     .then(OriginalSourceTransitionAdviceTape::default),
                 source_body: None,
@@ -113,9 +156,18 @@ impl AdviceInvocationContext<'_> {
         let mut walk = BodyWalk {
             context: self,
             visited: 0,
-            inventory: (matches!(self.policy, AdviceNamingPolicy::Logical(_))
+            unavailable_lifecycle_effects: false,
+            inventory: ((matches!(self.policy, AdviceNamingPolicy::Logical(_))
                 && schema.semantics.body_kind == tcl_registry::BodyKind::Plain)
-                .then(OriginalSourceTransitionAdviceTape::default),
+                || (graph.c_source_namespace.is_some()
+                    && !graph.native_baseline
+                    && (schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                        || (schema.semantics.body_kind == tcl_registry::BodyKind::Structural
+                            && schema
+                                .semantics
+                                .traits
+                                .contains(tcl_registry::Traits::DECLARES_NAMESPACE)))))
+            .then(OriginalSourceTransitionAdviceTape::default),
             source_body: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
         };
@@ -176,7 +228,9 @@ impl AdviceInvocationContext<'_> {
         };
         inventory.extend_inventory(walk.authored_prefixes);
         BodyEffectProjection {
-            effects_complete: expressions_complete && regions_complete,
+            effects_complete: expressions_complete
+                && regions_complete
+                && !walk.unavailable_lifecycle_effects,
             inventory,
         }
     }
@@ -218,7 +272,17 @@ impl BodyWalk<'_, '_> {
         if interpreter != tcl_registry::world_effect::InterpreterScope::Current {
             return None;
         }
-        let regions = words.source_script_bodies_for_mutation_coverage(self.context.context);
+        let lifecycle = advice.obligations().contains(
+            &SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability,
+        ) && self
+            .context
+            .c_source_lifecycle_selection(graph, schema)
+            .is_some();
+        let regions = if lifecycle {
+            Some(words.source_script_bodies(self.context.context))
+        } else {
+            words.source_script_bodies_for_mutation_coverage(self.context.context)
+        };
         #[cfg(test)]
         trace_body_inventory(
             "regions.coverage",
@@ -240,27 +304,38 @@ impl BodyWalk<'_, '_> {
                 return None;
             }
             let span = region.content_span();
-            // A changing Logical namespace uses the same original scope
-            // recipe as body assistance; no Native frame or execution follows.
+            // Changing namespace source coordinates retain their independently
+            // selected policy; no frame or body execution follows.
             let mut branch = original.clone();
             if span.start() != span.end()
                 && schema.semantics.body_kind != tcl_registry::BodyKind::Plain
+                && !lifecycle
             {
-                let selected = self.context.logical_namespace_scope(
-                    &original,
-                    AdviceInvocation {
-                        native: advice.original_words(),
-                        head: advice.original_head(),
-                        arguments: advice.arguments(),
-                        lineage: advice.lineage(),
-                    },
-                    schema,
-                )?;
-                branch.logical_namespace = Some(selected.namespace().clone());
+                let invocation = AdviceInvocation {
+                    native: advice.original_words(),
+                    head: advice.original_head(),
+                    arguments: advice.arguments(),
+                    lineage: advice.lineage(),
+                };
+                match self.context.policy {
+                    AdviceNamingPolicy::Logical(_) => {
+                        let selected = self
+                            .context
+                            .logical_namespace_scope(&original, invocation, schema)?;
+                        branch.logical_namespace = Some(selected.namespace().clone());
+                    }
+                    AdviceNamingPolicy::Native(_) => {
+                        branch.c_source_namespace = Some(
+                            self.context
+                                .c_source_namespace_scope(&original, invocation, schema)?,
+                        );
+                    }
+                }
             }
             let source_body = (self.inventory.is_some()
-                && schema.semantics.body_kind == tcl_registry::BodyKind::Plain)
-                .then(|| Arc::new(region));
+                && (schema.semantics.body_kind == tcl_registry::BodyKind::Plain
+                    || branch.c_source_namespace.is_some()))
+            .then(|| Arc::new(region));
             let parent = std::mem::replace(&mut self.source_body, source_body);
             let walked = self.script(&mut branch, span, depth);
             self.source_body = parent;
@@ -289,6 +364,26 @@ impl BodyWalk<'_, '_> {
                 } else {
                     graph.cells.insert(key.clone(), AdviceCell::Shadowed);
                 }
+            }
+        }
+        for namespace in original
+            .namespace_paths
+            .keys()
+            .chain(branch.namespace_paths.keys())
+        {
+            if original.namespace_paths.get(namespace) != branch.namespace_paths.get(namespace) {
+                graph.unknown_paths.insert(namespace.clone());
+                graph.namespace_paths.remove(namespace);
+            }
+        }
+        for namespace in original
+            .namespace_exports
+            .keys()
+            .chain(branch.namespace_exports.keys())
+        {
+            if original.namespace_exports.get(namespace) != branch.namespace_exports.get(namespace)
+            {
+                graph.unknown_exports.insert(namespace.clone());
             }
         }
         for operation in branch.uncertain_operations {
@@ -366,7 +461,11 @@ impl BodyWalk<'_, '_> {
                 }
                 AdviceNamingPolicy::Logical(_) => None,
                 AdviceNamingPolicy::Native(_) => {
-                    tcl_syntax::expr::checked_expression_substitutions(source, &context)
+                    if graph.c_source_namespace.is_some() && !graph.native_baseline {
+                        tcl_syntax::expr::checked_source_expression_substitutions(source, &context)
+                    } else {
+                        tcl_syntax::expr::checked_expression_substitutions(source, &context)
+                    }
                 }
             };
             #[cfg(test)]
@@ -474,6 +573,7 @@ impl BodyWalk<'_, '_> {
     ) -> Option<()> {
         self.mark_child_header(native)?;
         if let (Some(tape), Some(body)) = (&mut self.inventory, &self.source_body)
+            && matches!(self.context.policy, AdviceNamingPolicy::Logical(_))
             && self.context.retain_original_body_constructor_calls(
                 tape,
                 graph,
@@ -538,7 +638,27 @@ impl BodyWalk<'_, '_> {
             lineage: &lineage,
         };
         self.retain_child_schema(graph, invocation, &schema)?;
+        let retained_lifecycle = if let Some(tape) = &mut self.inventory {
+            self.context.retain_c_source_lifecycle_inventory(
+                tape,
+                graph,
+                invocation,
+                &schema,
+                self.source_body.as_ref(),
+                depth.saturating_add(1),
+            )
+        } else {
+            false
+        };
         self.apply_original_body_class_effects(graph, &command, invocation, &schema, class_handle);
+        if retained_lifecycle {
+            // The independent SOURCE walk above owns these conditional phases.
+            // Mutation coverage cannot duplicate it without its applicability,
+            // and it cannot prove the provider, phase entry or phase effects.
+            graph.record_uncertainty(&native.words);
+            self.unavailable_lifecycle_effects = true;
+            return Some(());
+        }
         let immediate = schema
             .authored_source_argument_roles()
             .0
@@ -566,6 +686,9 @@ impl BodyWalk<'_, '_> {
         graph: &AdviceGraph,
         native: &[NativeWord],
     ) -> Option<super::source_instance::PendingSourceClassHandle> {
+        if !matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+            return None;
+        }
         let tape = self.inventory.as_ref()?;
         let written = original_words(native, self.context.policy)?;
         let update = self
@@ -590,6 +713,9 @@ impl BodyWalk<'_, '_> {
             .as_ref()
             .and(self.source_body.as_ref())
             .and_then(|body| {
+                if !matches!(self.context.policy, AdviceNamingPolicy::Logical(_)) {
+                    return None;
+                }
                 self.context.source_class_declaration_in_body(
                     graph,
                     invocation,
@@ -626,10 +752,7 @@ impl BodyWalk<'_, '_> {
         }
         let retained_producer = if let Some(body) = &self.source_body {
             let mut advice = self.context.schema_advice(invocation, graph, schema)?;
-            advice.logical_body = Some(Arc::clone(body));
-            advice
-                .obligations
-                .push(SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability);
+            Self::retain_source_body(self.context.policy, &mut advice, body);
             Some(advice)
         } else {
             None
@@ -654,10 +777,7 @@ impl BodyWalk<'_, '_> {
             return Some(());
         }
         let mut advice = self.context.schema_advice(invocation, graph, schema)?;
-        advice.logical_body = Some(Arc::clone(body));
-        advice
-            .obligations
-            .push(SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability);
+        Self::retain_source_body(self.context.policy, &mut advice, body);
         if let Some(previous) = tape.advice.get(&advice.site.offset) {
             if previous != &advice {
                 tape.advice.remove(&advice.site.offset);
@@ -676,6 +796,33 @@ impl BodyWalk<'_, '_> {
         );
         tape.advice.insert(advice.site.offset, advice);
         Some(())
+    }
+
+    fn retain_source_body(
+        policy: &AdviceNamingPolicy,
+        advice: &mut OriginalSourceCommandTransitionAdvice,
+        body: &Arc<crate::registry_invocation::OriginalSourceScriptBody>,
+    ) {
+        match policy {
+            AdviceNamingPolicy::Logical(_) => {
+                advice.logical_body = Some(Arc::clone(body));
+                advice
+                    .obligations
+                    .push(SourceCommandTransitionObligation::ConditionalLogicalBodyApplicability);
+            }
+            AdviceNamingPolicy::Native(_) => {
+                advice.c_source_body = Some(Arc::clone(body));
+                advice
+                    .obligations
+                    .push(SourceCommandTransitionObligation::ConditionalCBodyApplicability);
+                if matches!(body.source_words().source(),
+                    crate::registry_invocation::source_structure::OriginalRegistrySource::SourceTransitions(parent)
+                    if parent.obligations().contains(&SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability))
+                {
+                    advice.obligations.push(SourceCommandTransitionObligation::ConditionalCapturedLifecycleSourceApplicability);
+                }
+            }
+        }
     }
 
     fn mark_child_header(&mut self, native: &NativeScriptCommandWords) -> Option<()> {
@@ -1246,6 +1393,7 @@ mod original_expression_purpose_frontier_tests {
         let mut logical = BodyWalk {
             context: &owner,
             visited: 0,
+            unavailable_lifecycle_effects: false,
             inventory: Some(OriginalSourceTransitionAdviceTape::default()),
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,
@@ -1271,6 +1419,7 @@ mod original_expression_purpose_frontier_tests {
         let mut native = BodyWalk {
             context: &native_owner,
             visited: 0,
+            unavailable_lifecycle_effects: false,
             inventory: None,
             authored_prefixes: OriginalSourceTransitionAdviceTape::default(),
             source_body: None,

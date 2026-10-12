@@ -1,0 +1,28 @@
+{
+  "kind": "compiler-check",
+  "command": "source /tmp/name-env.sh\nCARGO_TARGET_DIR=/workspace/tcl-lsp/tmp/name-target-issues timeout 300s cargo test --offline -j2 -p tcl-compiler --lib command_binding::original_command_table::advice_slot_tests::conditional_catalogue_imports_follow_retained_original_implementations -- --exact --nocapture",
+  "cwd": "/workspace/tcl-lsp",
+  "started_utc": "2026-10-12T17:48:43.367426+00:00",
+  "elapsed_seconds": 0.863,
+  "exit_code": 0,
+  "counts": {
+    "passed": 1,
+    "failed": 0
+  },
+  "source_hashes": {
+    "rust/tcl-compiler/src/command_binding/declaration_flow.rs": "cca527f7171f2b57d25809b4770aeec3448aaa996470de5a4758951273a23dbf",
+    "rust/tcl-compiler/src/command_binding/lifecycle_advice.rs": "f0ca6b904f4520325386215fc4ced6561ef6affd1d9eef7baa1a9340b852e6ea",
+    "rust/tcl-compiler/src/registry_invocation/declaration_flow.rs": "d58c2fe4ec76644eb9ba341710456721d6800a49e05444a5bdfd18db0cb9ef8d"
+  },
+  "streams": {
+    "retained-original-import-selected-1.stdout": {
+      "path": "retained-original-import-selected-1.stdout",
+      "sha256": "7b7c7b76d51796cbe990f9ec27a1f5f4bd862a80c3c1e77735465d212707663a"
+    },
+    "retained-original-import-selected-1.stderr": {
+      "path": "retained-original-import-selected-1.stderr",
+      "sha256": "543a905465b4cd08ac632f8ca3626c63293a5fa5ebd87c7f92fa562bc0b86b22"
+    }
+  },
+  "final_source_after_matches_frozen": true
+}
