@@ -309538,8 +309538,8 @@
         },
         {
           "path": "runtime/rust/src/interp/native_body_artifact.rs",
-          "symbol": "Interp::body_read_original_parts",
-          "purpose": "Retain original compound operands through the actual body Read owner rather than using a write-only presenter."
+          "symbol": "Interp::body_read_original_parts_using",
+          "purpose": "Retain original compound operands and the actual BodyObjectOperation stage through the shared Read worker and its Read-specific failure presenter; source observations supply no private allocation identity or compiled-body admission."
         }
       ],
       "replay": {
